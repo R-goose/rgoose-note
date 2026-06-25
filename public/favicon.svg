@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5a9e7a"/>
+      <stop offset="100%" stop-color="#4a8568"/>
+    </linearGradient>
+    <linearGradient id="noteGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f0f7f2"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="6" y="6" width="116" height="116" rx="30" fill="url(#bgGrad)"/>
+
+  <g transform="translate(34, 38)">
+    <path d="M8 10 Q8 4 14 4 L46 4 Q52 4 52 10 L52 52 Q52 58 46 58 L14 58 Q8 58 8 52 Z"
+          fill="url(#noteGrad)" stroke="#ffffff" stroke-width="1.5" stroke-linejoin="round" opacity="0.95"/>
+    <line x1="16" y1="18" x2="44" y2="18" stroke="#5a9e7a" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+    <line x1="16" y1="26" x2="44" y2="26" stroke="#5a9e7a" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+    <line x1="16" y1="34" x2="38" y2="34" stroke="#5a9e7a" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+  </g>
+
+  <g transform="translate(58, 20)">
+    <path d="M22 70 Q10 68 8 55 Q6 42 12 30 Q16 22 22 22 Q28 22 30 28 Q34 38 32 50 Q30 62 28 68 Q26 72 22 70 Z"
+          fill="#ffffff" stroke="#ffffff" stroke-width="1" stroke-linejoin="round" opacity="0.98"/>
+
+    <ellipse cx="26" cy="16" rx="13" ry="12" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
+
+    <path d="M38 14 L50 12 Q52 12 52 14 Q52 16 50 17 L40 20 Z"
+          fill="#f5a623" stroke="#e8941d" stroke-width="0.8" stroke-linejoin="round"/>
+
+    <circle cx="30" cy="14" r="2.5" fill="#2d332f"/>
+    <circle cx="30.8" cy="13.3" r="0.8" fill="#ffffff"/>
+
+    <path d="M10 38 Q4 34 6 24 Q8 18 14 20 Q12 28 16 36 Q14 42 10 38 Z"
+          fill="#ffffff" stroke="#ffffff" stroke-width="0.5" opacity="0.9"/>
+
+    <line x1="16" y1="66" x2="15" y2="76" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="28" y1="66" x2="29" y2="76" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
+
+    <path d="M13 76 L10 82 M18 76 L21 82" stroke="#f5a623" stroke-width="2" stroke-linecap="round"/>
+    <path d="M26 76 L23 82 M31 76 L34 82" stroke="#f5a623" stroke-width="2" stroke-linecap="round"/>
+  </g>
+</svg>
