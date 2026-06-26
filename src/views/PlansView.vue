@@ -19,48 +19,48 @@
     <div class="plans-content">
       <div v-if="overduePlans.length" class="plan-section">
         <h3 class="section-title overdue">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <circle cx="12" cy="12" r="10"/>
             <polyline points="12 6 12 12 16 14"/>
           </svg>
-          已逾期 ({{ overduePlans.length }})
+          逾期
         </h3>
         <div class="plan-list">
           <PlanItem
             v-for="plan in overduePlans"
             :key="plan.id"
             :plan="plan"
-            @toggle="toggleComplete"
+            @toggle="togglePlan"
             @edit="editPlan"
-            @delete="confirmDelete"
+            @delete="deletePlan"
           />
         </div>
       </div>
       
       <div v-if="todayPlans.length" class="plan-section">
         <h3 class="section-title today">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M8 2v4"/>
+            <path d="M16 2v4"/>
             <rect x="3" y="4" width="18" height="18" rx="2"/>
-            <line x1="16" y1="2" x2="16" y2="6"/>
-            <line x1="8" y1="2" x2="8" y2="6"/>
-            <line x1="3" y1="10" x2="21" y2="10"/>
+            <path d="M3 10h18"/>
           </svg>
-          今天 ({{ todayPlans.length }})
+          今天
         </h3>
         <div class="plan-list">
           <PlanItem
             v-for="plan in todayPlans"
             :key="plan.id"
             :plan="plan"
-            @toggle="toggleComplete"
+            @toggle="togglePlan"
             @edit="editPlan"
-            @delete="confirmDelete"
+            @delete="deletePlan"
           />
         </div>
       </div>
       
       <div class="plan-section">
-        <h3 class="section-title">
+        <h3 class="section-title all">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <line x1="8" y1="6" x2="21" y2="6"/>
             <line x1="8" y1="12" x2="21" y2="12"/>
@@ -71,262 +71,156 @@
           </svg>
           全部计划
         </h3>
-        
-        <div v-if="activePlans.length || completedPlans.length" class="plan-list">
+        <div class="plan-list">
           <PlanItem
             v-for="plan in activePlans"
             :key="plan.id"
             :plan="plan"
-            @toggle="toggleComplete"
+            @toggle="togglePlan"
             @edit="editPlan"
-            @delete="confirmDelete"
+            @delete="deletePlan"
           />
           
-          <div v-if="completedPlans.length" class="completed-header" @click="showCompleted = !showCompleted">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              :style="{ transform: showCompleted ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }"
-            >
-              <polyline points="9 18 15 12 9 6"/>
+          <div v-if="completedPlans.length" class="completed-header completed" @click="showCompleted = !showCompleted">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline :points="showCompleted ? '18 15 12 9 6 15' : '6 9 12 15 18 9'"/>
             </svg>
-            <span>已完成 ({{ completedPlans.length }})</span>
+            已完成 ({{ completedPlans.length }})
           </div>
           
-          <div v-show="showCompleted">
+          <div v-show="showCompleted" class="plan-list completed-list">
             <PlanItem
               v-for="plan in completedPlans"
               :key="plan.id"
               :plan="plan"
-              @toggle="toggleComplete"
+              @toggle="togglePlan"
               @edit="editPlan"
-              @delete="confirmDelete"
+              @delete="deletePlan"
             />
           </div>
-        </div>
-        
-        <div v-else class="empty-state">
-          <svg viewBox="0 0 200 200" fill="none">
-            <rect x="40" y="30" width="120" height="140" rx="10" fill="#eef0f7"/>
-            <rect x="50" y="50" width="60" height="8" rx="4" fill="#d1d5db"/>
-            <rect x="50" y="70" width="100" height="6" rx="3" fill="#e5e7eb"/>
-            <rect x="50" y="85" width="80" height="6" rx="3" fill="#e5e7eb"/>
-            <rect x="50" y="110" width="20" height="20" rx="4" fill="#7ed6a3" opacity="0.5"/>
-            <path d="M55 120 L59 124 L67 114" stroke="#7ed6a3" stroke-width="2" stroke-linecap="round"/>
-            <rect x="50" y="140" width="20" height="20" rx="4" fill="#7ed6a3"/>
-            <path d="M55 150 L59 154 L67 144" stroke="white" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-          <p>还没有计划，创建一个开始规划吧</p>
-          <button class="btn btn-primary" @click="showAddModal = true">创建计划</button>
         </div>
       </div>
     </div>
     
-    <div v-if="showAddModal || showEditModal" class="modal-overlay" @click.self="closeModals">
-      <div class="modal-content plan-modal">
-        <h3>{{ showEditModal ? '编辑计划' : '新建计划' }}</h3>
-        
-        <input
-          v-model="formData.title"
-          type="text"
-          class="input title-input"
-          placeholder="计划标题"
-        />
-        
-        <textarea
-          v-model="formData.description"
-          class="input desc-input"
-          placeholder="详细描述（可选）"
-          rows="3"
-        ></textarea>
-        
-        <div class="form-row">
+    <Teleport to="body">
+      <div v-if="showAddModal || editingPlan" class="modal-overlay" @click.self="closeModal">
+        <div class="modal-content plan-modal">
+          <h3>{{ editingPlan ? '编辑计划' : '新建计划' }}</h3>
+          <input
+            v-model="form.title"
+            type="text"
+            class="input title-input"
+            placeholder="计划标题"
+            maxlength="100"
+          />
+          <textarea
+            v-model="form.description"
+            class="input desc-input"
+            placeholder="描述（可选）"
+            rows="3"
+          ></textarea>
+          
           <div class="form-group">
-            <label>截止日期</label>
-            <input
-              v-model="formData.dueDateStr"
-              type="datetime-local"
-              class="input"
-            />
+            <label>时间</label>
+            <input v-model="form.dueDate" type="datetime-local" class="input" />
           </div>
-        </div>
-        
-        <div class="form-row">
+          
           <div class="form-group">
             <label>优先级</label>
             <div class="priority-options">
               <button
-                v-for="p in priorities"
-                :key="p.value"
+                v-for="option in priorityOptions"
+                :key="option.value"
                 class="priority-btn"
-                :class="{ active: formData.priority === p.value, [p.value]: true }"
-                @click="formData.priority = p.value"
+                :class="[option.value, { active: form.priority === option.value }]"
+                @click="form.priority = option.value"
               >
-                {{ p.label }}
+                {{ option.label }}
               </button>
             </div>
           </div>
-        </div>
-        
-        <div class="form-row">
-          <div class="form-group">
-            <label class="checkbox-label">
-              <input type="checkbox" v-model="formData.hasReminder" />
-              <span>设置提醒</span>
-            </label>
+          
+          <div class="modal-actions">
+            <button class="btn btn-secondary" @click="closeModal">取消</button>
+            <button class="btn btn-primary" @click="savePlan">{{ editingPlan ? '保存' : '创建' }}</button>
           </div>
         </div>
-        
-        <div v-if="formData.hasReminder" class="form-row">
-          <div class="form-group">
-            <label>提醒时间</label>
-            <input
-              v-model="formData.reminderDateStr"
-              type="datetime-local"
-              class="input"
-            />
-          </div>
-        </div>
-        
-        <div class="modal-actions">
-          <button class="btn btn-secondary" @click="closeModals">取消</button>
-          <button class="btn btn-primary" @click="savePlan">
-            {{ showEditModal ? '保存' : '创建' }}
-          </button>
-        </div>
       </div>
-    </div>
-    
-    <div v-if="showDeleteModal" class="modal-overlay" @click.self="showDeleteModal = false">
-      <div class="modal-content" style="padding: 24px; width: 360px;">
-        <h3 style="margin-bottom: 12px; font-size: 18px;">确认删除</h3>
-        <p style="color: var(--text-secondary); margin-bottom: 24px;">确定要删除这个计划吗？</p>
-        <div style="display: flex; gap: 12px; justify-content: flex-end;">
-          <button class="btn btn-secondary" @click="showDeleteModal = false">取消</button>
-          <button class="btn btn-primary" style="background: var(--warning-color);" @click="doDelete">删除</button>
-        </div>
-      </div>
-    </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, reactive } from 'vue'
+import { ref, computed, reactive } from 'vue'
 import { usePlanStore } from '@/stores/plan'
-import { formatDate } from '@/utils'
 import PlanItem from '@/components/PlanItem.vue'
 
 const planStore = usePlanStore()
-
 const showAddModal = ref(false)
-const showEditModal = ref(false)
-const showDeleteModal = ref(false)
+const editingPlan = ref(null)
 const showCompleted = ref(false)
-const editingId = ref(null)
-const deleteTargetId = ref(null)
 
-const formData = reactive({
+const form = reactive({
   title: '',
   description: '',
-  dueDateStr: '',
-  hasReminder: false,
-  reminderDateStr: '',
-  priority: 'normal'
+  dueDate: '',
+  priority: 'medium'
 })
 
-const priorities = [
-  { value: 'high', label: '高' },
-  { value: 'normal', label: '中' },
-  { value: 'low', label: '低' }
+const priorityOptions = [
+  { value: 'low', label: '低' },
+  { value: 'medium', label: '中' },
+  { value: 'high', label: '高' }
 ]
 
 const sortedPlans = computed(() => planStore.sortedPlans)
-const todayPlans = computed(() => planStore.todayPlans)
 const overduePlans = computed(() => planStore.overduePlans)
+const todayPlans = computed(() => planStore.todayPlans)
+const activePlans = computed(() => planStore.activePlans.filter(plan => !todayPlans.value.includes(plan) && !overduePlans.value.includes(plan)))
+const completedPlans = computed(() => planStore.completedPlans)
 
-const activePlans = computed(() => {
-  const todayIds = new Set(todayPlans.value.map(p => p.id))
-  const overdueIds = new Set(overduePlans.value.map(p => p.id))
-  return sortedPlans.value.filter(p => !p.completed && !todayIds.has(p.id) && !overdueIds.has(p.id))
-})
-
-const completedPlans = computed(() => {
-  return sortedPlans.value.filter(p => p.completed)
-})
-
-onMounted(() => {
-  planStore.init()
-  planStore.requestNotificationPermission()
-})
-
-function resetForm() {
-  formData.title = ''
-  formData.description = ''
-  formData.dueDateStr = ''
-  formData.hasReminder = false
-  formData.reminderDateStr = ''
-  formData.priority = 'normal'
+function togglePlan(id) {
+  planStore.togglePlan(id)
 }
 
 function editPlan(plan) {
-  editingId.value = plan.id
-  formData.title = plan.title
-  formData.description = plan.description || ''
-  formData.dueDateStr = plan.dueDate ? formatDate(plan.dueDate, 'YYYY-MM-DDTHH:mm') : ''
-  formData.hasReminder = !!plan.reminder
-  formData.reminderDateStr = plan.reminder ? formatDate(plan.reminder, 'YYYY-MM-DDTHH:mm') : ''
-  formData.priority = plan.priority || 'normal'
-  showEditModal.value = true
+  editingPlan.value = plan
+  form.title = plan.title
+  form.description = plan.description || ''
+  form.dueDate = plan.dueDate ? new Date(plan.dueDate).toISOString().slice(0, 16) : ''
+  form.priority = plan.priority || 'medium'
+}
+
+function deletePlan(id) {
+  planStore.deletePlan(id)
+}
+
+function closeModal() {
+  showAddModal.value = false
+  editingPlan.value = null
+  form.title = ''
+  form.description = ''
+  form.dueDate = ''
+  form.priority = 'medium'
 }
 
 function savePlan() {
-  if (!formData.title.trim()) return
+  if (!form.title.trim()) return
   
-  const options = {
-    description: formData.description,
-    dueDate: formData.dueDateStr ? new Date(formData.dueDateStr).getTime() : null,
-    reminder: formData.hasReminder && formData.reminderDateStr ? new Date(formData.reminderDateStr).getTime() : null,
-    priority: formData.priority
+  const data = {
+    title: form.title.trim(),
+    description: form.description.trim(),
+    dueDate: form.dueDate ? new Date(form.dueDate).getTime() : null,
+    priority: form.priority
   }
   
-  if (showEditModal.value && editingId.value) {
-    planStore.updatePlan(editingId.value, {
-      title: formData.title,
-      ...options
-    })
+  if (editingPlan.value) {
+    planStore.updatePlan(editingPlan.value.id, data)
   } else {
-    planStore.createPlan(formData.title, options)
+    planStore.createPlan(data)
   }
   
-  closeModals()
-}
-
-function toggleComplete(id) {
-  planStore.toggleComplete(id)
-}
-
-function confirmDelete(id) {
-  deleteTargetId.value = id
-  showDeleteModal.value = true
-}
-
-function doDelete() {
-  if (deleteTargetId.value) {
-    planStore.deletePlan(deleteTargetId.value)
-  }
-  showDeleteModal.value = false
-  deleteTargetId.value = null
-}
-
-function closeModals() {
-  showAddModal.value = false
-  showEditModal.value = false
-  editingId.value = null
-  resetForm()
+  closeModal()
 }
 </script>
 
@@ -361,8 +255,12 @@ function closeModals() {
 }
 
 .plan-count {
-  font-size: 13px;
-  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--secondary-dark);
+  background: var(--secondary-softer);
+  padding: 3px 10px;
+  border-radius: 10px;
 }
 
 .plans-content {
@@ -393,40 +291,63 @@ function closeModals() {
   color: var(--warning-color);
 }
 
+.section-title.all {
+  color: var(--info-color);
+}
+
 .plan-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .completed-header {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 12px 8px;
+  padding: 14px 10px 4px;
   font-size: 13px;
   color: var(--text-tertiary);
   cursor: pointer;
-  border-top: 1px solid var(--border-light);
-  margin-top: 12px;
+  border-top: 1px solid rgba(140, 151, 144, 0.12);
+  margin-top: 14px;
   transition: color var(--transition-fast);
+}
+
+.completed-header.completed {
+  color: var(--primary-dark);
+}
+
+.completed-header.completed svg {
+  color: var(--primary-color);
 }
 
 .completed-header:hover {
   color: var(--text-secondary);
 }
 
+.completed-header.completed:hover {
+  color: var(--primary-dark);
+}
+
+.completed-list {
+  margin-top: 8px;
+  opacity: 0.75;
+}
+
 .plan-modal {
-  width: 480px;
-  max-width: 90vw;
-  padding: 24px;
+  width: 520px;
+  max-width: 92vw;
+  padding: 28px;
+  border-radius: var(--radius-xl);
 }
 
 .plan-modal h3 {
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 20px;
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 8px;
   color: var(--text-primary);
+  letter-spacing: -0.02em;
 }
 
 .title-input {
@@ -441,16 +362,18 @@ function closeModals() {
   font-size: 14px;
 }
 
-.form-row {
+.form-group {
   margin-bottom: 16px;
 }
 
 .form-group label {
   display: block;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  margin-bottom: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .priority-options {
@@ -460,107 +383,54 @@ function closeModals() {
 
 .priority-btn {
   flex: 1;
-  padding: 8px 12px;
-  border-radius: var(--radius-md);
-  border: 1.5px solid var(--border-color);
-  background: var(--bg-secondary);
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-light);
+  background: rgba(255,255,255,0.68);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-secondary);
   transition: all var(--transition-fast);
 }
 
 .priority-btn:hover {
-  border-color: var(--primary-light);
+  border-color: var(--text-tertiary);
 }
 
-.priority-btn.active {
-  border-color: var(--primary-color);
-  background: var(--primary-soft);
-  color: var(--primary-color);
+.priority-btn.active.low {
+  background: var(--bg-hover);
+  border-color: var(--text-tertiary);
 }
 
-.priority-btn.high.active {
-  border-color: var(--warning-color);
-  background: rgba(217, 118, 118, 0.1);
-  color: var(--warning-color);
-}
-
-.priority-btn.low.active {
+.priority-btn.active.medium {
+  background: var(--secondary-soft);
   border-color: var(--secondary-color);
-  background: rgba(201, 169, 110, 0.12);
-  color: var(--secondary-color);
+  color: var(--secondary-dark);
 }
 
-.checkbox-label {
-  display: flex !important;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  font-weight: 400 !important;
-  color: var(--text-primary) !important;
-}
-
-.checkbox-label input {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--primary-color);
-}
-
-input[type="datetime-local"] {
-  width: 100%;
-  padding: 10px 14px;
-  border: 1.5px solid var(--border-color);
-  border-radius: var(--radius-md);
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  font-size: 14px;
-  font-family: inherit;
-  transition: all var(--transition-fast);
-  outline: none;
-  box-sizing: border-box;
-}
-
-input[type="datetime-local"]:hover {
-  border-color: var(--primary-light);
-}
-
-input[type="datetime-local"]:focus {
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px var(--primary-soft);
-}
-
-input[type="datetime-local"]::-webkit-calendar-picker-indicator {
-  opacity: 0.6;
-  cursor: pointer;
-  transition: opacity var(--transition-fast);
-}
-
-input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
-  opacity: 1;
+.priority-btn.active.high {
+  background: var(--warning-soft);
+  border-color: var(--warning-color);
+  color: var(--warning-color);
 }
 
 .modal-actions {
   display: flex;
-  gap: 10px;
   justify-content: flex-end;
+  gap: 10px;
   margin-top: 24px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border-light);
 }
 
 @media (max-width: 768px) {
   .view-header {
-    padding: 16px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+    padding: 16px 20px;
   }
-  
+
   .plans-content {
-    padding: 16px;
-  }
-  
-  .plan-modal {
-    width: 100%;
-    margin: 16px;
+    padding: 20px;
   }
 }
 </style>

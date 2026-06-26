@@ -5,42 +5,25 @@
         <svg width="30" height="30" viewBox="0 0 128 128" fill="none">
           <defs>
             <linearGradient id="logoBg" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#4a9568"/>
-              <stop offset="100%" stop-color="#3a7a55"/>
+              <stop offset="0%" stop-color="#6bbd8f"/>
+              <stop offset="100%" stop-color="#52a377"/>
             </linearGradient>
           </defs>
-          <rect x="6" y="6" width="116" height="116" rx="30" fill="url(#logoBg)"/>
-          <g transform="translate(34, 38)">
-            <path d="M8 10 Q8 4 14 4 L46 4 Q52 4 52 10 L52 52 Q52 58 46 58 L14 58 Q8 58 8 52 Z"
-                  fill="#ffffff" stroke="#ffffff" stroke-width="1.5" stroke-linejoin="round" opacity="0.95"/>
-            <line x1="16" y1="18" x2="44" y2="18" stroke="#4a9568" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
-            <line x1="16" y1="26" x2="44" y2="26" stroke="#4a9568" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
-            <line x1="16" y1="34" x2="38" y2="34" stroke="#4a9568" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
-          </g>
-          <g transform="translate(58, 20)">
-            <path d="M22 70 Q10 68 8 55 Q6 42 12 30 Q16 22 22 22 Q28 22 30 28 Q34 38 32 50 Q30 62 28 68 Q26 72 22 70 Z"
-                  fill="#ffffff" stroke="#ffffff" stroke-width="1" stroke-linejoin="round" opacity="0.98"/>
-            <ellipse cx="26" cy="16" rx="13" ry="12" fill="#ffffff" stroke="#ffffff" stroke-width="1"/>
-            <path d="M38 14 L50 12 Q52 12 52 14 Q52 16 50 17 L40 20 Z"
-                  fill="#f5a623" stroke="#e8941d" stroke-width="0.8" stroke-linejoin="round"/>
-            <circle cx="30" cy="14" r="2.5" fill="#2d332f"/>
-            <circle cx="30.8" cy="13.3" r="0.8" fill="#ffffff"/>
-            <path d="M10 38 Q4 34 6 24 Q8 18 14 20 Q12 28 16 36 Q14 42 10 38 Z"
-                  fill="#ffffff" stroke="#ffffff" stroke-width="0.5" opacity="0.9"/>
-            <line x1="16" y1="66" x2="15" y2="76" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
-            <line x1="28" y1="66" x2="29" y2="76" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
-            <path d="M13 76 L10 82 M18 76 L21 82" stroke="#f5a623" stroke-width="2" stroke-linecap="round"/>
-            <path d="M26 76 L23 82 M31 76 L34 82" stroke="#f5a623" stroke-width="2" stroke-linecap="round"/>
-          </g>
+          <rect x="6" y="6" width="116" height="116" rx="28" fill="url(#logoBg)"/>
+          <path d="M 30 84 Q 30 71 47 69 Q 66 67 71 79 Q 73 91 55 92 Q 35 93 30 84 Z" fill="#ffffff"/>
+          <path d="M 60 73 C 71 69, 81 59, 83 44" stroke="#ffffff" stroke-width="9" stroke-linecap="round" fill="none"/>
+          <circle cx="84" cy="40" r="9" fill="#ffffff"/>
+          <path d="M 90 37 L 104 42 L 90 47 Z" fill="#f5a623"/>
+          <circle cx="85" cy="38" r="2" fill="#2d332f"/>
         </svg>
-        <span v-if="!collapsed" class="logo-text">R-Goose<span class="logo-sub">Note</span></span>
+        <span v-if="!collapsed" class="logo-text">R-Goose Note</span>
       </div>
-      <button class="collapse-btn" @click="$emit('toggle-collapse')" :title="collapsed ? '展开侧边栏' : '收起侧边栏'">
-        <svg v-if="collapsed" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <button class="collapse-btn" @click="$emit('toggle-collapse')">
+        <svg v-if="collapsed" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="13 17 18 12 13 7"/>
           <polyline points="6 17 11 12 6 7"/>
         </svg>
-        <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="11 17 6 12 11 7"/>
           <polyline points="18 17 13 12 18 7"/>
         </svg>
@@ -48,7 +31,7 @@
     </div>
     
     <nav class="sidebar-nav">
-      <router-link to="/notes" class="nav-item" active-class="active">
+      <router-link to="/notes" class="nav-item nav-notes" active-class="active">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
           <polyline points="14 2 14 8 20 8"/>
@@ -57,7 +40,7 @@
         </svg>
         <span v-if="!collapsed">笔记</span>
       </router-link>
-      <router-link to="/plans" class="nav-item" active-class="active">
+      <router-link to="/plans" class="nav-item nav-plans" active-class="active">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
           <rect x="3" y="4" width="18" height="18" rx="2"/>
           <line x1="16" y1="2" x2="16" y2="6"/>
@@ -67,7 +50,7 @@
         <span v-if="!collapsed">计划</span>
         <span v-if="!collapsed && todayPlanCount" class="badge">{{ todayPlanCount }}</span>
       </router-link>
-      <router-link to="/settings" class="nav-item" active-class="active">
+      <router-link to="/settings" class="nav-item nav-settings" active-class="active">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
           <circle cx="12" cy="12" r="3"/>
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
@@ -91,7 +74,7 @@
           <div
             class="folder-item"
             :class="{ active: noteStore.currentFolderId === item.folder.id }"
-            :style="{ paddingLeft: (item.depth * 18 + 10) + 'px' }"
+            :style="{ paddingLeft: (item.depth * 18 + 12) + 'px' }"
             @click="selectFolder(item.folder.id)"
             @dblclick.stop="startRenameFolder(item.folder)"
             @contextmenu.prevent="showFolderContextMenu($event, item.folder)"
@@ -132,7 +115,7 @@
           <div
             v-if="isCreatingFolder && newFolderParentId === item.folder.id"
             class="folder-item creating"
-            :style="{ paddingLeft: ((item.depth + 1) * 18 + 10) + 'px' }"
+            :style="{ paddingLeft: ((item.depth + 1) * 18 + 12) + 'px' }"
           >
             <span class="folder-spacer"></span>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -220,7 +203,7 @@
         </div>
       </div>
       
-      <div class="section-header" style="margin-top: 8px;">
+      <div class="section-header" style="margin-top: 12px;">
         <div class="section-title-wrapper">
           <span>最近笔记</span>
           <span v-if="currentFolderName" class="current-folder-tag">{{ currentFolderName }}</span>
@@ -235,409 +218,223 @@
           @click="openNote(note.id)"
         >
           <div class="note-icon">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
               <polyline points="14 2 14 8 20 8"/>
             </svg>
           </div>
           <div class="note-info">
-            <div class="note-title">{{ note.title || '无标题' }}</div>
+            <div class="note-title">{{ note.title || '无标题笔记' }}</div>
             <div class="note-time">
-              <span v-if="getNoteFolderName(note.folderId)" class="note-folder">
-                {{ getNoteFolderName(note.folderId) }}
-              </span>
-              {{ formatTime(note.updatedAt) }}
+              <span>{{ formatTime(note.updatedAt) }}</span>
+              <span v-if="getFolderPath(note.folderId)" class="note-folder">{{ getFolderPath(note.folderId) }}</span>
             </div>
           </div>
         </div>
-        <div v-if="!recentNotes.length" class="empty-mini">
-          暂无笔记
-        </div>
+        <div v-if="!recentNotes.length" class="empty-mini">暂无笔记</div>
       </div>
     </div>
     
-    <div class="sidebar-footer">
-      <div v-if="!collapsed" class="sync-status" @click="showSyncInfo">
-        <div class="sync-dot" :class="{ synced: true }"></div>
-        <span>已同步</span>
-      </div>
-    </div>
-    
-    <div v-if="showDeleteFolderModal" class="modal-overlay" @click.self="cancelDeleteFolder">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>删除文件夹</h3>
-          <button class="modal-close" @click="cancelDeleteFolder">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
+    <div v-if="!collapsed" class="sidebar-footer">
+      <div class="sync-status synced" @click="showSyncInfo">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="sync-dot synced"></div>
+          <span>已同步</span>
         </div>
-        <div class="modal-body">
-          <p class="modal-text">确定要删除文件夹"<strong>{{ deleteFolderName }}</strong>"吗？</p>
-          <div v-if="deleteFolderStats.childFolderCount > 0 || deleteFolderStats.noteCount > 0" class="modal-warning">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-              <line x1="12" y1="9" x2="12" y2="13"/>
-              <line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
-            <div class="warning-text">
-              <p v-if="deleteFolderStats.childFolderCount > 0">包含 {{ deleteFolderStats.childFolderCount }} 个子文件夹</p>
-              <p v-if="deleteFolderStats.noteCount > 0">包含 {{ deleteFolderStats.noteCount }} 篇笔记</p>
-              <p class="warning-hint">删除后所有内容将无法恢复</p>
-            </div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-secondary" @click="cancelDeleteFolder">取消</button>
-          <button class="btn btn-danger" @click="confirmDeleteFolder">确认删除</button>
-        </div>
+        <span>{{ syncStatusText }}</span>
       </div>
     </div>
   </aside>
 </template>
 
 <script setup>
-import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useNoteStore } from '@/stores/note'
 import { usePlanStore } from '@/stores/plan'
-import { formatRelativeTime } from '@/utils'
+import { formatRelativeTime, formatDate } from '@/utils'
 
-const props = defineProps({
-  collapsed: {
-    type: Boolean,
-    default: false
-  }
+defineProps({
+  collapsed: Boolean
 })
 
-const emit = defineEmits(['toggle-collapse'])
+defineEmits(['toggle-collapse'])
 
 const router = useRouter()
 const route = useRoute()
 const noteStore = useNoteStore()
 const planStore = usePlanStore()
 
-const recentNotes = computed(() => noteStore.sortedNotes.slice(0, 10))
-const todayPlanCount = computed(() => planStore.todayPlans.length)
-
-const isCreatingFolder = ref(false)
-const newFolderName = ref('')
-const newFolderParentId = ref(null)
-const newFolderInputRef = ref(null)
-const ignoreNextOutsideClick = ref(false)
-
 const editingFolderId = ref(null)
 const editingFolderName = ref('')
 const folderInputRef = ref(null)
-const originalFolderName = ref('')
-
+const newFolderInputRef = ref(null)
 const folderNameError = ref(false)
+const isCreatingFolder = ref(false)
+const newFolderName = ref('')
+const newFolderParentId = ref(null)
+const folderContextMenu = ref({ show: false, x: 0, y: 0, folder: null })
+const expandedFolderIds = ref(new Set())
 
-const expandedFolders = ref({})
-
-function hasChildFolders(folderId) {
-  return noteStore.getChildFolderCount(folderId) > 0
-}
-
-function isFolderExpanded(folderId) {
-  return !!expandedFolders.value[folderId]
-}
-
-function toggleFolderExpand(event, folderId) {
-  event.stopPropagation()
-  expandedFolders.value = {
-    ...expandedFolders.value,
-    [folderId]: !expandedFolders.value[folderId]
-  }
-}
-
-const folderContextMenu = ref({
-  show: false,
-  x: 0,
-  y: 0,
-  folderId: null
-})
-
-const showDeleteFolderModal = ref(false)
-const deleteFolderTarget = ref(null)
-
-const deleteFolderName = computed(() => {
-  if (!deleteFolderTarget.value) return ''
-  const folder = noteStore.folders.find(f => f.id === deleteFolderTarget.value)
-  return folder ? folder.name : ''
-})
-
-const deleteFolderStats = computed(() => {
-  if (!deleteFolderTarget.value) return { childFolderCount: 0, noteCount: 0 }
-  const folderId = deleteFolderTarget.value
-  const childFolderIds = getAllChildFolderIds(folderId)
-  const allFolderIds = [folderId, ...childFolderIds]
-  const noteCount = noteStore.notes.filter(n => allFolderIds.includes(n.folderId)).length
-  return {
-    childFolderCount: childFolderIds.length,
-    noteCount
-  }
-})
-
-function getAllChildFolderIds(parentId) {
-  const result = []
-  const children = noteStore.getChildFolders(parentId)
-  children.forEach(child => {
-    result.push(child.id)
-    result.push(...getAllChildFolderIds(child.id))
-  })
-  return result
-}
-
+const todayPlanCount = computed(() => planStore.todayPlans?.length || 0)
 const currentFolderName = computed(() => {
   if (!noteStore.currentFolderId) return ''
-  const folder = noteStore.folders.find(f => f.id === noteStore.currentFolderId)
-  return folder ? folder.name : ''
+  return noteStore.folders.find(f => f.id === noteStore.currentFolderId)?.name || ''
 })
 
-const visibleFolders = computed(() => {
-  const result = []
-  
-  function traverse(parentId, depth) {
-    const folders = parentId === null 
-      ? noteStore.rootFolders 
-      : noteStore.getChildFolders(parentId)
-    
-    folders.forEach(folder => {
-      result.push({ folder, depth })
-      if (expandedFolders.value[folder.id] && noteStore.getChildFolderCount(folder.id) > 0) {
-        traverse(folder.id, depth + 1)
-      }
-    })
-  }
-  
-  traverse(null, 0)
-  return result
+const visibleFolders = computed(() => noteStore.visibleFolders || [])
+const recentNotes = computed(() => noteStore.recentNotes?.slice(0, 12) || [])
+const syncStatusText = computed(() => {
+  const time = noteStore.lastSyncTime || planStore.lastSyncTime
+  return time ? formatDate(time, 'MM-DD HH:mm') : '刚刚'
 })
 
-function formatTime(timestamp) {
-  return formatRelativeTime(timestamp)
-}
-
-function createNewNote() {
-  const note = noteStore.createNote()
-  router.push(`/note/${note.id}`)
+function selectFolder(id) {
+  noteStore.setCurrentFolder(id)
+  router.push('/notes')
 }
 
 function openNote(id) {
   router.push(`/note/${id}`)
 }
 
-function showSyncInfo() {
-}
-
-function createNewFolder(parentId = null) {
-  cancelEditFolder()
-  closeContextMenu()
-  isCreatingFolder.value = true
-  newFolderName.value = ''
-  newFolderParentId.value = parentId
-  folderNameError.value = false
-  if (parentId) {
-    expandedFolders.value = {
-      ...expandedFolders.value,
-      [parentId]: true
-    }
-  }
-  nextTick(() => {
-    const inputs = document.querySelectorAll('.folder-item.creating .folder-name-input')
-    if (inputs.length > 0) {
-      inputs[inputs.length - 1].focus()
-    }
-  })
-}
-
-function finishCreateFolder() {
-  const name = newFolderName.value.trim()
-  if (!name) {
-    cancelCreateFolder()
-    return
-  }
-  if (noteStore.isFolderNameDuplicate(name, newFolderParentId.value)) {
-    folderNameError.value = true
-    newFolderInputRef.value?.focus()
-    return
-  }
-  noteStore.createFolder(name, newFolderParentId.value)
-  isCreatingFolder.value = false
-  newFolderName.value = ''
-  newFolderParentId.value = null
-  folderNameError.value = false
-}
-
-function cancelCreateFolder() {
-  isCreatingFolder.value = false
-  newFolderName.value = ''
-  newFolderParentId.value = null
-  folderNameError.value = false
-}
-
-function selectFolder(folderId) {
-  if (isCreatingFolder.value || editingFolderId.value) return
-  noteStore.setCurrentFolder(folderId)
-  if (noteStore.getChildFolderCount(folderId) > 0) {
-    expandedFolders.value = {
-      ...expandedFolders.value,
-      [folderId]: true
-    }
-  }
-  if (route.name !== 'notes') {
-    router.push('/notes')
-  }
-  closeContextMenu()
-}
-
 function getFolderNoteCount(folderId) {
-  return noteStore.notes.filter(n => n.folderId === folderId).length
+  return noteStore.getFolderNoteCount?.(folderId) || 0
 }
 
-function getNoteFolderName(folderId) {
-  if (!folderId) return null
-  return noteStore.getFolderPathString(folderId) || null
+function formatTime(timestamp) {
+  return formatRelativeTime(timestamp)
+}
+
+function getFolderPath(folderId) {
+  return noteStore.getFolderPathString?.(folderId)
+}
+
+function isFolderExpanded(folderId) {
+  return expandedFolderIds.value.has(folderId)
+}
+
+function hasChildFolders(folderId) {
+  return noteStore.folders.some(f => f.parentId === folderId)
+}
+
+function toggleFolderExpand(e, folderId) {
+  e.stopPropagation()
+  const next = new Set(expandedFolderIds.value)
+  if (next.has(folderId)) next.delete(folderId)
+  else next.add(folderId)
+  expandedFolderIds.value = next
+}
+
+function validateFolderName(name, excludeId = null, parentId = null) {
+  const trimmed = name.trim()
+  if (!trimmed) return false
+  const duplicated = noteStore.folders.some(folder => (
+    folder.id !== excludeId &&
+    folder.parentId === parentId &&
+    folder.name.trim() === trimmed
+  ))
+  folderNameError.value = duplicated
+  return !duplicated
+}
+
+function onFolderNameInput(e) {
+  const name = e.target.value
+  const excludeId = editingFolderId.value
+  const parentId = editingFolderId.value
+    ? noteStore.folders.find(f => f.id === editingFolderId.value)?.parentId ?? null
+    : newFolderParentId.value
+  validateFolderName(name, excludeId, parentId)
 }
 
 function startRenameFolder(folder) {
-  closeAllEditors()
   editingFolderId.value = folder.id
   editingFolderName.value = folder.name
-  originalFolderName.value = folder.name
   folderNameError.value = false
-  nextTick(() => {
-    folderInputRef.value?.focus()
-    folderInputRef.value?.select()
-  })
+  nextTick(() => folderInputRef.value?.focus())
 }
 
 function finishEditFolder() {
-  const name = editingFolderName.value.trim()
-  if (!name) {
-    cancelEditFolder()
-    return
-  }
-  if (noteStore.isFolderNameDuplicate(name, editingFolderId.value)) {
-    folderNameError.value = true
-    folderInputRef.value?.focus()
-    return
-  }
-  noteStore.renameFolder(editingFolderId.value, name)
-  editingFolderId.value = null
-  editingFolderName.value = ''
-  originalFolderName.value = ''
-  folderNameError.value = false
+  if (!editingFolderId.value) return
+  const folder = noteStore.folders.find(f => f.id === editingFolderId.value)
+  if (!folder) return cancelEditFolder()
+  if (!validateFolderName(editingFolderName.value, folder.id, folder.parentId)) return
+  noteStore.renameFolder(folder.id, editingFolderName.value.trim())
+  cancelEditFolder()
 }
 
 function cancelEditFolder() {
   editingFolderId.value = null
   editingFolderName.value = ''
-  originalFolderName.value = ''
   folderNameError.value = false
 }
 
-function onFolderNameInput() {
+function createNewFolder(parentId = null) {
+  isCreatingFolder.value = true
+  newFolderParentId.value = parentId
+  newFolderName.value = ''
   folderNameError.value = false
+  nextTick(() => newFolderInputRef.value?.focus())
 }
 
-function closeAllEditors() {
+function finishCreateFolder() {
+  if (!isCreatingFolder.value) return
+  if (!validateFolderName(newFolderName.value, null, newFolderParentId.value)) return
+  if (!newFolderName.value.trim()) return cancelCreateFolder()
+  noteStore.createFolder(newFolderName.value.trim(), newFolderParentId.value)
   cancelCreateFolder()
-  cancelEditFolder()
-  closeContextMenu()
+}
+
+function cancelCreateFolder() {
+  isCreatingFolder.value = false
+  newFolderParentId.value = null
+  newFolderName.value = ''
+  folderNameError.value = false
 }
 
 function showFolderContextMenu(e, folder) {
-  closeAllEditors()
-  folderContextMenu.value = {
-    show: true,
-    x: e.clientX,
-    y: e.clientY,
-    folderId: folder.id
-  }
+  folderContextMenu.value = { show: true, x: e.clientX, y: e.clientY, folder }
 }
 
-function closeContextMenu() {
-  folderContextMenu.value.show = false
-  folderContextMenu.value.folderId = null
-}
-
-function renameFromContextMenu() {
-  const folder = noteStore.folders.find(f => f.id === folderContextMenu.value.folderId)
-  if (folder) {
-    startRenameFolder(folder)
-  }
-  closeContextMenu()
-}
-
-function createNoteInFolder() {
-  const folderId = folderContextMenu.value.folderId
-  const note = noteStore.createNote('新笔记', folderId)
-  closeContextMenu()
-  router.push(`/note/${note.id}`)
+function hideFolderContextMenu() {
+  folderContextMenu.value = { show: false, x: 0, y: 0, folder: null }
 }
 
 function createFolderFromMenu() {
-  const parentId = folderContextMenu.value.folderId
-  closeContextMenu()
-  createNewFolder(parentId)
+  createNewFolder(folderContextMenu.value.folder?.id || null)
+  hideFolderContextMenu()
+}
+
+function createNoteInFolder() {
+  const folder = folderContextMenu.value.folder
+  if (folder) noteStore.setCurrentFolder(folder.id)
+  const note = noteStore.createNote()
+  hideFolderContextMenu()
+  router.push(`/note/${note.id}`)
+}
+
+function renameFromContextMenu() {
+  const folder = folderContextMenu.value.folder
+  hideFolderContextMenu()
+  if (folder) startRenameFolder(folder)
 }
 
 function deleteFromContextMenu() {
-  const folderId = folderContextMenu.value.folderId
-  const folder = noteStore.folders.find(f => f.id === folderId)
-  if (!folder) {
-    closeContextMenu()
-    return
-  }
-  deleteFolderTarget.value = folderId
-  showDeleteFolderModal.value = true
-  closeContextMenu()
+  const folder = folderContextMenu.value.folder
+  hideFolderContextMenu()
+  if (folder) noteStore.deleteFolder(folder.id)
 }
 
-function cancelDeleteFolder() {
-  showDeleteFolderModal.value = false
-  deleteFolderTarget.value = null
-}
-
-function confirmDeleteFolder() {
-  if (deleteFolderTarget.value) {
-    noteStore.deleteFolder(deleteFolderTarget.value)
-  }
-  cancelDeleteFolder()
-}
-
-function handleClickOutside(e) {
-  const target = e.target
-  if (target.closest('.folder-list') || target.closest('.folder-context-menu') || target.closest('.section-header')) {
-    return
-  }
-  if (isCreatingFolder.value || editingFolderId.value) {
-    closeAllEditors()
-  }
-}
+function showSyncInfo() {}
 
 onMounted(() => {
-  document.addEventListener('click', handleClickOutside)
+  noteStore.init()
+  planStore.init()
+  document.addEventListener('click', hideFolderContextMenu)
 })
 
-onBeforeUnmount(() => {
-  document.removeEventListener('click', handleClickOutside)
-})
-
-watch(() => route.name, (newName, oldName) => {
-  const isNoteRoute = (name) => name === 'Notes' || name === 'NoteEditor'
-  const wasNoteRoute = isNoteRoute(oldName)
-  const nowNoteRoute = isNoteRoute(newName)
-  
-  if (wasNoteRoute && !nowNoteRoute) {
-    noteStore.saveCurrentFolder()
-  } else if (!wasNoteRoute && nowNoteRoute) {
-    noteStore.restoreLastFolder()
-  }
+onUnmounted(() => {
+  document.removeEventListener('click', hideFolderContextMenu)
 })
 </script>
 
@@ -663,11 +460,6 @@ watch(() => route.name, (newName, oldName) => {
   flex-shrink: 0;
 }
 
-.sidebar.collapsed .sidebar-header {
-  padding: 16px 8px;
-  justify-content: center;
-}
-
 .logo {
   display: flex;
   align-items: center;
@@ -678,8 +470,8 @@ watch(() => route.name, (newName, oldName) => {
 }
 
 .logo > svg {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
 }
 
@@ -690,10 +482,17 @@ watch(() => route.name, (newName, oldName) => {
   letter-spacing: -0.02em;
 }
 
-.logo-sub {
-  color: var(--primary-color);
-  margin-left: 3px;
-  font-weight: 600;
+.collapse-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+}
+
+.collapse-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .sidebar-nav {
@@ -721,10 +520,30 @@ watch(() => route.name, (newName, oldName) => {
   color: var(--text-primary);
 }
 
+.nav-item svg {
+  transition: color var(--transition-fast);
+}
+
+.nav-notes svg { color: var(--primary-color); }
+.nav-plans svg { color: var(--secondary-dark); }
+.nav-settings svg { color: var(--info-color); }
+
+.nav-notes:hover svg { color: var(--primary-dark); }
+.nav-plans:hover svg { color: var(--secondary-dark); }
+.nav-settings:hover svg { color: var(--info-dark); }
+
 .nav-item.active {
   background: var(--primary-soft);
   color: var(--primary-color);
 }
+
+.nav-notes.active { background: var(--primary-soft); color: var(--primary-dark); }
+.nav-plans.active { background: var(--secondary-soft); color: var(--secondary-dark); }
+.nav-settings.active { background: var(--info-soft); color: var(--info-dark); }
+
+.nav-notes.active svg { color: var(--primary-color); }
+.nav-plans.active svg { color: var(--secondary-color); }
+.nav-settings.active svg { color: var(--info-color); }
 
 .badge {
   margin-left: auto;
@@ -758,6 +577,42 @@ watch(() => route.name, (newName, oldName) => {
   letter-spacing: 0.5px;
 }
 
+.section-header > span {
+  position: relative;
+  padding-left: 10px;
+}
+
+.section-header > span::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--primary-light);
+}
+
+.section-title-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.current-folder-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--info-soft);
+  color: var(--info-dark);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
 .folder-list {
   display: flex;
   flex-direction: column;
@@ -765,8 +620,9 @@ watch(() => route.name, (newName, oldName) => {
   padding: 0 4px;
 }
 
-.folder-empty {
-  padding: 20px 10px;
+.folder-empty,
+.empty-mini {
+  padding: 16px 10px;
   text-align: center;
   font-size: 12px;
   color: var(--text-tertiary);
@@ -794,6 +650,23 @@ watch(() => route.name, (newName, oldName) => {
   color: var(--primary-color);
 }
 
+.folder-toggle {
+  width: 12px;
+  height: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform var(--transition-fast);
+}
+
+.folder-toggle.expanded {
+  transform: rotate(90deg);
+}
+
+.folder-spacer {
+  flex-shrink: 0;
+}
+
 .folder-name {
   flex: 1;
   min-width: 0;
@@ -805,19 +678,16 @@ watch(() => route.name, (newName, oldName) => {
 .folder-name-input {
   flex: 1;
   min-width: 0;
-  padding: 3px 8px;
+  padding: 4px 8px;
   font-size: 13px;
   border: 1px solid var(--primary-color);
   border-radius: var(--radius-sm);
   background: var(--bg-secondary);
   color: var(--text-primary);
-  outline: none;
-  box-shadow: 0 0 0 2px var(--primary-soft);
 }
 
 .folder-name-input.error {
   border-color: var(--warning-color);
-  box-shadow: 0 0 0 2px rgba(217, 118, 118, 0.15);
 }
 
 .folder-item.creating {
@@ -841,16 +711,16 @@ watch(() => route.name, (newName, oldName) => {
 
 .folder-count {
   font-size: 11px;
-  color: var(--text-tertiary);
-  background: var(--bg-tertiary);
+  color: var(--secondary-dark);
+  background: var(--secondary-softer);
   padding: 1px 6px;
   border-radius: 10px;
   flex-shrink: 0;
 }
 
 .folder-item.active .folder-count {
-  background: rgba(74, 149, 104, 0.15);
-  color: var(--primary-color);
+  background: rgba(107, 189, 143, 0.18);
+  color: var(--primary-dark);
 }
 
 .btn-icon-small {
@@ -927,6 +797,7 @@ watch(() => route.name, (newName, oldName) => {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
 }
 
 .note-folder {
@@ -943,13 +814,6 @@ watch(() => route.name, (newName, oldName) => {
   text-overflow: ellipsis;
 }
 
-.empty-mini {
-  text-align: center;
-  padding: 20px;
-  font-size: 12px;
-  color: var(--text-tertiary);
-}
-
 .sidebar-footer {
   padding: 12px 20px;
   border-top: 1px solid var(--border-light);
@@ -964,6 +828,10 @@ watch(() => route.name, (newName, oldName) => {
   cursor: pointer;
 }
 
+.sync-status.synced {
+  color: var(--primary-dark);
+}
+
 .sync-dot {
   width: 8px;
   height: 8px;
@@ -973,6 +841,7 @@ watch(() => route.name, (newName, oldName) => {
 
 .sync-dot.synced {
   background: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(107, 189, 143, 0.18);
 }
 
 .folder-context-menu {
@@ -987,22 +856,11 @@ watch(() => route.name, (newName, oldName) => {
   animation: menuFadeIn 0.15s ease;
 }
 
-@keyframes menuFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-4px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
 .context-menu-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 8px 10px;
   border-radius: var(--radius-sm);
   font-size: 13px;
   color: var(--text-primary);
@@ -1018,8 +876,15 @@ watch(() => route.name, (newName, oldName) => {
   color: var(--warning-color);
 }
 
-.context-menu-item.danger:hover {
-  background: rgba(217, 118, 118, 0.1);
+@keyframes menuFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .sidebar.collapsed {
@@ -1031,10 +896,6 @@ watch(() => route.name, (newName, oldName) => {
   justify-content: center;
 }
 
-.sidebar.collapsed .logo {
-  justify-content: center;
-}
-
 .sidebar.collapsed .sidebar-nav {
   padding: 12px 8px;
 }
@@ -1042,270 +903,12 @@ watch(() => route.name, (newName, oldName) => {
 .sidebar.collapsed .nav-item {
   justify-content: center;
   padding: 10px;
-  gap: 0;
 }
 
-.sidebar.collapsed .sidebar-footer {
-  padding: 12px 8px;
-  justify-content: center;
-}
-
-.collapse-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border-radius: var(--radius-md);
-  color: var(--text-tertiary);
-  transition: all var(--transition-fast);
-  flex-shrink: 0;
-}
-
-.collapse-btn svg {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-}
-
-.collapse-btn:hover {
-  background: var(--bg-hover);
-  color: var(--primary-color);
-}
-
-.sidebar.collapsed .collapse-btn {
-  width: 28px;
-}
-
-.folder-child {
-  padding-left: 32px;
-}
-
-.folder-child .folder-toggle {
-  display: inline-flex;
-  width: 16px;
-  height: 16px;
-  align-items: center;
-  justify-content: center;
-  margin-right: 4px;
-  cursor: pointer;
-  color: var(--text-tertiary);
-  transition: transform var(--transition-fast);
-}
-
-.folder-toggle {
-  display: inline-flex;
-  width: 16px;
-  height: 16px;
-  align-items: center;
-  justify-content: center;
-  margin-right: 4px;
-  cursor: pointer;
-  color: var(--text-tertiary);
-  transition: transform var(--transition-fast);
-  flex-shrink: 0;
-}
-
-.folder-toggle.expanded {
-  transform: rotate(90deg);
-}
-
-.folder-spacer {
-  width: 16px;
-  flex-shrink: 0;
-  opacity: 0;
-}
-
-.sidebar.collapsed .folder-list {
-  display: none;
-}
-
-.section-title-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.current-folder-tag {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--primary-color);
-  background: var(--primary-soft);
-  padding: 2px 8px;
-  border-radius: 10px;
-  text-transform: none;
-  letter-spacing: normal;
-  max-width: 100px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10000;
-  animation: fadeIn 0.15s ease;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.modal-content {
-  background: var(--bg-secondary);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  border: 1px solid var(--border-light);
-  width: 420px;
-  max-width: 90vw;
-  overflow: hidden;
-  animation: modalIn 0.2s ease;
-}
-
-@keyframes modalIn {
-  from {
-    opacity: 0;
-    transform: translateY(-8px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px 24px 16px;
-  border-bottom: 1px solid var(--border-light);
-}
-
-.modal-header h3 {
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0;
-}
-
-.modal-close {
-  padding: 4px;
-  border-radius: var(--radius-sm);
-  color: var(--text-tertiary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all var(--transition-fast);
-}
-
-.modal-close:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-.modal-body {
-  padding: 20px 24px;
-}
-
-.modal-text {
-  font-size: 14px;
-  color: var(--text-secondary);
-  margin: 0 0 16px;
-  line-height: 1.5;
-}
-
-.modal-text strong {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-.modal-warning {
-  display: flex;
-  gap: 12px;
-  padding: 14px 16px;
-  background: rgba(217, 118, 118, 0.08);
-  border: 1px solid rgba(217, 118, 118, 0.2);
-  border-radius: var(--radius-md);
-}
-
-.modal-warning > svg {
-  color: var(--warning-color);
-  flex-shrink: 0;
-  margin-top: 1px;
-}
-
-.warning-text {
-  flex: 1;
-}
-
-.warning-text p {
-  font-size: 13px;
-  color: var(--text-secondary);
-  margin: 0 0 4px;
-  line-height: 1.4;
-}
-
-.warning-text p:last-child {
-  margin-bottom: 0;
-}
-
-.warning-hint {
-  color: var(--warning-color) !important;
-  font-weight: 500;
-  margin-top: 6px !important;
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 16px 24px 20px;
-  border-top: 1px solid var(--border-light);
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px 18px;
-  border-radius: var(--radius-md);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  border: 1px solid transparent;
-}
-
-.btn-secondary {
-  background: var(--bg-tertiary);
-  color: var(--text-secondary);
-  border-color: var(--border-light);
-}
-
-.btn-secondary:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-.btn-danger {
-  background: var(--warning-color);
-  color: white;
-  border-color: var(--warning-color);
-}
-
-.btn-danger:hover {
-  background: #c56868;
-  border-color: #c56868;
+.sidebar.collapsed .badge {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  margin-left: 0;
 }
 </style>

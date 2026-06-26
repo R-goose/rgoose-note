@@ -8,12 +8,14 @@
         </transition>
       </router-view>
     </div>
+    <ToastContainer />
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import Sidebar from '@/components/Sidebar.vue'
+import ToastContainer from '@/components/ToastContainer.vue'
 
 const sidebarCollapsed = ref(false)
 

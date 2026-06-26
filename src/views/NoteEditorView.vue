@@ -112,13 +112,47 @@
           @add-note-link="handleAddNoteLinkFromBlock"
           @preview-image="showImagePreview"
           @open-note="openLinkedNote"
+          @resize="onBlockResize"
         />
       </div>
       
       <svg class="connections-layer" :style="canvasTransformStyle">
         <defs>
-          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
-            <polygon points="0 0, 10 3.5, 0 7" fill="context-stroke"/>
+          <marker id="arrow-standard" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/>
+          </marker>
+          <marker id="arrow-standard-start" markerWidth="10" markerHeight="10" refX="1" refY="5" orient="auto">
+            <path d="M 10 0 L 0 5 L 10 10 z" fill="context-stroke"/>
+          </marker>
+          <marker id="arrow-thin" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto">
+            <path d="M 0 3 L 11 6 L 0 9 L 3 6 z" fill="context-stroke"/>
+          </marker>
+          <marker id="arrow-thin-start" markerWidth="12" markerHeight="12" refX="1" refY="6" orient="auto">
+            <path d="M 12 3 L 1 6 L 12 9 L 9 6 z" fill="context-stroke"/>
+          </marker>
+          <marker id="arrow-open" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto">
+            <path d="M 0 0 L 11 6 L 0 12" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </marker>
+          <marker id="arrow-open-start" markerWidth="12" markerHeight="12" refX="1" refY="6" orient="auto">
+            <path d="M 12 0 L 1 6 L 12 12" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </marker>
+          <marker id="arrow-circle" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+            <circle cx="4" cy="4" r="3.5" fill="context-stroke"/>
+          </marker>
+          <marker id="arrow-circle-start" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+            <circle cx="4" cy="4" r="3.5" fill="context-stroke"/>
+          </marker>
+          <marker id="arrow-square" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+            <rect x="0.5" y="0.5" width="7" height="7" fill="context-stroke"/>
+          </marker>
+          <marker id="arrow-square-start" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+            <rect x="0.5" y="0.5" width="7" height="7" fill="context-stroke"/>
+          </marker>
+          <marker id="arrow-diamond" markerWidth="12" markerHeight="10" refX="6" refY="5" orient="auto">
+            <path d="M 0 5 L 6 0 L 12 5 L 6 10 z" fill="context-stroke"/>
+          </marker>
+          <marker id="arrow-diamond-start" markerWidth="12" markerHeight="10" refX="6" refY="5" orient="auto">
+            <path d="M 0 5 L 6 0 L 12 5 L 6 10 z" fill="context-stroke"/>
           </marker>
         </defs>
         
@@ -128,8 +162,9 @@
             :stroke="conn.color"
             :stroke-width="conn.width || 2"
             fill="none"
-            :stroke-dasharray="getStrokeDashArray(conn.style)"
-            :marker-end="`url(#arrowhead)`"
+            :stroke-dasharray="getStrokeDashArray(conn)"
+            :marker-start="getStartMarker(conn)"
+            :marker-end="getEndMarker(conn)"
             class="connection-path"
             @click.stop="selectConnection(conn.id)"
           />
@@ -224,15 +259,25 @@
       </div>
     
     <div v-if="selectedConnectionId" class="connection-toolbar">
-      <span>样式：</span>
+      <span>形状：</span>
       <button
-        v-for="style in lineStyles"
-        :key="style.value"
+        v-for="shape in lineShapes"
+        :key="shape.value"
         class="style-btn"
-        :class="{ active: currentConnectionStyle === style.value }"
-        @click="setConnectionStyle(style.value)"
+        :class="{ active: currentConnectionStyle === shape.value }"
+        @click="setConnectionStyle(shape.value)"
       >
-        {{ style.label }}
+        {{ shape.label }}
+      </button>
+      <span>线型：</span>
+      <button
+        v-for="dash in lineDashTypes"
+        :key="dash.value"
+        class="style-btn"
+        :class="{ active: currentConnectionDash === dash.value }"
+        @click="setConnectionDash(dash.value)"
+      >
+        {{ dash.label }}
       </button>
       <span>线宽：</span>
       <button
@@ -243,6 +288,22 @@
         @click="setConnectionWidth(width.value)"
       >
         {{ width.label }}
+      </button>
+      <span>箭头：</span>
+      <CustomSelect
+        :model-value="currentConnectionArrow"
+        :options="arrowTypes"
+        @update:model-value="setConnectionArrow"
+      />
+      <span>方向：</span>
+      <button
+        v-for="d in arrowDirs"
+        :key="d.value"
+        class="style-btn dir-btn"
+        :class="{ active: currentConnectionDir === d.value }"
+        @click="setConnectionDir(d.value)"
+      >
+        {{ d.label }}
       </button>
       <span>颜色：</span>
       <button
@@ -445,7 +506,11 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useNoteStore } from '@/stores/note'
 import NoteBlock from '@/components/NoteBlock.vue'
+import CustomSelect from '@/components/CustomSelect.vue'
 import interact, { rect } from 'interactjs'
+import { useToast } from '@/composables/useToast'
+
+const { error: toastError } = useToast()
 
 const route = useRoute()
 const router = useRouter()
@@ -466,6 +531,13 @@ const connectMode = ref(false)
 const connectingFrom = ref(null)
 const connectingPosition = ref(null)
 const tempMousePos = ref({ x: 0, y: 0 })
+
+// 块真实尺寸缓存（由 NoteBlock 的 ResizeObserver 上报，响应式驱动连线和碰撞检测）
+const blockSizes = ref({})
+
+function onBlockResize({ id, width, height }) {
+  blockSizes.value = { ...blockSizes.value, [id]: { width, height } }
+}
 
 const draggingBlock = ref(null)
 const dragOffset = ref({ x: 0, y: 0 })
@@ -529,13 +601,33 @@ const contextMenu = ref({
   canvasY: 0
 })
 
-const lineStyles = [
+// 路径形状（直线/曲线）—— 决定连线走直线还是贝塞尔曲线
+const lineShapes = [
   { label: '直线', value: 'straight' },
-  { label: '曲线', value: 'bezier' },
+  { label: '曲线', value: 'bezier' }
+]
+
+// 线型（实线/虚线/点线/双点线）—— 与路径形状正交，可任意组合
+const lineDashTypes = [
+  { label: '实线', value: 'solid' },
   { label: '虚线', value: 'dashed' },
   { label: '点线', value: 'dotted' },
   { label: '双点线', value: 'dot-dash' }
 ]
+
+// 兼容旧数据：从混杂的 style 字段解析出 shape 和 dash
+function resolveConnShape(conn) {
+  if (conn.shape) return conn.shape
+  // 旧 style 字段：bezier → 曲线，其余 → 直线
+  return conn.style === 'bezier' ? 'bezier' : 'straight'
+}
+function resolveConnDash(conn) {
+  if (conn.dash) return conn.dash
+  // 旧 style 字段：dashed/dotted/dot-dash 保留，其余 → solid
+  const s = conn.style
+  if (s === 'dashed' || s === 'dotted' || s === 'dot-dash') return s
+  return 'solid'
+}
 
 const lineWidths = [
   { label: '细', value: '1' },
@@ -544,7 +636,23 @@ const lineWidths = [
   { label: '特粗', value: '4' }
 ]
 
-const lineColors = ['#4a9568', '#7fa8c4', '#c9a96e', '#b88a7a', '#8fa89a', '#a89a7a', '#9a8fa8', '#a87f7f']
+const arrowTypes = [
+  { label: '标准', value: 'standard' },
+  { label: '细箭头', value: 'thin' },
+  { label: '开放', value: 'open' },
+  { label: '圆形', value: 'circle' },
+  { label: '方形', value: 'square' },
+  { label: '菱形', value: 'diamond' }
+]
+
+const arrowDirs = [
+  { label: '→', value: 'forward' },
+  { label: '←', value: 'backward' },
+  { label: '↔', value: 'both' },
+  { label: '—', value: 'none' }
+]
+
+const lineColors = ['#6bbd8f', '#7fa8c4', '#c9a96e', '#b88a7a', '#8fa89a', '#a89a7a', '#9a8fa8', '#a87f7f']
 
 const note = computed(() => {
   const id = route.params.id
@@ -569,13 +677,10 @@ const tempConnectionPath = computed(() => {
   const fromBlock = blocks.value.find(b => b.id === connectingFrom.value)
   if (!fromBlock) return ''
   
-  const fromW = fromBlock.width || 240
-  const fromH = fromBlock.minHeight || 80
+  const { width: fromW, height: fromH } = getBlockSize(connectingFrom.value, fromBlock)
   
   const fromCenterX = fromBlock.x + fromW / 2
   const fromCenterY = fromBlock.y + fromH / 2
-  const fromWidth = fromW / 2
-  const fromHeight = fromH / 2
   
   const toX = tempMousePos.value.x
   const toY = tempMousePos.value.y
@@ -583,15 +688,10 @@ const tempConnectionPath = computed(() => {
   const dx = toX - fromCenterX
   const dy = toY - fromCenterY
   
-  let fromX, fromY
-  
-  if (Math.abs(dx) * fromHeight > Math.abs(dy) * fromWidth) {
-    fromX = fromCenterX + (dx > 0 ? fromWidth : -fromWidth)
-    fromY = fromCenterY + dy * (fromWidth / Math.abs(dx))
-  } else {
-    fromY = fromCenterY + (dy > 0 ? fromHeight : -fromHeight)
-    fromX = fromCenterX + dx * (fromHeight / Math.abs(dy))
-  }
+  // 复用统一的射线相交算法，保证临时连线和正式连线起点一致
+  const from = edgePoint(fromCenterX, fromCenterY, dx, dy, fromW / 2, fromH / 2)
+  const fromX = from.x, fromY = from.y
+  if ([fromX, fromY, toX, toY].some(v => Number.isNaN(v) || !Number.isFinite(v))) return ''
   
   const fromDirX = fromX - fromCenterX
   const fromDirY = fromY - fromCenterY
@@ -608,18 +708,30 @@ const tempConnectionPath = computed(() => {
   return `M ${fromX} ${fromY} Q ${c1x} ${c1y}, ${toX} ${toY}`
 })
 
-const currentLineColor = ref('#4a9568')
+const currentLineColor = ref('#6bbd8f')
 const currentConnectionStyle = computed(() => {
   const conn = connections.value.find(c => c.id === selectedConnectionId.value)
-  return conn?.style || 'straight'
+  return conn ? resolveConnShape(conn) : 'straight'
+})
+const currentConnectionDash = computed(() => {
+  const conn = connections.value.find(c => c.id === selectedConnectionId.value)
+  return conn ? resolveConnDash(conn) : 'solid'
 })
 const currentConnectionColor = computed(() => {
   const conn = connections.value.find(c => c.id === selectedConnectionId.value)
-  return conn?.color || '#4a9568'
+  return conn?.color || '#6bbd8f'
 })
 const currentConnectionWidth = computed(() => {
   const conn = connections.value.find(c => c.id === selectedConnectionId.value)
   return conn?.width || '2'
+})
+const currentConnectionArrow = computed(() => {
+  const conn = connections.value.find(c => c.id === selectedConnectionId.value)
+  return conn?.arrow || 'standard'
+})
+const currentConnectionDir = computed(() => {
+  const conn = connections.value.find(c => c.id === selectedConnectionId.value)
+  return conn?.dir || 'forward'
 })
 
 const contextMenuStyle = computed(() => ({
@@ -1035,6 +1147,86 @@ function onMinimapWheel(e) {
   saveCanvasConfig()
 }
 
+// 读取块的真实渲染尺寸（优先用响应式缓存，确保连线和碰撞检测能自动更新）
+function getBlockSize(blockId, block) {
+  const cached = blockSizes.value[blockId]
+  if (cached && cached.width > 0 && cached.height > 0) {
+    return {
+      width: cached.width / canvasConfig.value.zoom,
+      height: cached.height / canvasConfig.value.zoom
+    }
+  }
+  const el = document.querySelector(`[data-block-id="${blockId}"]`)
+  if (el) {
+    const rect = el.getBoundingClientRect()
+    if (rect.width > 0 && rect.height > 0) {
+      return {
+        width: rect.width / canvasConfig.value.zoom,
+        height: rect.height / canvasConfig.value.zoom
+      }
+    }
+  }
+  return { width: block.width || 240, height: block.minHeight || 60 }
+}
+
+// 轴分离法碰撞检测（滑墙算法）
+// 用块当前位置判断移动方向，实现"撞墙停止 + 沿墙滑动"，支持多块阻挡
+function resolveCollision(blockId, newX, newY) {
+  const current = blocks.value.find(b => b.id === blockId)
+  if (!current) return { x: newX, y: newY }
+
+  const { width, height } = getBlockSize(blockId, current)
+  const origX = current.x
+  const origY = current.y
+  const dx = newX - origX
+  const dy = newY - origY
+
+  let finalX = newX
+  let finalY = newY
+
+  // 先处理X方向：用 (finalX, origY) 测试是否被阻挡
+  if (dx !== 0) {
+    for (const other of blocks.value) {
+      if (other.id === blockId) continue
+      const { width: ow, height: oh } = getBlockSize(other.id, other)
+      const hit =
+        finalX < other.x + ow &&
+        finalX + width > other.x &&
+        origY < other.y + oh &&
+        origY + height > other.y
+      if (hit) {
+        if (dx > 0) {
+          finalX = Math.min(finalX, other.x - width)
+        } else {
+          finalX = Math.max(finalX, other.x + ow)
+        }
+      }
+    }
+  }
+
+  // 再处理Y方向：用 (finalX, finalY) 测试是否被阻挡
+  if (dy !== 0) {
+    for (const other of blocks.value) {
+      if (other.id === blockId) continue
+      const { width: ow, height: oh } = getBlockSize(other.id, other)
+      const hit =
+        finalX < other.x + ow &&
+        finalX + width > other.x &&
+        finalY < other.y + oh &&
+        finalY + height > other.y
+      if (hit) {
+        if (dy > 0) {
+          finalY = Math.min(finalY, other.y - height)
+        } else {
+          finalY = Math.max(finalY, other.y + oh)
+        }
+      }
+    }
+  }
+
+  return { x: finalX, y: finalY }
+}
+
 function onWindowMouseMove(e) {
   if (isPanning.value) {
     canvasConfig.value.offsetX = panStart.value.offsetX + (e.clientX - panStart.value.x)
@@ -1070,61 +1262,9 @@ function onWindowMouseMove(e) {
     // 获取当前块
     const currentBlock = blocks.value.find(b => b.id === draggingBlock.value)
     if (!currentBlock) return
-    
-    const width = currentBlock.width || 240
-    const height = currentBlock.minHeight || 60
-    
-    // 使用 Interact.js 进行碰撞检测
-    let finalX = newX
-    let finalY = newY
-    
-    // 多次迭代确保不重叠
-    for (let iteration = 0; iteration < 3; iteration++) {
-      let moved = false
-      
-      for (const other of blocks.value) {
-        if (other.id === draggingBlock.value) continue
-        
-        const otherWidth = other.width || 240
-        const otherHeight = other.minHeight || 60
-        
-        // 检测 AABB 碰撞
-        if (finalX < other.x + otherWidth &&
-            finalX + width > other.x &&
-            finalY < other.y + otherHeight &&
-            finalY + height > other.y) {
-          
-          // 计算分离向量
-          const overlapX1 = finalX + width - other.x
-          const overlapX2 = other.x + otherWidth - finalX
-          const overlapY1 = finalY + height - other.y
-          const overlapY2 = other.y + otherHeight - finalY
-          
-          const minOverlapX = Math.min(overlapX1, overlapX2)
-          const minOverlapY = Math.min(overlapY1, overlapY2)
-          
-          if (minOverlapX < minOverlapY) {
-            // X方向分离
-            if (overlapX1 < overlapX2) {
-              finalX = other.x - width
-            } else {
-              finalX = other.x + otherWidth
-            }
-          } else {
-            // Y方向分离
-            if (overlapY1 < overlapY2) {
-              finalY = other.y - height
-            } else {
-              finalY = other.y + otherHeight
-            }
-          }
-          moved = true
-        }
-      }
-      
-      if (!moved) break
-    }
-    
+
+    const { x: finalX, y: finalY } = resolveCollision(draggingBlock.value, newX, newY)
+
     noteStore.updateBlock(note.value.id, draggingBlock.value, { x: finalX, y: finalY })
   }
 }
@@ -1342,7 +1482,7 @@ function exportAsImage() {
         toX = toCenterX - dx * (toHeight / Math.abs(dy))
       }
       
-      ctx.strokeStyle = conn.color || '#4a9568'
+      ctx.strokeStyle = conn.color || '#6bbd8f'
       ctx.lineWidth = parseInt(conn.width) || 2
       ctx.beginPath()
       ctx.moveTo(fromX, fromY)
@@ -1396,7 +1536,7 @@ function exportAsImage() {
       if (block.type === 'image') {
         ctx.fillText('[图片]', x + 16, y + 30)
       } else if (block.type === 'note-link') {
-        ctx.fillStyle = '#4a9568'
+        ctx.fillStyle = '#6bbd8f'
         ctx.fillText('🔗 引用笔记', x + 16, y + 30)
       } else if (block.content) {
         const text = block.content.replace(/<[^>]*>/g, '').slice(0, 50)
@@ -1486,7 +1626,7 @@ function onImageFileSelect(e) {
   }
   reader.onerror = () => {
     isImageLoading.value = false
-    alert('图片加载失败，请重试')
+    toastError('图片加载失败，请重试')
   }
   reader.readAsDataURL(file)
   e.target.value = ''
@@ -1653,8 +1793,9 @@ function endConnection(blockId, position) {
   connectingPosition.value = null
 }
 
-function getStrokeDashArray(style) {
-  switch (style) {
+function getStrokeDashArray(conn) {
+  const dash = resolveConnDash(conn)
+  switch (dash) {
     case 'dashed': return '8,4'
     case 'dotted': return '2,4'
     case 'dot-dash': return '2,2,6,2'
@@ -1662,77 +1803,276 @@ function getStrokeDashArray(style) {
   }
 }
 
+function getArrowType(conn) {
+  return conn.arrow || 'standard'
+}
+function getArrowDir(conn) {
+  return conn.dir || 'forward'
+}
+// 终点 marker：forward / both 时显示
+function getEndMarker(conn) {
+  const dir = getArrowDir(conn)
+  if (dir === 'backward' || dir === 'none') return ''
+  return `url(#arrow-${getArrowType(conn)})`
+}
+// 起点 marker：backward / both 时显示（用反向 marker）
+function getStartMarker(conn) {
+  const dir = getArrowDir(conn)
+  if (dir === 'forward' || dir === 'none') return ''
+  return `url(#arrow-${getArrowType(conn)}-start)`
+}
+
+// 从矩形中心 (cx,cy) 沿 (dx,dy) 方向射线，与矩形边 [cx±halfW, cy±halfH] 的交点
+// 用 t 参数法，对 dx/dy 为 0 的情况做 Infinity 兜底，彻底避免 NaN
+function edgePoint(cx, cy, dx, dy, halfW, halfH) {
+  if (dx === 0 && dy === 0) return { x: cx + halfW, y: cy }
+  const tx = dx !== 0 ? halfW / Math.abs(dx) : Infinity
+  const ty = dy !== 0 ? halfH / Math.abs(dy) : Infinity
+  const t = Math.min(tx, ty)
+  return { x: cx + dx * t, y: cy + dy * t }
+}
+
+// ===== 连线避障路由：可见性图 + 启发式折线 =====
+// 叉积
+function cross(ax, ay, bx, by) { return ax * by - ay * bx }
+// 线段 (a,b) 与 (c,d) 是否相交（含共线、端点接触的保守判断，用于避障宁可多绕不可漏判）
+function segmentsIntersect(a, b, c, d) {
+  const d1 = cross(c.x - a.x, c.y - a.y, b.x - a.x, b.y - a.y)
+  const d2 = cross(c.x - b.x, c.y - b.y, b.x - a.x, b.y - a.y)
+  const d3 = cross(a.x - c.x, a.y - c.y, d.x - c.x, d.y - c.y)
+  const d4 = cross(a.x - d.x, a.y - d.y, d.x - c.x, d.y - c.y)
+  if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+      ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) return true
+  // 共线/端点接触：只要任一端点落在另一条线段的包围盒内，视为相交
+  const onSeg = (p, q, r) => Math.min(p.x, r.x) - 0.01 <= q.x && q.x <= Math.max(p.x, r.x) + 0.01 &&
+                                   Math.min(p.y, r.y) - 0.01 <= q.y && q.y <= Math.max(p.y, r.y) + 0.01
+  if (Math.abs(d1) < 0.01 && onSeg(a, c, b)) return true
+  if (Math.abs(d2) < 0.01 && onSeg(a, c, b)) return true
+  if (Math.abs(d3) < 0.01 && onSeg(c, a, d)) return true
+  if (Math.abs(d4) < 0.01 && onSeg(c, a, d)) return true
+  return false
+}
+// 点是否在矩形内（含边界，用 padding 内缩，避免连线端点贴边时误判）
+function pointInRect(p, x, y, w, h, padding = 0.5) {
+  return p.x > x + padding && p.x < x + w - padding && p.y > y + padding && p.y < y + h - padding
+}
+// 线段 (p1,p2) 是否与矩形相交或落在矩形内（保守判断）
+// 用 slab 法做参数化 AABB 相交，最可靠，无边界漏判
+function segmentIntersectsRect(p1, p2, x, y, w, h) {
+  const pad = 0.5
+  const minX = x + pad, maxX = x + w - pad
+  const minY = y + pad, maxY = y + h - pad
+  const dx = p2.x - p1.x
+  const dy = p2.y - p1.y
+  let tmin = 0, tmax = 1
+  // X 轴 slab
+  for (const axis of [{ d: dx, lo: minX, hi: maxX, o: p1.x }, { d: dy, lo: minY, hi: maxY, o: p1.y }]) {
+    if (Math.abs(axis.d) < 1e-9) {
+      if (axis.o < axis.lo || axis.o > axis.hi) return false
+    } else {
+      let t1 = (axis.lo - axis.o) / axis.d
+      let t2 = (axis.hi - axis.o) / axis.d
+      if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp }
+      tmin = Math.max(tmin, t1)
+      tmax = Math.min(tmax, t2)
+      if (tmin > tmax) return false
+    }
+  }
+  return tmin <= tmax
+}
+// p1→p2 直线是否被任一障碍物阻挡
+function hasLineOfSight(p1, p2, obstacles) {
+  for (const o of obstacles) {
+    if (segmentIntersectsRect(p1, p2, o.x, o.y, o.width, o.height)) return false
+  }
+  return true
+}
+
+// 用可见性图（障碍物外扩角点）找一条绕开障碍物的最短折线路径
+// 返回点数组（包含 start 和 end），若无障碍则返回 [start, end]
+function findRoutingPath(start, end, obstacles) {
+  if (!obstacles.length) return [start, end]
+  if (hasLineOfSight(start, end, obstacles)) return [start, end]
+
+  const margin = 16
+  const pts = [start, end]
+  for (const o of obstacles) {
+    const x1 = o.x - margin, x2 = o.x + o.width + margin
+    const y1 = o.y - margin, y2 = o.y + o.height + margin
+    pts.push({ x: x1, y: y1 }, { x: x2, y: y1 }, { x: x1, y: y2 }, { x: x2, y: y2 })
+  }
+
+  const n = pts.length
+  const dist = new Array(n).fill(Infinity)
+  const prev = new Array(n).fill(-1)
+  const visited = new Array(n).fill(false)
+  dist[0] = 0
+
+  for (let i = 0; i < n; i++) {
+    let u = -1, best = Infinity
+    for (let j = 0; j < n; j++) {
+      if (!visited[j] && dist[j] < best) { best = dist[j]; u = j }
+    }
+    if (u === -1 || u === 1) break
+    visited[u] = true
+    for (let v = 0; v < n; v++) {
+      if (visited[v] || v === u) continue
+      if (!hasLineOfSight(pts[u], pts[v], obstacles)) continue
+      const d = Math.hypot(pts[u].x - pts[v].x, pts[u].y - pts[v].y)
+      if (dist[u] + d < dist[v]) { dist[v] = dist[u] + d; prev[v] = u }
+    }
+  }
+
+  // 找到了可见性图路径
+  if (dist[1] !== Infinity) {
+    const path = []
+    let cur = 1
+    while (cur !== -1) { path.unshift(pts[cur]); cur = prev[cur] }
+    return path
+  }
+
+  // 降级：绕所有障碍物的外接矩形边缘走（L 形折线）
+  // 计算所有障碍物的总外接边界（外扩 margin）
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (const o of obstacles) {
+    minX = Math.min(minX, o.x - margin)
+    minY = Math.min(minY, o.y - margin)
+    maxX = Math.max(maxX, o.x + o.width + margin)
+    maxY = Math.max(maxY, o.y + o.height + margin)
+  }
+  // 起点/终点到外接矩形边缘外的锚点
+  const startAnchor = { x: Math.max(minX, Math.min(maxX, start.x)), y: Math.max(minY, Math.min(maxY, start.y)) }
+  const endAnchor = { x: Math.max(minX, Math.min(maxX, end.x)), y: Math.max(minY, Math.min(maxY, end.y)) }
+  // 选两条候选路径：上绕 / 下绕，取较短且可见的
+  const candidates = [
+    [start, { x: startAnchor.x, y: minY }, { x: endAnchor.x, y: minY }, end],
+    [start, { x: startAnchor.x, y: maxY }, { x: endAnchor.x, y: maxY }, end],
+    [start, { x: minX, y: startAnchor.y }, { x: minX, y: endAnchor.y }, end],
+    [start, { x: maxX, y: startAnchor.y }, { x: maxX, y: endAnchor.y }, end]
+  ]
+  let bestPath = [start, end]
+  let bestLen = Infinity
+  for (const c of candidates) {
+    const len = c.reduce((s, p, i) => i ? s + Math.hypot(p.x - c[i-1].x, p.y - c[i-1].y) : 0, 0)
+    if (len < bestLen) { bestLen = len; bestPath = c }
+  }
+  return bestPath
+}
+
+// 折线点数组 → SVG path（直线折线，去掉共线点）
+function pathFromPolyline(pts) {
+  if (!pts.length) return ''
+  const simplified = [pts[0]]
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = pts[i - 1], b = pts[i], c = pts[i + 1]
+    if (Math.abs(cross(b.x - a.x, b.y - a.y, c.x - a.x, c.y - a.y)) > 0.01) simplified.push(b)
+  }
+  simplified.push(pts[pts.length - 1])
+  return 'M ' + simplified.map(p => `${p.x} ${p.y}`).join(' L ')
+}
+
+// 折线点数组 → 圆角折线 path（每段连接处用二次贝塞尔做圆角）
+function pathFromRoundedPolyline(pts, radius = 14) {
+  if (pts.length < 3) return pathFromPolyline(pts)
+  let d = `M ${pts[0].x} ${pts[0].y}`
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = pts[i - 1], b = pts[i], c = pts[i + 1]
+    const abLen = Math.hypot(b.x - a.x, b.y - a.y)
+    const bcLen = Math.hypot(c.x - b.x, c.y - b.y)
+    const r = Math.min(radius, abLen / 2, bcLen / 2)
+    if (r <= 0.5) { d += ` L ${b.x} ${b.y}`; continue }
+    const p1x = b.x - (b.x - a.x) / abLen * r
+    const p1y = b.y - (b.y - a.y) / abLen * r
+    const p2x = b.x + (c.x - b.x) / bcLen * r
+    const p2y = b.y + (c.y - b.y) / bcLen * r
+    d += ` L ${p1x} ${p1y} Q ${b.x} ${b.y}, ${p2x} ${p2y}`
+  }
+  const last = pts[pts.length - 1]
+  d += ` L ${last.x} ${last.y}`
+  return d
+}
+
+// 收集连线的中间障碍块（排除自身两端，使用真实尺寸）
+function getObstaclesBetween(fromId, toId) {
+  const list = []
+  for (const b of blocks.value) {
+    if (b.id === fromId || b.id === toId) continue
+    const { width, height } = getBlockSize(b.id, b)
+    if (width <= 0 || height <= 0) continue
+    list.push({ x: b.x, y: b.y, width, height })
+  }
+  return list
+}
+
 function getConnectionPath(conn) {
   const fromBlock = blocks.value.find(b => b.id === conn.from)
   const toBlock = blocks.value.find(b => b.id === conn.to)
   if (!fromBlock || !toBlock) return ''
   
-  const fromW = fromBlock.width || 240
-  const fromH = fromBlock.minHeight || 60
-  const toW = toBlock.width || 240
-  const toH = toBlock.minHeight || 60
+  const { width: fromW, height: fromH } = getBlockSize(conn.from, fromBlock)
+  const { width: toW, height: toH } = getBlockSize(conn.to, toBlock)
   
   const fromCenterX = fromBlock.x + fromW / 2
   const fromCenterY = fromBlock.y + fromH / 2
   const toCenterX = toBlock.x + toW / 2
   const toCenterY = toBlock.y + toH / 2
   
-  const fromWidth = fromW / 2
-  const fromHeight = fromH / 2
-  const toWidth = toW / 2
-  const toHeight = toH / 2
-  
   const dx = toCenterX - fromCenterX
   const dy = toCenterY - fromCenterY
   
-  let fromX, fromY, toX, toY
+  // 起点：从 from 中心朝 to 方向打到 from 边缘
+  const from = edgePoint(fromCenterX, fromCenterY, dx, dy, fromW / 2, fromH / 2)
+  // 终点：从 to 中心朝 from 方向（即 -dx,-dy）打到 to 边缘
+  const to = edgePoint(toCenterX, toCenterY, -dx, -dy, toW / 2, toH / 2)
   
-  if (Math.abs(dx) * fromHeight > Math.abs(dy) * fromWidth) {
-    fromX = fromCenterX + (dx > 0 ? fromWidth : -fromWidth)
-    fromY = fromCenterY + dy * (fromWidth / Math.abs(dx))
-  } else {
-    fromY = fromCenterY + (dy > 0 ? fromHeight : -fromHeight)
-    fromX = fromCenterX + dx * (fromHeight / Math.abs(dy))
+  // 任一端点是 NaN 则不绘制，避免出现残缺路径
+  if ([from.x, from.y, to.x, to.y].some(v => Number.isNaN(v) || !Number.isFinite(v))) return ''
+  
+  const shape = resolveConnShape(conn)   // straight | bezier
+  const isCurved = shape === 'bezier'
+  
+  // 判断直线是否被中间块遮挡
+  const obstacles = getObstaclesBetween(conn.from, conn.to)
+  const directBlocked = !hasLineOfSight(from, to, obstacles)
+  
+  // 无遮挡时：曲线画真正的贝塞尔，直线画直线
+  if (!directBlocked) {
+    if (isCurved) {
+      // 控制点沿主轴方向延伸，让曲线产生明显弧度（避免控制点共线退化为直线）
+      const dist = Math.hypot(dx, dy) || 1
+      // 用起终点切线方向的垂直分量做偏移，保证曲线有明显弧度
+      const nx = -dy / dist  // 连线法线方向
+      const ny = dx / dist
+      const bow = Math.min(dist * 0.25, 120)  // 弧度大小，随距离变化但封顶
+      // 中点沿法线方向偏移，构造一条有明显弧度的 C 形曲线
+      const mx = (from.x + to.x) / 2 + nx * bow
+      const my = (from.y + to.y) / 2 + ny * bow
+      // 两段二次贝塞尔拼成平滑曲线（用 Q 命令）
+      return `M ${from.x} ${from.y} Q ${mx} ${my}, ${to.x} ${to.y}`
+    }
+    return `M ${from.x} ${from.y} L ${to.x} ${to.y}`
   }
   
-  if (Math.abs(dx) * toHeight > Math.abs(dy) * toWidth) {
-    toX = toCenterX - (dx > 0 ? toWidth : -toWidth)
-    toY = toCenterY - dy * (toWidth / Math.abs(dx))
-  } else {
-    toY = toCenterY - (dy > 0 ? toHeight : -toHeight)
-    toX = toCenterX - dx * (toHeight / Math.abs(dy))
+  // 有遮挡时：绕障路由
+  const route = findRoutingPath(from, to, obstacles)
+  // 曲线用圆角折线保持柔和观感，直线用直角折线
+  if (isCurved) {
+    return pathFromRoundedPolyline(route)
   }
-  
-  if (conn.style === 'bezier' || conn.style === 'dashed' || conn.style === 'dotted') {
-    const offset = Math.max(Math.abs(dx), Math.abs(dy)) * 0.4
-    
-    const fromDirX = fromX - fromCenterX
-    const fromDirY = fromY - fromCenterY
-    const fromLen = Math.sqrt(fromDirX * fromDirX + fromDirY * fromDirY) || 1
-    const fromNormX = fromDirX / fromLen
-    const fromNormY = fromDirY / fromLen
-    
-    const toDirX = toX - toCenterX
-    const toDirY = toY - toCenterY
-    const toLen = Math.sqrt(toDirX * toDirX + toDirY * toDirY) || 1
-    const toNormX = toDirX / toLen
-    const toNormY = toDirY / toLen
-    
-    const c1x = fromX + fromNormX * offset
-    const c1y = fromY + fromNormY * offset
-    const c2x = toX + toNormX * offset
-    const c2y = toY + toNormY * offset
-    
-    return `M ${fromX} ${fromY} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${toX} ${toY}`
-  }
-  
-  return `M ${fromX} ${fromY} L ${toX} ${toY}`
+  return pathFromPolyline(route)
 }
 
-function setConnectionStyle(style) {
+function setConnectionStyle(shape) {
   if (selectedConnectionId.value && note.value) {
     saveHistory()
-    noteStore.updateConnection(note.value.id, selectedConnectionId.value, { style })
+    noteStore.updateConnection(note.value.id, selectedConnectionId.value, { shape })
+  }
+}
+
+function setConnectionDash(dash) {
+  if (selectedConnectionId.value && note.value) {
+    saveHistory()
+    noteStore.updateConnection(note.value.id, selectedConnectionId.value, { dash })
   }
 }
 
@@ -1749,6 +2089,20 @@ function setConnectionColor(color) {
     noteStore.updateConnection(note.value.id, selectedConnectionId.value, { color })
   }
   currentLineColor.value = color
+}
+
+function setConnectionArrow(arrow) {
+  if (selectedConnectionId.value && note.value) {
+    saveHistory()
+    noteStore.updateConnection(note.value.id, selectedConnectionId.value, { arrow })
+  }
+}
+
+function setConnectionDir(dir) {
+  if (selectedConnectionId.value && note.value) {
+    saveHistory()
+    noteStore.updateConnection(note.value.id, selectedConnectionId.value, { dir })
+  }
 }
 
 function deleteSelectedConnection() {
@@ -1878,6 +2232,7 @@ function deleteSelectedConnection() {
   width: 10000px;
   height: 10000px;
   pointer-events: none;
+  overflow: visible;
 }
 
 .connection-path {
@@ -1906,6 +2261,7 @@ function deleteSelectedConnection() {
   width: 10000px;
   height: 10000px;
   pointer-events: none;
+  overflow: visible;
 }
 
 .blocks-layer > * {
@@ -1919,6 +2275,8 @@ function deleteSelectedConnection() {
   transform: translateX(-50%);
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
+  white-space: nowrap;
   gap: 8px;
   padding: 10px 16px;
   background: var(--bg-secondary);
@@ -1927,6 +2285,11 @@ function deleteSelectedConnection() {
   font-size: 13px;
   color: var(--text-secondary);
   z-index: 100;
+}
+
+.connection-toolbar > span {
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .style-btn {
@@ -1951,9 +2314,11 @@ function deleteSelectedConnection() {
 .color-btn {
   width: 22px;
   height: 22px;
+  box-sizing: border-box;
   border-radius: 50%;
   border: 2px solid transparent;
   cursor: pointer;
+  flex-shrink: 0;
   transition: all var(--transition-fast);
 }
 
@@ -1964,6 +2329,14 @@ function deleteSelectedConnection() {
 .color-btn.active {
   border-color: var(--text-primary);
   transform: scale(1.15);
+}
+
+.dir-btn {
+  min-width: 30px;
+  padding: 6px 8px;
+  font-size: 14px;
+  line-height: 1;
+  text-align: center;
 }
 
 .delete-btn {

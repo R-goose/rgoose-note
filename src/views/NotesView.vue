@@ -29,7 +29,24 @@
     </header>
     
     <div class="notes-content">
-      <div v-if="filteredNotes.length" class="notes-grid">
+      <div v-if="!noteStore.currentFolderId" class="empty-state">
+        <svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M20 30h30l10 12h40v48H20z"/>
+          <path d="M20 42h80"/>
+        </svg>
+        <p>请选择一个文件夹开始查看笔记</p>
+      </div>
+      
+      <div v-else-if="filteredNotes.length === 0" class="empty-state">
+        <svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="32" y="20" width="56" height="80" rx="4"/>
+          <path d="M44 40h32M44 56h32M44 72h20"/>
+        </svg>
+        <p>{{ searchKeyword ? '没有找到匹配的笔记' : '这个文件夹还没有笔记' }}</p>
+        <button v-if="!searchKeyword" class="btn btn-primary" @click="createNote">创建第一篇笔记</button>
+      </div>
+      
+      <div v-else class="notes-grid">
         <div
           v-for="note in filteredNotes"
           :key="note.id"
@@ -37,16 +54,16 @@
           @click="openNote(note.id)"
         >
           <div class="note-card-header">
-            <div class="note-color-tag" :style="{ background: getNoteColor(note) }"></div>
-            <div class="note-actions" @click.stop>
-              <button class="action-btn" @click.stop="duplicateNote(note.id)" title="复制">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <div class="note-color-tag" :style="{ backgroundColor: note.color || '#6bbd8f' }"></div>
+            <div class="note-actions">
+              <button class="action-btn" @click.stop="duplicateNote(note)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                   <rect x="9" y="9" width="13" height="13" rx="2"/>
                   <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                 </svg>
               </button>
-              <button class="action-btn delete" @click.stop="confirmDelete(note.id)" title="删除">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <button class="action-btn delete" @click.stop="deleteNote(note.id)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                   <polyline points="3 6 5 6 21 6"/>
                   <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                 </svg>
@@ -55,18 +72,17 @@
           </div>
           <div class="note-card-body">
             <h3 class="note-card-title">{{ note.title || '无标题笔记' }}</h3>
-            <div v-if="getFolderPath(note.folderId)" class="note-folder-path">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <div v-if="note.folderId" class="note-folder-path">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
               </svg>
               <span>{{ getFolderPath(note.folderId) }}</span>
             </div>
-            <div class="note-card-preview">
-              {{ getPreview(note) }}
-            </div>
+            <p class="note-card-preview">{{ getNotePreview(note) }}</p>
             <div class="note-card-meta">
+              <span>{{ formatDate(note.updatedAt) }}</span>
               <span class="block-count">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                   <rect x="3" y="3" width="7" height="7"/>
                   <rect x="14" y="3" width="7" height="7"/>
                   <rect x="14" y="14" width="7" height="7"/>
@@ -74,38 +90,8 @@
                 </svg>
                 {{ note.blocks?.length || 0 }} 个块
               </span>
-              <span class="update-time">{{ formatTime(note.updatedAt) }}</span>
             </div>
           </div>
-        </div>
-      </div>
-      
-      <div v-else class="empty-state">
-        <svg viewBox="0 0 200 200" fill="none">
-          <rect x="50" y="30" width="100" height="140" rx="10" fill="#eef0f7"/>
-          <rect x="60" y="50" width="80" height="8" rx="4" fill="#d1d5db"/>
-          <rect x="60" y="68" width="60" height="6" rx="3" fill="#e5e7eb"/>
-          <rect x="60" y="82" width="70" height="6" rx="3" fill="#e5e7eb"/>
-          <rect x="60" y="96" width="50" height="6" rx="3" fill="#e5e7eb"/>
-          <circle cx="100" cy="140" r="15" fill="#4a9568" opacity="0.3"/>
-          <path d="M100 133v14M93 140h14" stroke="#4a9568" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-        <p v-if="searchKeyword">没有找到匹配的笔记</p>
-        <p v-else-if="!noteStore.currentFolderId">请先在左侧选择一个文件夹</p>
-        <p v-else>该文件夹下还没有笔记</p>
-        <button v-if="!searchKeyword && noteStore.currentFolderId" class="btn btn-primary" @click="createNote">
-          创建笔记
-        </button>
-      </div>
-    </div>
-    
-    <div v-if="showDeleteModal" class="modal-overlay" @click.self="showDeleteModal = false">
-      <div class="modal-content" style="padding: 24px; width: 360px;">
-        <h3 style="margin-bottom: 12px; font-size: 18px;">确认删除</h3>
-        <p style="color: var(--text-secondary); margin-bottom: 24px;">确定要删除这篇笔记吗？此操作无法撤销。</p>
-        <div style="display: flex; gap: 12px; justify-content: flex-end;">
-          <button class="btn btn-secondary" @click="showDeleteModal = false">取消</button>
-          <button class="btn btn-primary" style="background: var(--warning-color);" @click="doDelete">删除</button>
         </div>
       </div>
     </div>
@@ -113,60 +99,31 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNoteStore } from '@/stores/note'
-import { formatRelativeTime } from '@/utils'
+import { formatDate as formatDateUtil } from '@/utils'
 
 const router = useRouter()
 const noteStore = useNoteStore()
-
 const searchKeyword = ref('')
-const showDeleteModal = ref(false)
-const deleteTargetId = ref(null)
 
 const currentFolderName = computed(() => {
   if (!noteStore.currentFolderId) return '笔记'
-  const folder = noteStore.sortedFolders.find(f => f.id === noteStore.currentFolderId)
-  return folder?.name || '笔记'
+  return noteStore.folders.find(f => f.id === noteStore.currentFolderId)?.name || '笔记'
 })
 
 const filteredNotes = computed(() => {
+  let notes = noteStore.currentFolderNotes || []
   if (searchKeyword.value) {
-    return noteStore.searchNotes(searchKeyword.value).filter(n => {
-      if (!noteStore.currentFolderId) return true
-      return n.folderId === noteStore.currentFolderId
-    })
+    const keyword = searchKeyword.value.toLowerCase()
+    notes = notes.filter(note =>
+      (note.title || '').toLowerCase().includes(keyword) ||
+      getNotePreview(note).toLowerCase().includes(keyword)
+    )
   }
-  return noteStore.sortedNotes
+  return notes.sort((a, b) => b.updatedAt - a.updatedAt)
 })
-
-onMounted(() => {
-  noteStore.init()
-})
-
-function getNoteColor(note) {
-  const colors = ['#4a9568', '#7fa8c4', '#c9a96e', '#b88a7a', '#8fa89a', '#a89a7a']
-  const hash = note.id?.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) || 0
-  return colors[hash % colors.length]
-}
-
-function getPreview(note) {
-  if (!note.blocks?.length) return '暂无内容'
-  const firstBlock = note.blocks.find(b => b.content)
-  if (!firstBlock) return '空白画布'
-  const text = firstBlock.content.replace(/<[^>]*>/g, '')
-  return text.length > 50 ? text.slice(0, 50) + '...' : text
-}
-
-function formatTime(timestamp) {
-  return formatRelativeTime(timestamp)
-}
-
-function getFolderPath(folderId) {
-  if (!folderId) return null
-  return noteStore.getFolderPathString(folderId) || null
-}
 
 function createNote() {
   const note = noteStore.createNote()
@@ -177,21 +134,30 @@ function openNote(id) {
   router.push(`/note/${id}`)
 }
 
-function duplicateNote(id) {
-  noteStore.duplicateNote(id)
+function duplicateNote(note) {
+  const newNote = noteStore.duplicateNote(note.id)
+  if (newNote) router.push(`/note/${newNote.id}`)
 }
 
-function confirmDelete(id) {
-  deleteTargetId.value = id
-  showDeleteModal.value = true
+function deleteNote(id) {
+  noteStore.deleteNote(id)
 }
 
-function doDelete() {
-  if (deleteTargetId.value) {
-    noteStore.deleteNote(deleteTargetId.value)
-  }
-  showDeleteModal.value = false
-  deleteTargetId.value = null
+function getNotePreview(note) {
+  if (!note.blocks?.length) return '空白笔记'
+  const firstTextBlock = note.blocks.find(block => block.type === 'text' && block.content)
+  if (!firstTextBlock) return `${note.blocks.length} 个内容块`
+  const div = document.createElement('div')
+  div.innerHTML = firstTextBlock.content
+  return div.textContent?.slice(0, 80) || '空白笔记'
+}
+
+function getFolderPath(folderId) {
+  return noteStore.getFolderPath(folderId).map(f => f.name).join(' / ')
+}
+
+function formatDate(timestamp) {
+  return formatDateUtil(timestamp, 'MM月DD日')
 }
 </script>
 
@@ -226,8 +192,12 @@ function doDelete() {
 }
 
 .note-count {
-  font-size: 13px;
-  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--purple-dark);
+  background: var(--purple-softer);
+  padding: 3px 10px;
+  border-radius: 10px;
 }
 
 .header-right {
@@ -252,6 +222,10 @@ function doDelete() {
   box-shadow: 0 0 0 1.5px var(--primary-color);
 }
 
+.search-box:focus-within svg {
+  color: var(--primary-color);
+}
+
 .search-box svg {
   color: var(--text-tertiary);
   flex-shrink: 0;
@@ -262,10 +236,6 @@ function doDelete() {
   background: transparent;
   font-size: 14px;
   color: var(--text-primary);
-}
-
-.search-input::placeholder {
-  color: var(--text-tertiary);
 }
 
 .notes-content {
@@ -288,36 +258,49 @@ function doDelete() {
 
 .note-card:hover {
   border-color: var(--primary-light);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.note-card:hover .note-card-title {
+  color: var(--primary-dark);
+}
+
+.note-card-title {
+  transition: color var(--transition-fast);
 }
 
 .note-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px 8px;
+  padding: 18px 18px 8px;
 }
 
 .note-color-tag {
-  width: 32px;
-  height: 4px;
-  border-radius: 2px;
+  width: 38px;
+  height: 5px;
+  border-radius: 999px;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);
 }
 
 .note-actions {
   display: flex;
-  gap: 4px;
+  gap: 6px;
   opacity: 0;
-  transition: opacity var(--transition-fast);
+  transform: translateY(4px);
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
 }
 
 .note-card:hover .note-actions {
   opacity: 1;
+  transform: translateY(0);
 }
 
 .action-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius-sm);
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -326,24 +309,24 @@ function doDelete() {
 }
 
 .action-btn:hover {
-  background: var(--bg-hover);
+  background: rgba(255, 255, 255, 0.9);
   color: var(--text-primary);
 }
 
 .action-btn.delete:hover {
-  background: rgba(217, 118, 118, 0.1);
+  background: var(--warning-soft);
   color: var(--warning-color);
 }
 
 .note-card-body {
-  padding: 4px 16px 16px;
+  padding: 6px 18px 18px;
 }
 
 .note-card-title {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 650;
   color: var(--text-primary);
-  margin-bottom: 6px;
+  margin-bottom: 10px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -352,13 +335,13 @@ function doDelete() {
 .note-folder-path {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   font-size: 11px;
-  color: var(--primary-color);
-  margin-bottom: 8px;
-  padding: 2px 6px;
-  background: var(--primary-soft);
-  border-radius: 4px;
+  color: var(--primary-dark);
+  margin-bottom: 10px;
+  padding: 5px 9px;
+  background: rgba(107, 189, 143, 0.12);
+  border-radius: 999px;
   width: fit-content;
 }
 
@@ -372,13 +355,13 @@ function doDelete() {
 .note-card-preview {
   font-size: 13px;
   color: var(--text-secondary);
-  line-height: 1.5;
-  height: 40px;
+  line-height: 1.65;
+  min-height: 46px;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
 .note-card-meta {
@@ -387,34 +370,46 @@ function doDelete() {
   justify-content: space-between;
   font-size: 11px;
   color: var(--text-tertiary);
+  padding-top: 12px;
+  border-top: 1px solid rgba(140, 151, 144, 0.12);
 }
 
 .block-count {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+}
+
+.block-count svg {
+  color: var(--info-color);
+}
+
+.action-btn:not(.delete):hover {
+  background: var(--info-soft);
+  color: var(--info-dark);
 }
 
 @media (max-width: 768px) {
   .view-header {
     flex-direction: column;
-    gap: 12px;
     align-items: stretch;
-    padding: 16px;
+    gap: 16px;
+    padding: 16px 20px;
   }
-  
+
   .header-right {
     flex-direction: column;
+    align-items: stretch;
   }
-  
+
   .search-box {
     width: 100%;
   }
-  
+
   .notes-content {
-    padding: 16px;
+    padding: 20px;
   }
-  
+
   .notes-grid {
     grid-template-columns: 1fr;
   }

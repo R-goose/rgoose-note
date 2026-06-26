@@ -22,7 +22,7 @@
 .btn-primary:hover {
   background: var(--primary-dark);
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(74, 149, 104, 0.25);
+  box-shadow: 0 6px 16px rgba(107, 189, 143, 0.3);
 }
 
 .btn-primary:active {
