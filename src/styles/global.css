@@ -137,6 +137,52 @@
   overflow: auto;
 }
 
+.confirm-modal {
+  width: 420px;
+  max-width: 90vw;
+  padding: 24px;
+}
+
+.confirm-header {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.confirm-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.confirm-icon.warning {
+  background: var(--warning-soft);
+  color: var(--warning-color);
+}
+
+.confirm-header h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.confirm-header p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }

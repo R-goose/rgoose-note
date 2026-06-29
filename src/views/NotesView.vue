@@ -95,11 +95,33 @@
         </div>
       </div>
     </div>
+
+    <Teleport to="body">
+      <div v-if="showCreateModal" class="modal-overlay" @click.self="cancelCreateNote">
+        <div class="modal-content create-note-modal">
+          <h3>新建笔记</h3>
+          <input
+            ref="noteTitleInputRef"
+            v-model="newNoteTitle"
+            type="text"
+            class="input"
+            placeholder="请输入笔记名称"
+            maxlength="100"
+            @keyup.enter="confirmCreateNote"
+            @keyup.esc="cancelCreateNote"
+          />
+          <div class="modal-actions">
+            <button class="btn btn-secondary" @click="cancelCreateNote">取消</button>
+            <button class="btn btn-primary" :disabled="!newNoteTitle.trim()" @click="confirmCreateNote">创建</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNoteStore } from '@/stores/note'
 import { formatDate as formatDateUtil } from '@/utils'
@@ -107,6 +129,9 @@ import { formatDate as formatDateUtil } from '@/utils'
 const router = useRouter()
 const noteStore = useNoteStore()
 const searchKeyword = ref('')
+const showCreateModal = ref(false)
+const newNoteTitle = ref('')
+const noteTitleInputRef = ref(null)
 
 const currentFolderName = computed(() => {
   if (!noteStore.currentFolderId) return '笔记'
@@ -126,8 +151,23 @@ const filteredNotes = computed(() => {
 })
 
 function createNote() {
-  const note = noteStore.createNote()
+  newNoteTitle.value = ''
+  showCreateModal.value = true
+  nextTick(() => noteTitleInputRef.value?.focus())
+}
+
+function confirmCreateNote() {
+  const title = newNoteTitle.value.trim()
+  if (!title) return
+  const note = noteStore.createNote(title)
+  showCreateModal.value = false
+  newNoteTitle.value = ''
   router.push(`/note/${note.id}`)
+}
+
+function cancelCreateNote() {
+  showCreateModal.value = false
+  newNoteTitle.value = ''
 }
 
 function openNote(id) {
@@ -153,7 +193,7 @@ function getNotePreview(note) {
 }
 
 function getFolderPath(folderId) {
-  return noteStore.getFolderPath(folderId).map(f => f.name).join(' / ')
+  return noteStore.getFolderPathString(folderId)
 }
 
 function formatDate(timestamp) {
@@ -387,6 +427,30 @@ function formatDate(timestamp) {
 .action-btn:not(.delete):hover {
   background: var(--info-soft);
   color: var(--info-dark);
+}
+
+.create-note-modal {
+  width: 380px;
+  max-width: 90vw;
+  padding: 24px;
+}
+
+.create-note-modal h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: var(--text-primary);
+}
+
+.create-note-modal .input {
+  margin-bottom: 20px;
+  font-size: 15px;
+}
+
+.create-note-modal .modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 @media (max-width: 768px) {

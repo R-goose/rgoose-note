@@ -122,7 +122,7 @@
           
           <div class="form-group">
             <label>时间</label>
-            <input v-model="form.dueDate" type="datetime-local" class="input" />
+            <DateTimePicker v-model="form.dueDate" />
           </div>
           
           <div class="form-group">
@@ -154,6 +154,7 @@
 import { ref, computed, reactive } from 'vue'
 import { usePlanStore } from '@/stores/plan'
 import PlanItem from '@/components/PlanItem.vue'
+import DateTimePicker from '@/components/DateTimePicker.vue'
 
 const planStore = usePlanStore()
 const showAddModal = ref(false)
@@ -164,31 +165,38 @@ const form = reactive({
   title: '',
   description: '',
   dueDate: '',
-  priority: 'medium'
+  priority: 'normal'
 })
 
 const priorityOptions = [
   { value: 'low', label: '低' },
-  { value: 'medium', label: '中' },
+  { value: 'normal', label: '中' },
   { value: 'high', label: '高' }
 ]
 
-const sortedPlans = computed(() => planStore.sortedPlans)
+const allPlans = computed(() => planStore.plans)
 const overduePlans = computed(() => planStore.overduePlans)
 const todayPlans = computed(() => planStore.todayPlans)
-const activePlans = computed(() => planStore.activePlans.filter(plan => !todayPlans.value.includes(plan) && !overduePlans.value.includes(plan)))
-const completedPlans = computed(() => planStore.completedPlans)
+const completedPlans = computed(() => allPlans.value.filter(p => p.completed))
+const activePlans = computed(() =>
+  allPlans.value.filter(plan =>
+    !plan.completed &&
+    !todayPlans.value.includes(plan) &&
+    !overduePlans.value.includes(plan)
+  )
+)
+const sortedPlans = computed(() => planStore.sortedPlans)
 
 function togglePlan(id) {
-  planStore.togglePlan(id)
+  planStore.toggleComplete(id)
 }
 
 function editPlan(plan) {
   editingPlan.value = plan
   form.title = plan.title
   form.description = plan.description || ''
-  form.dueDate = plan.dueDate ? new Date(plan.dueDate).toISOString().slice(0, 16) : ''
-  form.priority = plan.priority || 'medium'
+  form.dueDate = plan.dueDate || ''
+  form.priority = plan.priority || 'normal'
 }
 
 function deletePlan(id) {
@@ -201,25 +209,24 @@ function closeModal() {
   form.title = ''
   form.description = ''
   form.dueDate = ''
-  form.priority = 'medium'
+  form.priority = 'normal'
 }
 
 function savePlan() {
   if (!form.title.trim()) return
-  
+
   const data = {
-    title: form.title.trim(),
     description: form.description.trim(),
-    dueDate: form.dueDate ? new Date(form.dueDate).getTime() : null,
+    dueDate: form.dueDate ? Number(form.dueDate) : null,
     priority: form.priority
   }
-  
+
   if (editingPlan.value) {
-    planStore.updatePlan(editingPlan.value.id, data)
+    planStore.updatePlan(editingPlan.value.id, { ...data, title: form.title.trim() })
   } else {
-    planStore.createPlan(data)
+    planStore.createPlan(form.title.trim(), data)
   }
-  
+
   closeModal()
 }
 </script>
@@ -402,7 +409,7 @@ function savePlan() {
   border-color: var(--text-tertiary);
 }
 
-.priority-btn.active.medium {
+.priority-btn.active.normal {
   background: var(--secondary-soft);
   border-color: var(--secondary-color);
   color: var(--secondary-dark);

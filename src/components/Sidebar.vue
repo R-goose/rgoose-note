@@ -75,7 +75,7 @@
             class="folder-item"
             :class="{ active: noteStore.currentFolderId === item.folder.id }"
             :style="{ paddingLeft: (item.depth * 18 + 12) + 'px' }"
-            @click="selectFolder(item.folder.id)"
+            @click="onFolderClick(item.folder)"
             @dblclick.stop="startRenameFolder(item.folder)"
             @contextmenu.prevent="showFolderContextMenu($event, item.folder)"
           >
@@ -83,15 +83,13 @@
               v-if="hasChildFolders(item.folder.id)"
               class="folder-toggle"
               :class="{ expanded: isFolderExpanded(item.folder.id) }"
-              @click="toggleFolderExpand($event, item.folder.id)"
+              @click.stop="toggleFolderExpandById(item.folder.id)"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="9 18 15 12 9 6"/>
               </svg>
             </span>
-            <svg v-else class="folder-spacer" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-            </svg>
+            <span v-else class="folder-spacer" aria-hidden="true"></span>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
             </svg>
@@ -230,6 +228,17 @@
               <span v-if="getFolderPath(note.folderId)" class="note-folder">{{ getFolderPath(note.folderId) }}</span>
             </div>
           </div>
+          <button
+            type="button"
+            class="note-delete-btn"
+            title="删除笔记"
+            @click.stop.prevent="askDeleteNote(note)"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+            </svg>
+          </button>
         </div>
         <div v-if="!recentNotes.length" class="empty-mini">暂无笔记</div>
       </div>
@@ -244,6 +253,52 @@
         <span>{{ syncStatusText }}</span>
       </div>
     </div>
+
+    <Teleport to="body">
+      <div v-if="showCreateNoteModal" class="modal-overlay" @click.self="cancelCreateNote">
+        <div class="modal-content create-note-modal">
+          <h3>新建笔记</h3>
+          <input
+            ref="noteTitleInputRef"
+            v-model="newNoteTitle"
+            type="text"
+            class="input"
+            placeholder="请输入笔记名称"
+            maxlength="100"
+            @keyup.enter="confirmCreateNote"
+            @keyup.esc="cancelCreateNote"
+          />
+          <div class="modal-actions">
+            <button class="btn btn-secondary" @click="cancelCreateNote">取消</button>
+            <button class="btn btn-primary" :disabled="!newNoteTitle.trim()" @click="confirmCreateNote">创建</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div v-if="noteToDelete" class="modal-overlay" @click.self="noteToDelete = null">
+        <div class="modal-content confirm-modal">
+          <div class="confirm-header">
+            <div class="confirm-icon warning">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </div>
+            <div>
+              <h3>删除笔记</h3>
+              <p>确定删除「{{ noteToDelete.title || '无标题笔记' }}」吗？此操作不可恢复。</p>
+            </div>
+          </div>
+          <div class="confirm-actions">
+            <button type="button" class="btn btn-secondary" @click="noteToDelete = null">取消</button>
+            <button type="button" class="btn btn-primary" @click="confirmDeleteNote">删除</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </aside>
 </template>
 
@@ -275,6 +330,10 @@ const newFolderName = ref('')
 const newFolderParentId = ref(null)
 const folderContextMenu = ref({ show: false, x: 0, y: 0, folder: null })
 const expandedFolderIds = ref(new Set())
+const showCreateNoteModal = ref(false)
+const newNoteTitle = ref('')
+const noteTitleInputRef = ref(null)
+const noteToDelete = ref(null)
 
 const todayPlanCount = computed(() => planStore.todayPlans?.length || 0)
 const currentFolderName = computed(() => {
@@ -282,8 +341,27 @@ const currentFolderName = computed(() => {
   return noteStore.folders.find(f => f.id === noteStore.currentFolderId)?.name || ''
 })
 
-const visibleFolders = computed(() => noteStore.visibleFolders || [])
-const recentNotes = computed(() => noteStore.recentNotes?.slice(0, 12) || [])
+const visibleFolders = computed(() => {
+  const result = []
+  function walk(parentId, depth) {
+    const children = noteStore.folders
+      .filter(f => (f.parentId || null) === parentId)
+      .sort((a, b) => a.createdAt - b.createdAt)
+    for (const folder of children) {
+      result.push({ folder, depth })
+      if (expandedFolderIds.value.has(folder.id)) {
+        walk(folder.id, depth + 1)
+      }
+    }
+  }
+  walk(null, 0)
+  return result
+})
+
+const recentNotes = computed(() => {
+  const list = [...noteStore.notes].filter(n => !n.deleted).sort((a, b) => b.updatedAt - a.updatedAt)
+  return list.slice(0, 12)
+})
 const syncStatusText = computed(() => {
   const time = noteStore.lastSyncTime || planStore.lastSyncTime
   return time ? formatDate(time, 'MM-DD HH:mm') : '刚刚'
@@ -294,8 +372,29 @@ function selectFolder(id) {
   router.push('/notes')
 }
 
+function focusRef(refEl) {
+  const val = refEl.value
+  if (!val) return
+  const el = Array.isArray(val) ? val[0] : val
+  el?.focus?.()
+  if (el && typeof el.select === 'function') el.select()
+}
 function openNote(id) {
   router.push(`/note/${id}`)
+}
+
+function askDeleteNote(note) {
+  noteToDelete.value = note
+}
+
+function confirmDeleteNote() {
+  const note = noteToDelete.value
+  if (!note) return
+  noteStore.deleteNote(note.id)
+  if (route.params.id === note.id) {
+    router.push('/notes')
+  }
+  noteToDelete.value = null
 }
 
 function getFolderNoteCount(folderId) {
@@ -318,8 +417,14 @@ function hasChildFolders(folderId) {
   return noteStore.folders.some(f => f.parentId === folderId)
 }
 
-function toggleFolderExpand(e, folderId) {
-  e.stopPropagation()
+function onFolderClick(folder) {
+  if (hasChildFolders(folder.id)) {
+    toggleFolderExpandById(folder.id)
+  }
+  selectFolder(folder.id)
+}
+
+function toggleFolderExpandById(folderId) {
   const next = new Set(expandedFolderIds.value)
   if (next.has(folderId)) next.delete(folderId)
   else next.add(folderId)
@@ -351,7 +456,7 @@ function startRenameFolder(folder) {
   editingFolderId.value = folder.id
   editingFolderName.value = folder.name
   folderNameError.value = false
-  nextTick(() => folderInputRef.value?.focus())
+  nextTick(() => focusRef(folderInputRef))
 }
 
 function finishEditFolder() {
@@ -370,11 +475,16 @@ function cancelEditFolder() {
 }
 
 function createNewFolder(parentId = null) {
+  if (parentId) {
+    const next = new Set(expandedFolderIds.value)
+    next.add(parentId)
+    expandedFolderIds.value = next
+  }
   isCreatingFolder.value = true
   newFolderParentId.value = parentId
   newFolderName.value = ''
   folderNameError.value = false
-  nextTick(() => newFolderInputRef.value?.focus())
+  nextTick(() => focusRef(newFolderInputRef))
 }
 
 function finishCreateFolder() {
@@ -382,6 +492,11 @@ function finishCreateFolder() {
   if (!validateFolderName(newFolderName.value, null, newFolderParentId.value)) return
   if (!newFolderName.value.trim()) return cancelCreateFolder()
   noteStore.createFolder(newFolderName.value.trim(), newFolderParentId.value)
+  if (newFolderParentId.value) {
+    const next = new Set(expandedFolderIds.value)
+    next.add(newFolderParentId.value)
+    expandedFolderIds.value = next
+  }
   cancelCreateFolder()
 }
 
@@ -408,9 +523,24 @@ function createFolderFromMenu() {
 function createNoteInFolder() {
   const folder = folderContextMenu.value.folder
   if (folder) noteStore.setCurrentFolder(folder.id)
-  const note = noteStore.createNote()
   hideFolderContextMenu()
+  newNoteTitle.value = ''
+  showCreateNoteModal.value = true
+  nextTick(() => focusRef(noteTitleInputRef))
+}
+
+function confirmCreateNote() {
+  const title = newNoteTitle.value.trim()
+  if (!title) return
+  const note = noteStore.createNote(title)
+  showCreateNoteModal.value = false
+  newNoteTitle.value = ''
   router.push(`/note/${note.id}`)
+}
+
+function cancelCreateNote() {
+  showCreateNoteModal.value = false
+  newNoteTitle.value = ''
 }
 
 function renameFromContextMenu() {
@@ -664,6 +794,8 @@ onUnmounted(() => {
 }
 
 .folder-spacer {
+  display: inline-block;
+  width: 12px;
   flex-shrink: 0;
 }
 
@@ -762,6 +894,28 @@ onUnmounted(() => {
 .note-item.active {
   background: var(--primary-soft);
   opacity: 0.7;
+}
+
+.note-delete-btn {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  opacity: 0;
+  transition: all var(--transition-fast);
+}
+
+.note-item:hover .note-delete-btn {
+  opacity: 1;
+}
+
+.note-delete-btn:hover {
+  background: var(--warning-soft);
+  color: var(--warning-color);
 }
 
 .note-icon {
@@ -910,5 +1064,29 @@ onUnmounted(() => {
   top: 4px;
   right: 2px;
   margin-left: 0;
+}
+
+.create-note-modal {
+  width: 380px;
+  max-width: 90vw;
+  padding: 24px;
+}
+
+.create-note-modal h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: var(--text-primary);
+}
+
+.create-note-modal .input {
+  margin-bottom: 20px;
+  font-size: 15px;
+}
+
+.create-note-modal .modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 </style>

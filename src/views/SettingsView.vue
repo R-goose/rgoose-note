@@ -50,9 +50,165 @@
               已同步
             </div>
           </div>
+
+          <div class="setting-item">
+            <div class="setting-info">
+              <div class="setting-name">文件存储位置</div>
+              <div class="setting-desc">{{ storageLocation }}</div>
+            </div>
+            <button class="btn btn-secondary" @click="copyStorageLocation">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+              复制
+            </button>
+          </div>
         </div>
       </section>
-      
+
+      <section class="settings-section">
+        <h2 class="section-title"><span class="title-bar bar-yellow"></span>云同步</h2>
+        <div class="settings-list">
+          <div class="setting-item">
+            <div class="setting-info">
+              <div class="setting-name">启用云同步</div>
+              <div class="setting-desc">开启后可在多端之间同步笔记和计划</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" :checked="syncStore.enabled" @change="toggleEnabled($event)" />
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+
+          <div v-if="syncStore.enabled" class="cloud-config">
+            <div class="form-row">
+              <label class="form-label">同步后端</label>
+              <div class="backend-tabs">
+                <button
+                  class="backend-tab"
+                  :class="{ active: syncStore.type === 'gist' }"
+                  @click="syncStore.setType('gist')"
+                >GitHub Gist</button>
+                <button
+                  class="backend-tab"
+                  :class="{ active: syncStore.type === 'gitee' }"
+                  @click="syncStore.setType('gitee')"
+                >Gitee 代码片段</button>
+                <button
+                  class="backend-tab"
+                  :class="{ active: syncStore.type === 'webdav' }"
+                  @click="syncStore.setType('webdav')"
+                >WebDAV</button>
+              </div>
+            </div>
+
+            <template v-if="syncStore.type === 'gist' || syncStore.type === 'gitee'">
+              <div class="form-row">
+                <label class="form-label">{{ syncStore.type === 'gitee' ? 'Gitee 私人令牌' : 'GitHub Token' }}</label>
+                <input
+                  type="password"
+                  class="input"
+                  :placeholder="syncStore.type === 'gitee' ? '在 Gitee → 设置 → 私人令牌 生成' : 'ghp_xxxxxxxx'"
+                  :value="syncStore.gistConfig.token"
+                  @input="syncStore.updateGistConfig({ token: $event.target.value })"
+                />
+                <div v-if="syncStore.type === 'gitee'" class="form-hint">在 Gitee → 设置 → 私人令牌 创建，需勾选 gists（代码片段）权限</div>
+                <div v-else class="form-hint">在 GitHub → Settings → Developer settings → Personal access tokens 创建，需勾选 gist 权限</div>
+              </div>
+              <div class="form-row">
+                <label class="form-label">{{ syncStore.type === 'gitee' ? 'Gitee 片段 ID（可选）' : 'Gist ID（可选）' }}</label>
+                <input
+                  type="text"
+                  class="input"
+                  placeholder="留空则首次推送时自动创建"
+                  :value="syncStore.gistConfig.gistId"
+                  @input="syncStore.updateGistConfig({ gistId: $event.target.value })"
+                />
+              </div>
+            </template>
+
+            <template v-else>
+              <div class="form-row">
+                <label class="form-label">WebDAV 地址</label>
+                <input
+                  type="text"
+                  class="input"
+                  placeholder="https://dav.jianguoyun.com/dav/R-Goose/"
+                  :value="syncStore.webdavConfig.url"
+                  @input="syncStore.updateWebdavConfig({ url: $event.target.value })"
+                />
+              </div>
+              <div class="form-row">
+                <label class="form-label">用户名</label>
+                <input
+                  type="text"
+                  class="input"
+                  :value="syncStore.webdavConfig.username"
+                  @input="syncStore.updateWebdavConfig({ username: $event.target.value })"
+                />
+              </div>
+              <div class="form-row">
+                <label class="form-label">密码 / 应用密码</label>
+                <input
+                  type="password"
+                  class="input"
+                  :value="syncStore.webdavConfig.password"
+                  @input="syncStore.updateWebdavConfig({ password: $event.target.value })"
+                />
+                <div class="form-hint">坚果云等请在账户设置里生成专属应用密码</div>
+              </div>
+            </template>
+
+            <div class="form-row">
+              <label class="form-label">自动同步</label>
+              <label class="switch small">
+                <input type="checkbox" :checked="syncStore.autoSync" @change="toggleAutoSync($event)" />
+                <span class="switch-slider"></span>
+              </label>
+              <span class="form-hint">每隔 {{ syncStore.autoSyncInterval }} 秒自动同步</span>
+            </div>
+
+            <div class="form-row" v-if="syncStore.autoSync">
+              <label class="form-label">同步间隔（秒）</label>
+              <input
+                type="number"
+                class="input interval-input"
+                min="10"
+                step="10"
+                :value="syncStore.autoSyncInterval"
+                @change="syncStore.setAutoSyncInterval($event.target.value)"
+              />
+            </div>
+
+            <div class="cloud-actions">
+              <button class="btn btn-secondary" :disabled="syncStore.syncing" @click="handleTest">
+                测试连接
+              </button>
+              <button class="btn btn-secondary" :disabled="syncStore.syncing" @click="handlePull">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                拉取
+              </button>
+              <button class="btn btn-primary" :disabled="syncStore.syncing" @click="handlePush">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                {{ syncStore.syncing ? '同步中...' : '立即同步' }}
+              </button>
+            </div>
+
+            <div v-if="cloudSyncText" class="sync-status-text">{{ cloudSyncText }}</div>
+            <div v-if="syncStore.lastError" class="sync-error-text">上次错误：{{ syncStore.lastError }}</div>
+          </div>
+        </div>
+      </section>
+
       <section class="settings-section">
         <h2 class="section-title"><span class="title-bar bar-green"></span>关于</h2>
         <div class="settings-list">
@@ -102,14 +258,16 @@
 import { computed, ref } from 'vue'
 import { useNoteStore } from '@/stores/note'
 import { usePlanStore } from '@/stores/plan'
+import { useSyncStore } from '@/stores/sync'
 import { exportAsJSON, importFromJSON, mergeData, loadFromStorage, saveToStorage } from '@/utils/storage'
 import { formatDate } from '@/utils'
 import { useToast } from '@/composables/useToast'
 
-const { error: toastError, success: toastSuccess } = useToast()
+const { error: toastError, success: toastSuccess, info: toastInfo } = useToast()
 
 const noteStore = useNoteStore()
 const planStore = usePlanStore()
+const syncStore = useSyncStore()
 const showImportConfirm = ref(false)
 const pendingImportData = ref(null)
 
@@ -118,6 +276,76 @@ const lastSyncTimeStr = computed(() => {
   if (!lastSync) return '尚未同步'
   return formatDate(lastSync, 'YYYY年MM月DD日 HH:mm')
 })
+
+const storageLocation = computed(() => {
+  if (window.electronAPI?.getDataPath) {
+    return window.electronAPI.getDataPath()
+  }
+  return '浏览器本地存储 (localStorage) · key: rgoose_note_data'
+})
+
+const cloudSyncText = computed(() => {
+  if (!syncStore.enabled) return ''
+  if (syncStore.syncing) return '正在同步...'
+  if (!syncStore.lastCloudSync) return '尚未同步到云端'
+  return `上次云端同步：${formatDate(syncStore.lastCloudSync, 'YYYY-MM-DD HH:mm')}`
+})
+
+function toggleEnabled(e) {
+  syncStore.setEnabled(e.target.checked)
+}
+
+function toggleAutoSync(e) {
+  syncStore.setAutoSync(e.target.checked)
+}
+
+async function handleTest() {
+  try {
+    await syncStore.test()
+    toastSuccess('连接成功，凭证有效')
+  } catch (err) {
+    toastError('连接失败：' + err.message)
+  }
+}
+
+async function handlePull() {
+  try {
+    await syncStore.pull(noteStore, planStore)
+    toastSuccess('已从云端拉取并合并数据')
+  } catch (err) {
+    toastError('拉取失败：' + err.message)
+  }
+}
+
+async function handlePush() {
+  try {
+    await syncStore.sync(noteStore, planStore)
+    toastSuccess('同步完成')
+  } catch (err) {
+    toastError('同步失败：' + (syncStore.lastError || err.message))
+  }
+}
+
+async function copyStorageLocation() {
+  const text = storageLocation.value
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+    } else {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+    }
+    toastSuccess('存储位置已复制到剪贴板')
+  } catch {
+    toastError('复制失败，请手动选择文本复制')
+  }
+}
 
 async function handleExport() {
   const data = {
@@ -161,8 +389,8 @@ function confirmImport() {
   const mergedData = mergeData(currentData, pendingImportData.value)
   saveToStorage(mergedData)
   
-  noteStore.loadData(mergedData.notes || [])
-  planStore.loadData(mergedData.plans || [])
+  noteStore.replaceAll(mergedData.notes || [])
+  planStore.replaceAll(mergedData.plans || [])
   
   showImportConfirm.value = false
   pendingImportData.value = null
@@ -276,6 +504,7 @@ function cancelImport() {
   font-size: 13px;
   color: var(--text-tertiary);
   line-height: 1.5;
+  word-break: break-all;
 }
 
 .sync-badge {
@@ -376,5 +605,146 @@ function cancelImport() {
   .settings-content {
     padding: 16px;
   }
+}
+
+.cloud-config {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-row.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+
+.form-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  letter-spacing: 0.05em;
+}
+
+.form-hint {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  line-height: 1.5;
+}
+
+.interval-input {
+  max-width: 120px;
+}
+
+.backend-tabs {
+  display: flex;
+  gap: 6px;
+  background: var(--bg-tertiary);
+  padding: 4px;
+  border-radius: 999px;
+  width: fit-content;
+}
+
+.backend-tab {
+  padding: 7px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+}
+
+.backend-tab.active {
+  background: var(--bg-secondary);
+  color: var(--primary-dark);
+  box-shadow: var(--shadow-sm);
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.switch.small {
+  width: 36px;
+  height: 20px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: var(--border-color);
+  border-radius: 999px;
+  transition: var(--transition-fast);
+}
+
+.switch-slider::before {
+  content: '';
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: var(--transition-fast);
+  box-shadow: var(--shadow-sm);
+}
+
+.switch.small .switch-slider::before {
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+}
+
+.switch input:checked + .switch-slider {
+  background: var(--primary-color);
+}
+
+.switch input:checked + .switch-slider::before {
+  transform: translateX(20px);
+}
+
+.switch.small input:checked + .switch-slider::before {
+  transform: translateX(16px);
+}
+
+.cloud-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.sync-status-text {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.sync-error-text {
+  font-size: 12px;
+  color: var(--warning-color);
+}
+
+.title-bar.bar-yellow {
+  background: #d4b27a;
 }
 </style>

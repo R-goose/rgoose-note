@@ -33,13 +33,13 @@
             <polyline points="21 15 16 10 5 21"/>
           </svg>
         </button>
-        <button v-if="block.type !== 'note-link'" class="action-btn" @click.stop="$emit('add-link', block.id)" title="插入链接">
+        <button v-if="block.type !== 'note-link' && block.type !== 'image'" class="action-btn" @click.stop="openLinkModal" title="插入链接">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
             <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
           </svg>
         </button>
-        <button v-if="block.type !== 'note-link'" class="action-btn" @click.stop="$emit('add-note-link', block.id)" title="引用笔记">
+        <button v-if="block.type !== 'note-link' && block.type !== 'image'" class="action-btn" @click.stop="$emit('add-note-link', block.id)" title="引用笔记">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
             <polyline points="14 2 14 8 20 8"/>
@@ -62,7 +62,7 @@
 
     <div v-if="showStyleMenu" class="style-menu" @click.stop>
       <div class="style-group">
-        <span class="style-label">颜色</span>
+        <span class="style-label">背景颜色</span>
         <div class="style-options">
           <button
             v-for="color in blockColors"
@@ -75,7 +75,7 @@
         </div>
       </div>
       <div class="style-group">
-        <span class="style-label">字体</span>
+        <span class="style-label">字体大小</span>
         <div class="style-options text-options">
           <button
             v-for="size in fontSizes"
@@ -86,6 +86,33 @@
           >
             {{ size.label }}
           </button>
+        </div>
+      </div>
+      <div class="style-group">
+        <span class="style-label">字体粗细</span>
+        <div class="style-options text-options">
+          <button
+            v-for="weight in fontWeights"
+            :key="weight.value"
+            class="style-chip"
+            :class="{ active: (block.fontWeight || 400) === weight.value }"
+            @click="updateStyle({ fontWeight: weight.value })"
+          >
+            {{ weight.label }}
+          </button>
+        </div>
+      </div>
+      <div class="style-group">
+        <span class="style-label">文字颜色</span>
+        <div class="style-options">
+          <button
+            v-for="color in textColors"
+            :key="color.value"
+            class="color-option"
+            :class="{ active: (block.textColor || '#1a1f1c') === color.value }"
+            :style="{ background: color.value }"
+            @click="updateStyle({ textColor: color.value })"
+          ></button>
         </div>
       </div>
       <div class="style-group">
@@ -102,11 +129,24 @@
           </button>
         </div>
       </div>
+      <div class="style-group">
+        <span class="style-label">边框颜色</span>
+        <div class="style-options">
+          <button
+            v-for="color in borderColors"
+            :key="color.value"
+            class="color-option"
+            :class="{ active: (block.borderColor === color.value) }"
+            :style="{ background: color.value }"
+            @click="updateStyle({ borderColor: color.value })"
+          ></button>
+        </div>
+      </div>
     </div>
 
     <div class="block-content">
       <div v-if="block.type === 'image' && block.imageUrl" class="image-container" @dblclick.stop="$emit('add-image', block.id)">
-        <img :src="block.imageUrl" alt="" @click.stop="$emit('preview-image', block.imageUrl)" />
+        <img :src="block.imageUrl" alt="" draggable="false" @click.stop="$emit('preview-image', block.imageUrl)" />
         <button class="change-image-btn" @click.stop="$emit('add-image', block.id)">更换图片</button>
       </div>
 
@@ -137,6 +177,8 @@
         @input="onInput"
         @blur="onBlur"
         @paste="onPaste"
+        @keydown="onEditorKeyDown"
+        @mousedown.stop
       ></div>
     </div>
 
@@ -165,10 +207,36 @@
       @mouseup.stop="$emit('connect-end', block.id, 'left')"
     ></div>
   </div>
+
+  <Teleport to="body">
+    <div v-if="showLinkModal" class="modal-overlay" @click.self="closeLinkModal">
+      <div class="modal-content" style="padding: 20px; width: 360px;">
+        <h3 style="margin-bottom: 16px; font-size: 16px;">插入链接</h3>
+        <input
+          v-model="linkText"
+          type="text"
+          class="input"
+          placeholder="链接文字"
+          style="margin-bottom: 12px;"
+        />
+        <input
+          v-model="linkUrl"
+          type="text"
+          class="input"
+          placeholder="链接地址 (https://...)"
+          style="margin-bottom: 16px;"
+        />
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+          <button class="btn btn-secondary" @click="closeLinkModal">取消</button>
+          <button class="btn btn-primary" @click="insertLink">插入</button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useNoteStore } from '@/stores/note'
 
 const props = defineProps({
@@ -199,6 +267,10 @@ const noteStore = useNoteStore()
 const blockRef = ref(null)
 const editorRef = ref(null)
 const showStyleMenu = ref(false)
+const showLinkModal = ref(false)
+const linkText = ref('')
+const linkUrl = ref('')
+let resizeObserver = null
 
 const blockColors = [
   { value: 'green', preview: '#eef9f3' },
@@ -209,15 +281,40 @@ const blockColors = [
 ]
 
 const fontSizes = [
-  { value: 13, label: '小' },
+  { value: 12, label: '小' },
   { value: 14, label: '中' },
-  { value: 16, label: '大' }
+  { value: 16, label: '大' },
+  { value: 20, label: '特大' }
+]
+
+const fontWeights = [
+  { value: 400, label: '常规' },
+  { value: 500, label: '中等' },
+  { value: 700, label: '粗体' }
+]
+
+const textColors = [
+  { value: '#1a1f1c', label: '黑' },
+  { value: '#52a377', label: '绿' },
+  { value: '#4d8cbe', label: '蓝' },
+  { value: '#b8955a', label: '黄' },
+  { value: '#d97676', label: '红' }
 ]
 
 const borderStyles = [
   { value: 'solid', label: '实线' },
   { value: 'dashed', label: '虚线' },
-  { value: 'none', label: '无边框' }
+  { value: 'dotted', label: '点线' },
+  { value: 'double', label: '双线' },
+  { value: 'none', label: '无' }
+]
+
+const borderColors = [
+  { value: '#e4e7e4', label: '浅灰' },
+  { value: '#6bbd8f', label: '绿' },
+  { value: '#6fa8d6', label: '蓝' },
+  { value: '#d4b27a', label: '黄' },
+  { value: '#d97676', label: '红' }
 ]
 
 const linkedNoteTitle = computed(() => {
@@ -225,18 +322,23 @@ const linkedNoteTitle = computed(() => {
   return note?.title || '未找到笔记'
 })
 
-const blockStyle = computed(() => ({
-  left: `${props.block.x}px`,
-  top: `${props.block.y}px`,
-  width: `${props.block.width || 220}px`,
-  minHeight: `${props.block.height || 60}px`,
-  borderColor: props.block.borderColor || undefined
-}))
+const blockStyle = computed(() => {
+  const style = {
+    left: `${props.block.x}px`,
+    top: `${props.block.y}px`,
+    width: `${props.block.width || 220}px`,
+    minHeight: `${props.block.height || 60}px`
+  }
+  if (props.block.borderColor) {
+    style.borderColor = props.block.borderColor
+  }
+  return style
+})
 
 const editorStyle = computed(() => ({
   fontSize: `${props.block.fontSize || 14}px`,
   fontWeight: props.block.fontWeight || 400,
-  color: props.block.textColor || 'var(--text-primary)'
+  color: props.block.textColor || '#1a1f1c'
 }))
 
 watch(
@@ -245,15 +347,26 @@ watch(
     if (editorRef.value && document.activeElement !== editorRef.value) {
       editorRef.value.innerHTML = value || ''
     }
-  },
-  { immediate: true }
+  }
 )
+
+function syncEditorContent() {
+  if (editorRef.value && document.activeElement !== editorRef.value) {
+    editorRef.value.innerHTML = props.block.content || ''
+  }
+}
 
 function onClick() {
   emit('select', props.block.id)
 }
 
 function onMouseDown(e) {
+  if (e.target.closest('.action-btn') || e.target.closest('.style-menu') || e.target.closest('.connect-dot')) {
+    return
+  }
+  if (e.target.closest('.text-editor')) {
+    return
+  }
   emit('drag-start', props.block.id, e.clientX, e.clientY)
 }
 
@@ -273,8 +386,45 @@ function onPaste(e) {
   document.execCommand('insertText', false, text)
 }
 
+function onEditorKeyDown(e) {
+  if (e.key === 'Tab') {
+    e.preventDefault()
+    document.execCommand('insertHTML', false, '&nbsp;&nbsp;')
+  }
+}
+
 function updateStyle(patch) {
   emit('update', props.block.id, patch)
+}
+
+function openLinkModal() {
+  linkText.value = ''
+  linkUrl.value = ''
+  showLinkModal.value = true
+}
+
+function closeLinkModal() {
+  showLinkModal.value = false
+}
+
+function insertLink() {
+  if (!linkUrl.value.trim()) {
+    closeLinkModal()
+    return
+  }
+  const text = linkText.value || linkUrl.value
+  const html = `<a href="${linkUrl.value}" target="_blank" rel="noopener noreferrer">${text}</a>`
+  const newContent = (props.block.content || '') + html
+  emit('update', props.block.id, { content: newContent })
+  closeLinkModal()
+}
+
+function reportResize() {
+  if (!blockRef.value) return
+  const rect = blockRef.value.getBoundingClientRect()
+  if (rect.width > 0 && rect.height > 0) {
+    emit('resize', { id: props.block.id, width: rect.width, height: rect.height })
+  }
 }
 
 function handleDocumentClick(e) {
@@ -285,10 +435,24 @@ function handleDocumentClick(e) {
 
 onMounted(() => {
   document.addEventListener('click', handleDocumentClick)
+  nextTick(() => {
+    syncEditorContent()
+    reportResize()
+    if (blockRef.value && typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        reportResize()
+      })
+      resizeObserver.observe(blockRef.value)
+    }
+  })
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleDocumentClick)
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+    resizeObserver = null
+  }
 })
 </script>
 
@@ -367,6 +531,7 @@ onUnmounted(() => {
 .block-content {
   padding: 10px 12px 12px;
   flex: 1;
+  overflow: hidden;
 }
 
 .text-editor {
@@ -376,11 +541,17 @@ onUnmounted(() => {
   line-height: 1.6;
   font-size: 14px;
   word-break: break-word;
+  cursor: text;
 }
 
 .text-editor:empty::before {
   content: attr(data-placeholder);
   color: var(--text-tertiary);
+}
+
+.text-editor :deep(a) {
+  color: var(--primary-dark);
+  text-decoration: underline;
 }
 
 .image-container {
@@ -393,6 +564,7 @@ onUnmounted(() => {
   width: 100%;
   display: block;
   border-radius: var(--radius-md);
+  cursor: zoom-in;
 }
 
 .change-image-btn {
@@ -452,8 +624,10 @@ onUnmounted(() => {
   top: 34px;
   right: 8px;
   z-index: 20;
-  width: 190px;
-  padding: 10px;
+  width: 200px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 12px;
   background: var(--bg-secondary);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
@@ -461,7 +635,7 @@ onUnmounted(() => {
 }
 
 .style-group + .style-group {
-  margin-top: 10px;
+  margin-top: 12px;
 }
 
 .style-label {
@@ -533,5 +707,7 @@ onUnmounted(() => {
 
 .block-border-solid { border-style: solid; }
 .block-border-dashed { border-style: dashed; }
+.block-border-dotted { border-style: dotted; }
+.block-border-double { border-style: double; }
 .block-border-none { border-style: none; }
 </style>

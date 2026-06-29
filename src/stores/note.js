@@ -16,7 +16,7 @@ export const useNoteStore = defineStore('note', () => {
   })
 
   const sortedNotes = computed(() => {
-    let list = notes.value
+    let list = notes.value.filter(n => !n.deleted)
     if (currentFolderId.value) {
       const allChildIds = getAllChildFolderIds(currentFolderId.value)
       const allFolderIds = [currentFolderId.value, ...allChildIds]
@@ -25,12 +25,14 @@ export const useNoteStore = defineStore('note', () => {
     return [...list].sort((a, b) => b.updatedAt - a.updatedAt)
   })
 
+  const currentFolderNotes = computed(() => sortedNotes.value)
+
   const allSortedNotes = computed(() => {
-    return [...notes.value].sort((a, b) => b.updatedAt - a.updatedAt)
+    return [...notes.value.filter(n => !n.deleted)].sort((a, b) => b.updatedAt - a.updatedAt)
   })
 
   const sortedFolders = computed(() => {
-    const sorted = [...folders.value].sort((a, b) => a.createdAt - b.createdAt)
+    const sorted = [...folders.value.filter(f => !f.deleted)].sort((a, b) => a.createdAt - b.createdAt)
     const rootFolders = sorted.filter(f => !f.parentId)
     const childFolders = sorted.filter(f => f.parentId)
     childFolders.sort((a, b) => {
@@ -50,11 +52,11 @@ export const useNoteStore = defineStore('note', () => {
   }
 
   function getFolderNoteCount(folderId) {
-    return notes.value.filter(n => n.folderId === folderId).length
+    return notes.value.filter(n => n.folderId === folderId && !n.deleted).length
   }
 
   function getChildFolderCount(folderId) {
-    return folders.value.filter(f => f.parentId === folderId).length
+    return folders.value.filter(f => f.parentId === folderId && !f.deleted).length
   }
 
   function init() {
@@ -127,25 +129,32 @@ export const useNoteStore = defineStore('note', () => {
   function deleteFolder(folderId) {
     const folder = folders.value.find(f => f.id === folderId)
     if (!folder) return
-    
+
     const parentId = folder.parentId
-    
+    const now = getTimestamp()
+
     const allChildFolderIds = getAllChildFolderIds(folderId)
     const allFolderIds = [folderId, ...allChildFolderIds]
-    
+
     allFolderIds.forEach(id => {
-      const idx = folders.value.findIndex(f => f.id === id)
-      if (idx >= 0) {
-        folders.value.splice(idx, 1)
+      const f = folders.value.find(item => item.id === id)
+      if (f) {
+        f.deleted = true
+        f.updatedAt = now
       }
     })
-    
-    notes.value = notes.value.filter(note => !allFolderIds.includes(note.folderId))
-    
+
+    notes.value.forEach(note => {
+      if (allFolderIds.includes(note.folderId)) {
+        note.deleted = true
+        note.updatedAt = now
+      }
+    })
+
     if (currentFolderId.value === folderId || allFolderIds.includes(currentFolderId.value)) {
       currentFolderId.value = parentId
     }
-    
+
     persist()
   }
   
@@ -226,9 +235,10 @@ export const useNoteStore = defineStore('note', () => {
   }
 
   function deleteNote(id) {
-    const idx = notes.value.findIndex(n => n.id === id)
-    if (idx >= 0) {
-      notes.value.splice(idx, 1)
+    const note = notes.value.find(n => n.id === id)
+    if (note) {
+      note.deleted = true
+      note.updatedAt = getTimestamp()
       if (currentNoteId.value === id) {
         currentNoteId.value = null
       }
@@ -391,6 +401,11 @@ export const useNoteStore = defineStore('note', () => {
     persist()
   }
 
+  function replaceAllFolders(newFolders) {
+    folders.value = newFolders
+    persist()
+  }
+
   function restoreNoteBlocks(noteId, blocks) {
     const note = notes.value.find(n => n.id === noteId)
     if (note) {
@@ -407,6 +422,7 @@ export const useNoteStore = defineStore('note', () => {
     currentFolderId,
     currentNote,
     sortedNotes,
+    currentFolderNotes,
     allSortedNotes,
     sortedFolders,
     lastSyncTime,
@@ -434,9 +450,11 @@ export const useNoteStore = defineStore('note', () => {
     deleteConnection,
     updateCanvasConfig,
     replaceAll,
+    replaceAllFolders,
     restoreNoteBlocks,
     getChildFolders,
     getChildFolderCount,
+    getFolderNoteCount,
     rootFolders,
     getFolderPath,
     getFolderPathString
