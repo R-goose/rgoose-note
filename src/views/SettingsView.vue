@@ -121,10 +121,11 @@
                 <input
                   type="text"
                   class="input"
-                  placeholder="留空则首次推送时自动创建"
+                  :placeholder="syncStore.type === 'gitee' ? '留空则首次推送时自动创建；填写后将固定使用该片段' : '留空则首次推送时自动创建'"
                   :value="syncStore.gistConfig.gistId"
                   @input="syncStore.updateGistConfig({ gistId: $event.target.value })"
                 />
+                <div v-if="syncStore.type === 'gitee'" class="form-hint">如果你填了 Gitee 片段 ID，后续会一直更新这个片段；ID 不存在时不会自动新建别的片段。</div>
               </div>
             </template>
 
@@ -412,7 +413,7 @@ function cancelImport() {
 }
 
 .view-header {
-  padding: 20px 28px;
+  padding: 20px calc(28px + var(--window-controls-width)) 20px 28px;
   border-bottom: 1px solid var(--border-light);
   background: var(--bg-secondary);
   flex-shrink: 0;

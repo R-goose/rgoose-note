@@ -2126,7 +2126,7 @@ function deleteSelectedConnection() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
+  padding: 10px calc(16px + var(--window-controls-width)) 10px 16px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-light);
   flex-shrink: 0;

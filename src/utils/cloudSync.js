@@ -134,7 +134,7 @@ const giteeAdapter = {
   },
 
   async push(config, payload) {
-    const id = config.gistId
+    const id = config.gistId?.trim()
     if (!id) {
       const newId = await this.create(config, payload)
       return { gistId: newId }
@@ -145,8 +145,7 @@ const giteeAdapter = {
       body: this.giteeBody(payload)
     })
     if (res.status === 404) {
-      const newId = await this.create(config, payload)
-      return { gistId: newId }
+      throw new Error('指定的 Gitee 片段 ID 不存在，请确认后重试')
     }
     if (res.status === 401) throw new Error('私人令牌无效')
     if (!res.ok) throw new Error(`推送失败（HTTP ${res.status}）`)
