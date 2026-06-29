@@ -277,6 +277,85 @@
     </Teleport>
 
     <Teleport to="body">
+      <div v-if="showCreateFolderModal" class="modal-overlay" @click.self="cancelCreateFolderModal">
+        <div class="modal-content create-folder-modal">
+          <h3>新建文件夹</h3>
+          <input
+            ref="folderNameInputRef"
+            v-model="newFolderModalName"
+            type="text"
+            class="input"
+            placeholder="请输入文件夹名称"
+            maxlength="50"
+            @keyup.enter="confirmCreateFolderModal"
+            @keyup.esc="cancelCreateFolderModal"
+          />
+          <div class="folder-select-wrapper">
+              <label>父级文件夹</label>
+              <div class="custom-select">
+                <div 
+                  ref="folderSelectTriggerRef"
+                  class="custom-select-trigger" 
+                  :class="{ 'has-value': selectedParentFolderId !== null }"
+                  @click="toggleFolderDropdown"
+                >
+                  <span class="custom-select-text">
+                    {{ selectedParentFolderId !== null 
+                      ? getFolderDisplayPath(selectedParentFolderId) || '未找到文件夹' 
+                      : '无父级文件夹（根目录）' }}
+                  </span>
+                  <svg 
+                    class="custom-select-arrow" 
+                    :class="{ flipped: folderDropdownOpen }"
+                    width="12" 
+                    height="12" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    stroke-width="2.5" 
+                    stroke-linecap="round" 
+                    stroke-linejoin="round"
+                  >
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </div>
+                <Teleport to="body">
+                  <Transition name="custom-select">
+                    <div v-if="folderDropdownOpen" class="custom-select-dropdown" :style="folderDropdownStyle">
+                      <div
+                        class="custom-select-option"
+                        :class="{ selected: selectedParentFolderId === null }"
+                        @click="selectParentFolder(null)"
+                      >
+                        无父级文件夹（根目录）
+                      </div>
+                      <div
+                        v-for="folder in noteStore.folders"
+                        :key="folder.id"
+                        class="custom-select-option"
+                        :class="{ selected: selectedParentFolderId === folder.id }"
+                        @click="selectParentFolder(folder.id)"
+                      >
+                        <div class="folder-option-content">
+                          <span class="folder-option-name">{{ folder.name }}</span>
+                          <span v-if="folder.parentId" class="folder-option-path">{{ getFolderParentPath(folder.parentId) }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </Transition>
+                </Teleport>
+              </div>
+            </div>
+          <div v-if="folderNameError" class="folder-error-tip">文件夹名称已存在</div>
+          <div class="modal-actions">
+            <button class="btn btn-secondary" @click="cancelCreateFolderModal">取消</button>
+            <button class="btn btn-primary" :disabled="!newFolderModalName.trim()" @click="confirmCreateFolderModal">创建</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
       <div v-if="noteToDelete" class="modal-overlay" @click.self="noteToDelete = null">
         <div class="modal-content confirm-modal">
           <div class="confirm-header">
@@ -334,6 +413,13 @@ const showCreateNoteModal = ref(false)
 const newNoteTitle = ref('')
 const noteTitleInputRef = ref(null)
 const noteToDelete = ref(null)
+const showCreateFolderModal = ref(false)
+const newFolderModalName = ref('')
+const selectedParentFolderId = ref(null)
+const folderNameInputRef = ref(null)
+const folderDropdownOpen = ref(false)
+const folderDropdownStyle = ref({})
+const folderSelectTriggerRef = ref(null)
 
 const todayPlanCount = computed(() => planStore.todayPlans?.length || 0)
 const currentFolderName = computed(() => {
@@ -480,11 +566,11 @@ function createNewFolder(parentId = null) {
     next.add(parentId)
     expandedFolderIds.value = next
   }
-  isCreatingFolder.value = true
-  newFolderParentId.value = parentId
-  newFolderName.value = ''
+  showCreateFolderModal.value = true
+  newFolderModalName.value = ''
+  selectedParentFolderId.value = parentId
   folderNameError.value = false
-  nextTick(() => focusRef(newFolderInputRef))
+  nextTick(() => focusRef(folderNameInputRef))
 }
 
 function finishCreateFolder() {
@@ -543,6 +629,80 @@ function cancelCreateNote() {
   newNoteTitle.value = ''
 }
 
+function confirmCreateFolderModal() {
+  const name = newFolderModalName.value.trim()
+  if (!name) return
+  if (!validateFolderName(name, null, selectedParentFolderId.value)) return
+  noteStore.createFolder(name, selectedParentFolderId.value)
+  if (selectedParentFolderId.value) {
+    const next = new Set(expandedFolderIds.value)
+    next.add(selectedParentFolderId.value)
+    expandedFolderIds.value = next
+  }
+  cancelCreateFolderModal()
+}
+
+function cancelCreateFolderModal() {
+  showCreateFolderModal.value = false
+  newFolderModalName.value = ''
+  selectedParentFolderId.value = null
+  folderNameError.value = false
+  folderDropdownOpen.value = false
+}
+
+function toggleFolderDropdown() {
+  if (folderDropdownOpen.value) {
+    closeFolderDropdown()
+  } else {
+    openFolderDropdown()
+  }
+}
+
+function openFolderDropdown() {
+  folderDropdownOpen.value = true
+  nextTick(() => positionFolderDropdown())
+}
+
+function closeFolderDropdown() {
+  folderDropdownOpen.value = false
+}
+
+function positionFolderDropdown() {
+  const trigger = folderSelectTriggerRef.value
+  if (!trigger) return
+  const rect = trigger.getBoundingClientRect()
+  const panelW = rect.width
+  const panelH = 300
+  let left = rect.left
+  let top = rect.bottom + 6
+  if (left + panelW > window.innerWidth - 8) left = window.innerWidth - panelW - 8
+  if (top + panelH > window.innerHeight - 8) top = rect.top - panelH - 6
+  if (left < 8) left = 8
+  if (top < 8) top = 8
+  folderDropdownStyle.value = { width: panelW + 'px', left: left + 'px', top: top + 'px' }
+}
+
+function selectParentFolder(folderId) {
+  selectedParentFolderId.value = folderId
+  closeFolderDropdown()
+}
+
+function handleFolderSelectDocClick(e) {
+  if (folderDropdownOpen.value && !e.target.closest('.custom-select')) {
+    closeFolderDropdown()
+  }
+}
+
+function getFolderDisplayPath(folderId) {
+  const path = noteStore.getFolderPathString?.(folderId)
+  return path || noteStore.folders.find(f => f.id === folderId)?.name
+}
+
+function getFolderParentPath(parentId) {
+  const parentPath = noteStore.getFolderPathString?.(parentId)
+  return parentPath ? `所属文件夹： ${parentPath}` : ''
+}
+
 function renameFromContextMenu() {
   const folder = folderContextMenu.value.folder
   hideFolderContextMenu()
@@ -561,10 +721,12 @@ onMounted(() => {
   noteStore.init()
   planStore.init()
   document.addEventListener('click', hideFolderContextMenu)
+  document.addEventListener('click', handleFolderSelectDocClick)
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', hideFolderContextMenu)
+  document.removeEventListener('click', handleFolderSelectDocClick)
 })
 </script>
 
@@ -1085,6 +1247,176 @@ onUnmounted(() => {
 }
 
 .create-note-modal .modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.create-folder-modal {
+  width: 380px;
+  max-width: 90vw;
+  padding: 24px;
+}
+
+.create-folder-modal h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: var(--text-primary);
+}
+
+.create-folder-modal .input {
+  margin-bottom: 20px;
+  font-size: 15px;
+}
+
+.folder-select-wrapper {
+  margin-bottom: 20px;
+}
+
+.folder-select-wrapper label {
+  display: block;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.custom-select {
+  position: relative;
+  width: 100%;
+}
+
+.custom-select-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.custom-select-trigger:hover {
+  background-color: var(--bg-hover);
+  border-color: var(--primary-light);
+}
+
+.custom-select-trigger:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  background-color: var(--bg-tertiary);
+  box-shadow: 0 0 0 3px rgba(107, 189, 143, 0.1);
+}
+
+.custom-select-text {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.custom-select-arrow {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+  transition: transform var(--transition-fast);
+}
+
+.custom-select-arrow.flipped {
+  transform: rotate(180deg);
+}
+
+.custom-select-dropdown {
+  position: fixed;
+  z-index: 9999;
+  max-height: 300px;
+  overflow-y: auto;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 8px;
+  box-sizing: border-box;
+  min-width: 120px;
+}
+
+.custom-select-option {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.folder-option-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.folder-option-name {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.folder-option-path {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-weight: 400;
+}
+
+.custom-select-option:hover {
+  background: var(--bg-hover);
+  color: var(--primary-dark);
+}
+
+.custom-select-option:hover .folder-option-path {
+  color: var(--text-secondary);
+}
+
+.custom-select-option.selected {
+  background: var(--primary-color);
+  color: white;
+  font-weight: 600;
+}
+
+.custom-select-option.selected .folder-option-name {
+  color: white;
+}
+
+.custom-select-option.selected .folder-option-path {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.custom-select-enter-active,
+.custom-select-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.custom-select-enter-from,
+.custom-select-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+.create-folder-modal .folder-error-tip {
+  margin-bottom: 20px;
+  padding: 8px 12px;
+  background: var(--warning-soft);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--warning-color);
+  line-height: 1.4;
+}
+
+.create-folder-modal .modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
