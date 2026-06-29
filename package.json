@@ -9,7 +9,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "electron:dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "electron:build": "vite build && electron-builder"
+    "electron:build": "vite build && node node_modules/electron-builder/cli.js",
+    "electron:build:mirror": "vite build && powershell -Command \"$env:ELECTRON_MIRROR='https://npmmirror.com/mirrors/electron/'; $env:ELECTRON_BUILDER_BINARIES_MIRROR='https://npmmirror.com/mirrors/electron-builder-binaries/'; Remove-Item Env:ELECTRON_BUILDER_BINARIES_CUSTOM_DIR -ErrorAction SilentlyContinue; node node_modules/electron-builder/cli.js\""
   },
   "dependencies": {
     "@vueuse/core": "^14.3.0",
@@ -31,7 +32,7 @@
     "electron-builder": "^24.9.1",
     "wait-on": "^7.2.0"
   },
-  "main": "electron/main.js",
+  "main": "electron/main.cjs",
   "build": {
     "appId": "com.rgoose.note",
     "productName": "R-Goose Note",
@@ -40,14 +41,18 @@
     },
     "files": [
       "dist/**/*",
-      "electron/**/*"
+      "electron/**/*.cjs"
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
+    },
+    "electronDownload": {
+      "mirror": "https://npmmirror.com/mirrors/electron/"
     }
   },
   "volta": {
