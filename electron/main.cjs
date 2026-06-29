@@ -10,19 +10,26 @@ function createWindow() {
     height: 800,
     minWidth: 800,
     minHeight: 600,
-    titleBarStyle: 'hidden',
-    titleBarOverlay: {
-      color: '#f6f7f5',
-      symbolColor: '#5a9e7a',
-      height: 36
-    },
-    backgroundColor: '#f6f7f5',
+    frame: false,
+    transparent: true,
+    resizable: true,
+    backgroundColor: '#00000000',
     icon: path.join(__dirname, '../build/icon.ico'),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.cjs')
     }
+  })
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    mainWindow.webContents.send('window-maximize-changed', mainWindow.isMaximized())
+  })
+  mainWindow.on('maximize', () => {
+    mainWindow.webContents.send('window-maximize-changed', true)
+  })
+  mainWindow.on('unmaximize', () => {
+    mainWindow.webContents.send('window-maximize-changed', false)
   })
 
   if (process.env.VITE_DEV_SERVER_URL) {
@@ -32,6 +39,28 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
   }
 }
+
+ipcMain.handle('window-minimize', () => {
+  if (mainWindow) mainWindow.minimize()
+})
+
+ipcMain.handle('window-toggle-maximize', () => {
+  if (mainWindow) {
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize()
+    } else {
+      mainWindow.maximize()
+    }
+  }
+})
+
+ipcMain.handle('window-close', () => {
+  if (mainWindow) mainWindow.close()
+})
+
+ipcMain.handle('window-is-maximized', () => {
+  return mainWindow ? mainWindow.isMaximized() : false
+})
 
 ipcMain.handle('export-data', async (_event, data) => {
   const result = await dialog.showSaveDialog(mainWindow, {
