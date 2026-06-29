@@ -2,6 +2,7 @@
   <div
     ref="blockRef"
     class="note-block"
+    :data-block-id="block.id"
     :class="{
       selected,
       'connect-mode': connectMode,
@@ -178,6 +179,9 @@
         @blur="onBlur"
         @paste="onPaste"
         @keydown="onEditorKeyDown"
+        @mouseup="saveSelection"
+        @keyup="saveSelection"
+        @focus="saveSelection"
         @mousedown.stop
       ></div>
     </div>
@@ -260,7 +264,8 @@ const emit = defineEmits([
   'add-note-link',
   'preview-image',
   'open-note',
-  'resize'
+  'resize',
+  'save-selection'
 ])
 
 const noteStore = useNoteStore()
@@ -372,12 +377,29 @@ function onMouseDown(e) {
 
 function onInput(e) {
   emit('update', props.block.id, { content: e.target.innerHTML })
+  saveSelection()
 }
 
 function onBlur() {
   if (editorRef.value) {
     emit('update', props.block.id, { content: editorRef.value.innerHTML })
   }
+}
+
+function saveSelection() {
+  if (!editorRef.value || document.activeElement !== editorRef.value) return
+  const selection = window.getSelection()
+  if (!selection) return
+
+  if (selection.rangeCount === 0) {
+    const range = document.createRange()
+    range.selectNodeContents(editorRef.value)
+    range.collapse(false)
+    selection.removeAllRanges()
+    selection.addRange(range)
+  }
+
+  emit('save-selection', props.block.id, selection.getRangeAt(0).cloneRange())
 }
 
 function onPaste(e) {
@@ -421,9 +443,11 @@ function insertLink() {
 
 function reportResize() {
   if (!blockRef.value) return
-  const rect = blockRef.value.getBoundingClientRect()
-  if (rect.width > 0 && rect.height > 0) {
-    emit('resize', { id: props.block.id, width: rect.width, height: rect.height })
+  const el = blockRef.value
+  const width = el.offsetWidth
+  const height = el.offsetHeight
+  if (width > 0 && height > 0) {
+    emit('resize', { id: props.block.id, width, height })
   }
 }
 

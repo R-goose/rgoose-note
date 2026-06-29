@@ -113,6 +113,7 @@
           @preview-image="showImagePreview"
           @open-note="openLinkedNote"
           @resize="onBlockResize"
+          @save-selection="saveBlockSelection"
         />
       </div>
       
@@ -486,10 +487,42 @@
     </div>
     
     <Teleport to="body">
-      <div v-if="showImagePreviewModal" class="image-preview-overlay" @click="closeImagePreview">
-        <div class="image-preview-container">
-          <img :src="previewImageUrl" alt="预览图片" class="preview-image" />
-          <button class="image-preview-close" @click="closeImagePreview">
+      <div
+      v-if="showImagePreviewModal"
+      class="image-preview-overlay"
+      @click="closeImagePreview"
+      @wheel.prevent="onPreviewWheel"
+    >
+        <div class="image-preview-container" @click.stop>
+          <img
+            :src="previewImageUrl"
+            alt="预览图片"
+            class="preview-image"
+            :class="{ fit: previewImageScale === 1 }"
+            :style="previewImageStyle"
+            @click.stop="togglePreviewFit"
+          />
+          <div class="image-preview-toolbar">
+            <button class="btn btn-ghost btn-icon" @click.stop="zoomPreviewOut" title="缩小">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+            </button>
+            <span class="preview-zoom-text">{{ Math.round(previewImageScale * 100) }}%</span>
+            <button class="btn btn-ghost btn-icon" @click.stop="zoomPreviewIn" title="放大">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+            </button>
+            <button class="btn btn-ghost btn-icon" @click.stop="resetPreviewZoom" title="重置缩放">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <polyline points="1 4 1 10 7 10"/>
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+              </svg>
+            </button>
+          </div>
+          <button class="image-preview-close" @click.stop="closeImagePreview">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
               <line x1="18" y1="6" x2="6" y2="18"/>
               <line x1="6" y1="6" x2="18" y2="18"/>
@@ -580,6 +613,7 @@ function redo() {
 
 const isImageLoading = ref(false)
 const currentImageBlockId = ref(null)
+const blockSelectionRanges = ref({})
 
 const showNoteLinkModal = ref(false)
 const noteLinkSearch = ref('')
@@ -587,6 +621,7 @@ const noteLinkSourceBlockId = ref(null)
 
 const showImagePreviewModal = ref(false)
 const previewImageUrl = ref('')
+const previewImageScale = ref(1)
 
 const showExportMenu = ref(false)
 
@@ -670,6 +705,11 @@ const canvasBgStyle = computed(() => ({
 const canvasTransformStyle = computed(() => ({
   transform: `translate(${canvasConfig.value.offsetX}px, ${canvasConfig.value.offsetY}px) scale(${canvasConfig.value.zoom})`,
   transformOrigin: '0 0'
+}))
+
+const previewImageStyle = computed(() => ({
+  transform: `scale(${previewImageScale.value})`,
+  transformOrigin: 'center center'
 }))
 
 const tempConnectionPath = computed(() => {
@@ -1151,19 +1191,14 @@ function onMinimapWheel(e) {
 function getBlockSize(blockId, block) {
   const cached = blockSizes.value[blockId]
   if (cached && cached.width > 0 && cached.height > 0) {
-    return {
-      width: cached.width / canvasConfig.value.zoom,
-      height: cached.height / canvasConfig.value.zoom
-    }
+    return { width: cached.width, height: cached.height }
   }
   const el = document.querySelector(`[data-block-id="${blockId}"]`)
   if (el) {
-    const rect = el.getBoundingClientRect()
-    if (rect.width > 0 && rect.height > 0) {
-      return {
-        width: rect.width / canvasConfig.value.zoom,
-        height: rect.height / canvasConfig.value.zoom
-      }
+    const w = el.offsetWidth
+    const h = el.offsetHeight
+    if (w > 0 && h > 0) {
+      return { width: w, height: h }
     }
   }
   return { width: block.width || 240, height: block.minHeight || 60 }
@@ -1363,14 +1398,41 @@ function closeNoteLinkModal() {
   noteLinkSourceBlockId.value = null
 }
 
+function clampPreviewScale(scale) {
+  return Math.min(3, Math.max(1, scale))
+}
+
+function zoomPreviewIn() {
+  previewImageScale.value = clampPreviewScale(previewImageScale.value + 0.25)
+}
+
+function zoomPreviewOut() {
+  previewImageScale.value = clampPreviewScale(previewImageScale.value - 0.25)
+}
+
+function resetPreviewZoom() {
+  previewImageScale.value = 1
+}
+
+function togglePreviewFit() {
+  previewImageScale.value = previewImageScale.value === 1 ? 1.5 : 1
+}
+
+function onPreviewWheel(e) {
+  const delta = e.deltaY > 0 ? -0.1 : 0.1
+  previewImageScale.value = clampPreviewScale(previewImageScale.value + delta)
+}
+
 function showImagePreview(url) {
   previewImageUrl.value = url
+  previewImageScale.value = 1.2
   showImagePreviewModal.value = true
 }
 
 function closeImagePreview() {
   showImagePreviewModal.value = false
   previewImageUrl.value = ''
+  previewImageScale.value = 1
 }
 
 function exportAsPDF() {
@@ -1589,25 +1651,31 @@ function onImageFileSelect(e) {
     if (note.value) {
       saveHistory()
       if (currentImageBlockId.value) {
-        // 获取当前块，检查类型
         const block = note.value.blocks.find(b => b.id === currentImageBlockId.value)
-        if (block && block.type === 'image') {
-          // 图片块类型，只更新图片
+        if (block?.type === 'image') {
           noteStore.updateBlock(note.value.id, currentImageBlockId.value, {
             imageUrl: imgData
           })
-        } else {
-          // 文本块类型，不清空内容，直接返回
-          // 改为创建新的图片块
-          const newBlock = noteStore.addBlock(note.value.id, {
-            x: centerX,
-            y: centerY,
+          selectedBlockId.value = currentImageBlockId.value
+        } else if (block) {
+          const imgX = block.x + (block.width || 240) + 60
+          const imgY = block.y
+          const newImageBlock = noteStore.addBlock(note.value.id, {
+            x: imgX,
+            y: imgY,
             type: 'image',
             imageUrl: imgData,
             width: 280,
             minHeight: 200
           })
-          selectedBlockId.value = newBlock.id
+          noteStore.addConnection(
+            note.value.id,
+            block.id,
+            newImageBlock.id,
+            'bezier',
+            { dash: 'dashed', color: '#9aa0a6', width: '2' }
+          )
+          selectedBlockId.value = newImageBlock.id
         }
         currentImageBlockId.value = null
       } else {
@@ -1632,7 +1700,15 @@ function onImageFileSelect(e) {
   e.target.value = ''
 }
 
+function saveBlockSelection(blockId, range) {
+  blockSelectionRanges.value = {
+    ...blockSelectionRanges.value,
+    [blockId]: range
+  }
+}
+
 function handleAddImageToBlock(blockId) {
+  selectedBlockId.value = blockId
   currentImageBlockId.value = blockId
   fileInputRef.value?.click()
 }
@@ -2705,14 +2781,41 @@ function deleteSelectedConnection() {
   position: relative;
   max-width: 90vw;
   max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
 }
 
 .preview-image {
-  max-width: 90vw;
-  max-height: 90vh;
+  width: min(96vw, 1600px);
+  max-width: none;
+  max-height: calc(100vh - 96px);
   object-fit: contain;
   border-radius: var(--radius-md);
-  cursor: default;
+  cursor: zoom-in;
+  user-select: none;
+  transition: transform 0.15s ease;
+}
+
+.preview-image.fit {
+  cursor: zoom-in;
+}
+
+.image-preview-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(18, 18, 18, 0.72);
+  color: white;
+}
+
+.preview-zoom-text {
+  min-width: 52px;
+  text-align: center;
+  font-size: 12px;
 }
 
 .image-preview-close {

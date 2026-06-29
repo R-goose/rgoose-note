@@ -335,14 +335,14 @@ export const useNoteStore = defineStore('note', () => {
     }
   }
 
-  function addConnection(noteId, from, to, shape = 'straight') {
+  function addConnection(noteId, from, to, shape = 'straight', overrides = {}) {
     const note = notes.value.find(n => n.id === noteId)
     if (note) {
       const exists = note.connections.some(
         c => (c.from === from && c.to === to) || (c.from === to && c.to === from)
       )
       if (exists) return null
-      
+
       const connection = {
         id: generateId(),
         from,
@@ -353,7 +353,8 @@ export const useNoteStore = defineStore('note', () => {
         dir: 'forward',
         color: '#6bbd8f',
         width: '2',
-        createdAt: getTimestamp()
+        createdAt: getTimestamp(),
+        ...overrides
       }
       note.connections.push(connection)
       note.updatedAt = getTimestamp()

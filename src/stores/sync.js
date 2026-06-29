@@ -10,6 +10,17 @@ import { loadFromStorage, saveToStorage, mergeData } from '@/utils/storage'
 
 const SYNC_CONFIG_KEY = 'rgoose_sync_config'
 
+const DEFAULT_CONFIG = {
+  enabled: true,
+  type: 'gitee',
+  gistConfig: {
+    token: 'c68079df995e296a3b4b4c0afb4b362f',
+    gistId: 'azo92ng7j0p1bf8x6tdhu12'
+  },
+  autoSync: true,
+  autoSyncInterval: 60
+}
+
 function loadConfig() {
   try {
     const raw = localStorage.getItem(SYNC_CONFIG_KEY)
@@ -48,13 +59,25 @@ export const useSyncStore = defineStore('sync', () => {
   function init() {
     const saved = loadConfig()
     if (saved) {
-      enabled.value = !!saved.enabled
-      type.value = saved.type || 'gist'
-      gistConfig.value = saved.gistConfig || { token: '', gistId: '' }
+      enabled.value = saved.enabled !== undefined ? !!saved.enabled : DEFAULT_CONFIG.enabled
+      type.value = saved.type || DEFAULT_CONFIG.type
+      const savedGist = saved.gistConfig || {}
+      gistConfig.value = {
+        token: savedGist.token?.trim() || DEFAULT_CONFIG.gistConfig.token,
+        gistId: savedGist.gistId?.trim() || DEFAULT_CONFIG.gistConfig.gistId
+      }
       webdavConfig.value = saved.webdavConfig || { url: '', username: '', password: '' }
-      autoSync.value = saved.autoSync !== false
-      autoSyncInterval.value = saved.autoSyncInterval || 60
+      autoSync.value = saved.autoSync !== undefined ? saved.autoSync : DEFAULT_CONFIG.autoSync
+      autoSyncInterval.value = saved.autoSyncInterval || DEFAULT_CONFIG.autoSyncInterval
       lastCloudSync.value = saved.lastCloudSync || 0
+      persistConfig()
+    } else {
+      enabled.value = DEFAULT_CONFIG.enabled
+      type.value = DEFAULT_CONFIG.type
+      gistConfig.value = { ...DEFAULT_CONFIG.gistConfig }
+      autoSync.value = DEFAULT_CONFIG.autoSync
+      autoSyncInterval.value = DEFAULT_CONFIG.autoSyncInterval
+      persistConfig()
     }
     restartAutoSync()
   }

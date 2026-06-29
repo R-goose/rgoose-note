@@ -5,7 +5,7 @@
         <h1>设置</h1>
       </div>
     </header>
-    
+
     <div class="settings-content">
       <section class="settings-section">
         <h2 class="section-title"><span class="title-bar bar-blue"></span>数据管理</h2>
@@ -16,30 +16,32 @@
               <div class="setting-desc">将所有笔记和计划导出为 JSON 文件备份</div>
             </div>
             <button class="btn btn-secondary btn-export" @click="handleExport">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
               </svg>
               导出
             </button>
           </div>
-          
+
           <div class="setting-item">
             <div class="setting-info">
               <div class="setting-name">导入数据</div>
               <div class="setting-desc">从 JSON 备份文件恢复数据</div>
             </div>
             <button class="btn btn-secondary btn-import" @click="handleImport">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="17 8 12 3 7 8"/>
-                <line x1="12" y1="3" x2="12" y2="15"/>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
               </svg>
               导入
             </button>
           </div>
-          
+
           <div class="setting-item">
             <div class="setting-info">
               <div class="setting-name">同步状态</div>
@@ -57,9 +59,10 @@
               <div class="setting-desc">{{ storageLocation }}</div>
             </div>
             <button class="btn btn-secondary" @click="copyStorageLocation">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
               </svg>
               复制
             </button>
@@ -85,78 +88,53 @@
             <div class="form-row">
               <label class="form-label">同步后端</label>
               <div class="backend-tabs">
-                <button
-                  class="backend-tab"
-                  :class="{ active: syncStore.type === 'gist' }"
-                  @click="syncStore.setType('gist')"
-                >GitHub Gist</button>
-                <button
-                  class="backend-tab"
-                  :class="{ active: syncStore.type === 'gitee' }"
-                  @click="syncStore.setType('gitee')"
-                >Gitee 代码片段</button>
-                <button
-                  class="backend-tab"
-                  :class="{ active: syncStore.type === 'webdav' }"
-                  @click="syncStore.setType('webdav')"
-                >WebDAV</button>
+                <button class="backend-tab" :class="{ active: syncStore.type === 'gist' }"
+                  @click="syncStore.setType('gist')">GitHub Gist</button>
+                <button class="backend-tab" :class="{ active: syncStore.type === 'gitee' }"
+                  @click="syncStore.setType('gitee')">Gitee 代码片段</button>
+                <button class="backend-tab" :class="{ active: syncStore.type === 'webdav' }"
+                  @click="syncStore.setType('webdav')">WebDAV</button>
               </div>
             </div>
 
             <template v-if="syncStore.type === 'gist' || syncStore.type === 'gitee'">
               <div class="form-row">
                 <label class="form-label">{{ syncStore.type === 'gitee' ? 'Gitee 私人令牌' : 'GitHub Token' }}</label>
-                <input
-                  type="password"
-                  class="input"
+                <input type="password" class="input"
                   :placeholder="syncStore.type === 'gitee' ? '在 Gitee → 设置 → 私人令牌 生成' : 'ghp_xxxxxxxx'"
                   :value="syncStore.gistConfig.token"
-                  @input="syncStore.updateGistConfig({ token: $event.target.value })"
-                />
+                  @input="syncStore.updateGistConfig({ token: $event.target.value })" />
                 <div v-if="syncStore.type === 'gitee'" class="form-hint">在 Gitee → 设置 → 私人令牌 创建，需勾选 gists（代码片段）权限</div>
-                <div v-else class="form-hint">在 GitHub → Settings → Developer settings → Personal access tokens 创建，需勾选 gist 权限</div>
+                <div v-else class="form-hint">在 GitHub → Settings → Developer settings → Personal access tokens 创建，需勾选
+                  gist 权限</div>
               </div>
               <div class="form-row">
                 <label class="form-label">{{ syncStore.type === 'gitee' ? 'Gitee 片段 ID（可选）' : 'Gist ID（可选）' }}</label>
-                <input
-                  type="text"
-                  class="input"
+                <input type="text" class="input"
                   :placeholder="syncStore.type === 'gitee' ? '留空则首次推送时自动创建；填写后将固定使用该片段' : '留空则首次推送时自动创建'"
                   :value="syncStore.gistConfig.gistId"
-                  @input="syncStore.updateGistConfig({ gistId: $event.target.value })"
-                />
-                <div v-if="syncStore.type === 'gitee'" class="form-hint">如果你填了 Gitee 片段 ID，后续会一直更新这个片段；ID 不存在时不会自动新建别的片段。</div>
+                  @input="syncStore.updateGistConfig({ gistId: $event.target.value })" />
+                <div v-if="syncStore.type === 'gitee'" class="form-hint">如果你填了 Gitee 片段 ID，后续会一直更新这个片段；ID
+                  不存在时不会自动新建别的片段。</div>
               </div>
             </template>
 
             <template v-else>
               <div class="form-row">
                 <label class="form-label">WebDAV 地址</label>
-                <input
-                  type="text"
-                  class="input"
-                  placeholder="https://dav.jianguoyun.com/dav/R-Goose/"
+                <input type="text" class="input" placeholder="https://dav.jianguoyun.com/dav/R-Goose/"
                   :value="syncStore.webdavConfig.url"
-                  @input="syncStore.updateWebdavConfig({ url: $event.target.value })"
-                />
+                  @input="syncStore.updateWebdavConfig({ url: $event.target.value })" />
               </div>
               <div class="form-row">
                 <label class="form-label">用户名</label>
-                <input
-                  type="text"
-                  class="input"
-                  :value="syncStore.webdavConfig.username"
-                  @input="syncStore.updateWebdavConfig({ username: $event.target.value })"
-                />
+                <input type="text" class="input" :value="syncStore.webdavConfig.username"
+                  @input="syncStore.updateWebdavConfig({ username: $event.target.value })" />
               </div>
               <div class="form-row">
                 <label class="form-label">密码 / 应用密码</label>
-                <input
-                  type="password"
-                  class="input"
-                  :value="syncStore.webdavConfig.password"
-                  @input="syncStore.updateWebdavConfig({ password: $event.target.value })"
-                />
+                <input type="password" class="input" :value="syncStore.webdavConfig.password"
+                  @input="syncStore.updateWebdavConfig({ password: $event.target.value })" />
                 <div class="form-hint">坚果云等请在账户设置里生成专属应用密码</div>
               </div>
             </template>
@@ -172,14 +150,8 @@
 
             <div class="form-row" v-if="syncStore.autoSync">
               <label class="form-label">同步间隔（秒）</label>
-              <input
-                type="number"
-                class="input interval-input"
-                min="10"
-                step="10"
-                :value="syncStore.autoSyncInterval"
-                @change="syncStore.setAutoSyncInterval($event.target.value)"
-              />
+              <input type="number" class="input interval-input" min="10" step="10" :value="syncStore.autoSyncInterval"
+                @change="syncStore.setAutoSyncInterval($event.target.value)" />
             </div>
 
             <div class="cloud-actions">
@@ -187,18 +159,20 @@
                 测试连接
               </button>
               <button class="btn btn-secondary" :disabled="syncStore.syncing" @click="handlePull">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                  <polyline points="17 8 12 3 7 8"/>
-                  <line x1="12" y1="3" x2="12" y2="15"/>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
                 拉取
               </button>
               <button class="btn btn-primary" :disabled="syncStore.syncing" @click="handlePush">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                  <polyline points="7 10 12 15 17 10"/>
-                  <line x1="12" y1="15" x2="12" y2="3"/>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
                 </svg>
                 {{ syncStore.syncing ? '同步中...' : '立即同步' }}
               </button>
@@ -216,7 +190,7 @@
           <div class="setting-item">
             <div class="setting-info">
               <div class="setting-name brand-name">R-Goose Note</div>
-              <div class="setting-desc">版本 1.0.0</div>
+              <div class="setting-desc">版本 1.0.1</div>
             </div>
           </div>
           <div class="setting-item">
@@ -235,9 +209,9 @@
           <div class="confirm-header">
             <div class="confirm-icon warning">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                <line x1="12" y1="9" x2="12" y2="13"/>
-                <line x1="12" y1="17" x2="12.01" y2="17"/>
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
               </svg>
             </div>
             <div>
@@ -355,7 +329,7 @@ async function handleExport() {
     exportedAt: Date.now(),
     version: '1.0.0'
   }
-  
+
   if (window.electronAPI?.exportData) {
     await window.electronAPI.exportData(data)
   } else {
@@ -367,13 +341,13 @@ async function handleExport() {
 async function handleImport() {
   try {
     let data
-    
+
     if (window.electronAPI?.importData) {
       data = await window.electronAPI.importData()
     } else {
       data = await importFromJSON()
     }
-    
+
     if (data) {
       pendingImportData.value = data
       showImportConfirm.value = true
@@ -385,14 +359,14 @@ async function handleImport() {
 
 function confirmImport() {
   if (!pendingImportData.value) return
-  
+
   const currentData = loadFromStorage()
   const mergedData = mergeData(currentData, pendingImportData.value)
   saveToStorage(mergedData)
-  
+
   noteStore.replaceAll(mergedData.notes || [])
   planStore.replaceAll(mergedData.plans || [])
-  
+
   showImportConfirm.value = false
   pendingImportData.value = null
   toastSuccess('数据导入完成')
@@ -459,8 +433,13 @@ function cancelImport() {
   flex-shrink: 0;
 }
 
-.bar-blue { background: var(--info-color); }
-.bar-green { background: var(--primary-color); }
+.bar-blue {
+  background: var(--info-color);
+}
+
+.bar-green {
+  background: var(--primary-color);
+}
 
 .settings-list {
   background: var(--bg-secondary);
@@ -602,7 +581,7 @@ function cancelImport() {
   .view-header {
     padding: 16px;
   }
-  
+
   .settings-content {
     padding: 16px;
   }
@@ -716,15 +695,15 @@ function cancelImport() {
   bottom: 3px;
 }
 
-.switch input:checked + .switch-slider {
+.switch input:checked+.switch-slider {
   background: var(--primary-color);
 }
 
-.switch input:checked + .switch-slider::before {
+.switch input:checked+.switch-slider::before {
   transform: translateX(20px);
 }
 
-.switch.small input:checked + .switch-slider::before {
+.switch.small input:checked+.switch-slider::before {
   transform: translateX(16px);
 }
 
