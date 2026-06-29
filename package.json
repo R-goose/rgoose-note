@@ -8,9 +8,11 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "kill:app": "powershell -Command \"Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'R-Goose Note.exe' -or $_.ExecutablePath -like 'E:\\大师的\\release\\win-unpacked\\*' -or $_.ExecutablePath -like 'E:\\大师的\\release-build*\\win-unpacked\\*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }\"",
+    "clean:release": "powershell -Command \"Get-ChildItem 'release-build*' -Directory -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue; if (Test-Path 'release\\builder-effective-config.yaml') { Remove-Item 'release\\builder-effective-config.yaml' -Force -ErrorAction SilentlyContinue }\"",
     "electron:dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "electron:build": "vite build && node node_modules/electron-builder/cli.js",
-    "electron:build:mirror": "vite build && powershell -Command \"$env:ELECTRON_MIRROR='https://npmmirror.com/mirrors/electron/'; $env:ELECTRON_BUILDER_BINARIES_MIRROR='https://npmmirror.com/mirrors/electron-builder-binaries/'; Remove-Item Env:ELECTRON_BUILDER_BINARIES_CUSTOM_DIR -ErrorAction SilentlyContinue; node node_modules/electron-builder/cli.js\""
+    "electron:build": "npm run kill:app && vite build && powershell -Command \"$out='release-build-' + (Get-Date -Format 'yyyyMMdd-HHmmss'); node node_modules/electron-builder/cli.js --projectDir . --config.directories.output=$out\"",
+    "electron:build:mirror": "npm run kill:app && vite build && powershell -Command \"$env:ELECTRON_MIRROR='https://npmmirror.com/mirrors/electron/'; $env:ELECTRON_BUILDER_BINARIES_MIRROR='https://npmmirror.com/mirrors/electron-builder-binaries/'; Remove-Item Env:ELECTRON_BUILDER_BINARIES_CUSTOM_DIR -ErrorAction SilentlyContinue; $out='release-build-' + (Get-Date -Format 'yyyyMMdd-HHmmss'); node node_modules/electron-builder/cli.js --projectDir . --config.directories.output=$out\""
   },
   "dependencies": {
     "@vueuse/core": "^14.3.0",
