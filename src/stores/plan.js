@@ -46,8 +46,11 @@ export const usePlanStore = defineStore('plan', () => {
   }
 
   function persist() {
+    const existing = loadFromStorage()
     const data = {
-      notes: loadFromStorage()?.notes || [],
+      notes: existing?.notes || [],
+      folders: existing?.folders || [],
+      connections: existing?.connections || [],
       plans: plans.value,
       updatedAt: getTimestamp()
     }

@@ -245,13 +245,23 @@
     </div>
     
     <div v-if="!collapsed" class="sidebar-footer">
-      <div class="sync-status synced" @click="showSyncInfo">
-        <div style="display:flex; align-items:center; gap:8px;">
-          <div class="sync-dot synced"></div>
-          <span>已同步</span>
+      <button type="button" class="theme-row" :title="themeStore.isDark ? '切换到浅色模式' : '切换到深色模式'" @click="themeStore.toggle">
+        <div class="theme-row-left">
+          <span class="theme-row-icon">
+            <svg v-if="themeStore.isDark" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="4"/>
+              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+            </svg>
+            <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
+          </span>
+          <span class="theme-row-label">{{ themeStore.isDark ? '深色模式' : '浅色模式' }}</span>
         </div>
-        <span>{{ syncStatusText }}</span>
-      </div>
+        <span class="theme-row-switch" :class="{ on: themeStore.isDark }">
+          <span class="theme-row-knob"></span>
+        </span>
+      </button>
     </div>
 
     <Teleport to="body">
@@ -330,7 +340,7 @@
                         无父级文件夹（根目录）
                       </div>
                       <div
-                        v-for="folder in noteStore.folders"
+                        v-for="folder in availableParentFolders"
                         :key="folder.id"
                         class="custom-select-option"
                         :class="{ selected: selectedParentFolderId === folder.id }"
@@ -378,6 +388,30 @@
         </div>
       </div>
     </Teleport>
+
+    <Teleport to="body">
+      <div v-if="folderToDelete" class="modal-overlay" @click.self="folderToDelete = null">
+        <div class="modal-content confirm-modal">
+          <div class="confirm-header">
+            <div class="confirm-icon warning">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </div>
+            <div>
+              <h3>删除文件夹</h3>
+              <p>确定删除文件夹「{{ folderToDelete.name }}」吗？该文件夹下的所有子文件夹和笔记都会被删除，此操作不可恢复。</p>
+            </div>
+          </div>
+          <div class="confirm-actions">
+            <button type="button" class="btn btn-secondary" @click="folderToDelete = null">取消</button>
+            <button type="button" class="btn btn-primary" @click="confirmDeleteFolder">删除</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </aside>
 </template>
 
@@ -386,7 +420,8 @@ import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useNoteStore } from '@/stores/note'
 import { usePlanStore } from '@/stores/plan'
-import { formatRelativeTime, formatDate } from '@/utils'
+import { useThemeStore } from '@/stores/theme'
+import { formatRelativeTime } from '@/utils'
 
 defineProps({
   collapsed: Boolean
@@ -398,6 +433,7 @@ const router = useRouter()
 const route = useRoute()
 const noteStore = useNoteStore()
 const planStore = usePlanStore()
+const themeStore = useThemeStore()
 
 const editingFolderId = ref(null)
 const editingFolderName = ref('')
@@ -413,6 +449,7 @@ const showCreateNoteModal = ref(false)
 const newNoteTitle = ref('')
 const noteTitleInputRef = ref(null)
 const noteToDelete = ref(null)
+const folderToDelete = ref(null)
 const showCreateFolderModal = ref(false)
 const newFolderModalName = ref('')
 const selectedParentFolderId = ref(null)
@@ -431,7 +468,7 @@ const visibleFolders = computed(() => {
   const result = []
   function walk(parentId, depth) {
     const children = noteStore.folders
-      .filter(f => (f.parentId || null) === parentId)
+      .filter(f => (f.parentId || null) === parentId && !f.deleted)
       .sort((a, b) => a.createdAt - b.createdAt)
     for (const folder of children) {
       result.push({ folder, depth })
@@ -444,13 +481,15 @@ const visibleFolders = computed(() => {
   return result
 })
 
+const availableParentFolders = computed(() => {
+  return noteStore.folders
+    .filter(f => !f.deleted)
+    .sort((a, b) => a.createdAt - b.createdAt)
+})
+
 const recentNotes = computed(() => {
   const list = [...noteStore.notes].filter(n => !n.deleted).sort((a, b) => b.updatedAt - a.updatedAt)
   return list.slice(0, 12)
-})
-const syncStatusText = computed(() => {
-  const time = noteStore.lastSyncTime || planStore.lastSyncTime
-  return time ? formatDate(time, 'MM-DD HH:mm') : '刚刚'
 })
 
 function selectFolder(id) {
@@ -500,7 +539,7 @@ function isFolderExpanded(folderId) {
 }
 
 function hasChildFolders(folderId) {
-  return noteStore.folders.some(f => f.parentId === folderId)
+  return noteStore.folders.some(f => f.parentId === folderId && !f.deleted)
 }
 
 function onFolderClick(folder) {
@@ -521,6 +560,7 @@ function validateFolderName(name, excludeId = null, parentId = null) {
   const trimmed = name.trim()
   if (!trimmed) return false
   const duplicated = noteStore.folders.some(folder => (
+    !folder.deleted &&
     folder.id !== excludeId &&
     folder.parentId === parentId &&
     folder.name.trim() === trimmed
@@ -712,10 +752,17 @@ function renameFromContextMenu() {
 function deleteFromContextMenu() {
   const folder = folderContextMenu.value.folder
   hideFolderContextMenu()
-  if (folder) noteStore.deleteFolder(folder.id)
+  if (folder) {
+    folderToDelete.value = folder
+  }
 }
 
-function showSyncInfo() {}
+function confirmDeleteFolder() {
+  const folder = folderToDelete.value
+  if (!folder) return
+  noteStore.deleteFolder(folder.id)
+  folderToDelete.value = null
+}
 
 onMounted(() => {
   noteStore.init()
@@ -1135,29 +1182,67 @@ onUnmounted(() => {
   border-top: 1px solid var(--border-light);
 }
 
-.sync-status {
+.theme-row {
+  width: 100%;
+  padding: 8px 0;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-secondary);
+  transition: background var(--transition-fast);
+}
+
+.theme-row:hover {
+  background: var(--bg-hover);
+}
+
+.theme-row-left {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+}
+
+.theme-row-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--text-tertiary);
-  cursor: pointer;
 }
 
-.sync-status.synced {
-  color: var(--primary-dark);
+.theme-row-label {
+  font-size: 12px;
+  font-weight: 500;
 }
 
-.sync-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--text-tertiary);
+.theme-row-switch {
+  width: 34px;
+  height: 19px;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  position: relative;
+  transition: background var(--transition-fast);
+  flex-shrink: 0;
 }
 
-.sync-dot.synced {
+.theme-row-switch.on {
   background: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(107, 189, 143, 0.18);
+}
+
+.theme-row-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform var(--transition-fast);
+}
+
+.theme-row-switch.on .theme-row-knob {
+  transform: translateX(15px);
 }
 
 .folder-context-menu {

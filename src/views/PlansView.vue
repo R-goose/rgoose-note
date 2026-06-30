@@ -17,6 +17,17 @@
     </header>
     
     <div class="plans-content">
+      <div v-if="!sortedPlans.length" class="empty-state">
+        <svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="18" y="24" width="84" height="78" rx="6"/>
+          <path d="M18 44h84"/>
+          <path d="M36 18v18M66 18v18"/>
+          <path d="M38 66h16M38 80h16M58 66h24M58 80h12"/>
+        </svg>
+        <p>还没有任何计划</p>
+        <button class="btn btn-primary" @click="showAddModal = true">创建第一个计划</button>
+      </div>
+      <template v-else>
       <div v-if="overduePlans.length" class="plan-section">
         <h3 class="section-title overdue">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -100,6 +111,7 @@
           </div>
         </div>
       </div>
+      </template>
     </div>
     
     <Teleport to="body">
@@ -276,6 +288,28 @@ function savePlan() {
   padding: 24px 28px;
 }
 
+.empty-state {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: var(--text-tertiary);
+}
+
+.empty-state svg {
+  width: 96px;
+  height: 96px;
+  opacity: 0.5;
+  color: var(--primary-color);
+}
+
+.empty-state p {
+  font-size: 15px;
+  margin: 0;
+}
+
 .plan-section {
   margin-bottom: 28px;
 }
@@ -393,7 +427,7 @@ function savePlan() {
   padding: 10px 12px;
   border-radius: 999px;
   border: 1px solid var(--border-light);
-  background: rgba(255,255,255,0.68);
+  background: var(--bg-secondary);
   font-size: 13px;
   font-weight: 600;
   color: var(--text-secondary);

@@ -349,7 +349,7 @@ function formatDate(timestamp) {
 }
 
 .action-btn:hover {
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 

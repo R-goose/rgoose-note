@@ -364,6 +364,7 @@ function confirmImport() {
   const mergedData = mergeData(currentData, pendingImportData.value)
   saveToStorage(mergedData)
 
+  if (mergedData.folders) noteStore.replaceAllFolders(mergedData.folders)
   noteStore.replaceAll(mergedData.notes || [])
   planStore.replaceAll(mergedData.plans || [])
 

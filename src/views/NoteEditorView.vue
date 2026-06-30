@@ -236,29 +236,29 @@
             :style="minimapViewportStyle"
           ></div>
         </div>
-        
-        <div class="zoom-controls-bottom">
-          <button class="btn btn-ghost btn-icon" @click="zoomOut" title="缩小">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-              <line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-          </button>
-          <span class="zoom-level-text">{{ Math.round(canvasConfig.zoom * 100) }}%</span>
-          <button class="btn btn-ghost btn-icon" @click="zoomIn" title="放大">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-              <line x1="12" y1="5" x2="12" y2="19"/>
-              <line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-          </button>
-          <button class="btn btn-ghost btn-icon" @click="resetView" title="重置视图">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-              <polyline points="1 4 1 10 7 10"/>
-              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
-            </svg>
-          </button>
-        </div>
       </div>
     
+    <div class="zoom-controls-bottom">
+      <button class="btn btn-ghost btn-icon" @click="zoomOut" title="缩小">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
+      <span class="zoom-level-text">{{ Math.round(canvasConfig.zoom * 100) }}%</span>
+      <button class="btn btn-ghost btn-icon" @click="zoomIn" title="放大">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="12" y1="5" x2="12" y2="19"/>
+          <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
+      <button class="btn btn-ghost btn-icon" @click="resetView" title="重置视图">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <polyline points="1 4 1 10 7 10"/>
+          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+        </svg>
+      </button>
+    </div>
+
     <div v-if="selectedConnectionId" class="connection-toolbar">
       <span>形状：</span>
       <button
@@ -322,7 +322,61 @@
         </svg>
       </button>
     </div>
-    
+
+    <div v-if="selectedBlock && selectedBlock.type !== 'image' && selectedBlock.type !== 'note-link'" class="connection-toolbar block-style-toolbar">
+      <span>背景：</span>
+      <button
+        v-for="color in blockBgColors"
+        :key="color.value"
+        class="color-btn"
+        :class="{ active: (selectedBlock.color || 'green') === color.value }"
+        :style="{ background: color.swatch }"
+        @click="setBlockStyle({ color: color.value })"
+      ></button>
+      <span>字号：</span>
+      <button
+        v-for="size in blockFontSizes"
+        :key="size.value"
+        class="style-btn"
+        :class="{ active: (selectedBlock.fontSize || 14) === size.value }"
+        @click="setBlockStyle({ fontSize: size.value })"
+      >{{ size.label }}</button>
+      <span>粗细：</span>
+      <button
+        v-for="weight in blockFontWeights"
+        :key="weight.value"
+        class="style-btn"
+        :class="{ active: (selectedBlock.fontWeight || 400) === weight.value }"
+        @click="setBlockStyle({ fontWeight: weight.value })"
+      >{{ weight.label }}</button>
+      <span>文字色：</span>
+      <button
+        v-for="color in blockTextColors"
+        :key="color.value"
+        class="color-btn"
+        :class="{ active: (selectedBlock.textColor || '#1a1f1c') === color.value }"
+        :style="{ background: color.swatch }"
+        @click="setBlockStyle({ textColor: color.value })"
+      ></button>
+      <span>边框：</span>
+      <button
+        v-for="border in blockBorderStyles"
+        :key="border.value"
+        class="style-btn"
+        :class="{ active: (selectedBlock.borderStyle || 'solid') === border.value }"
+        @click="setBlockStyle({ borderStyle: border.value })"
+      >{{ border.label }}</button>
+      <span>边框色：</span>
+      <button
+        v-for="color in blockBorderColors"
+        :key="color.value"
+        class="color-btn"
+        :class="{ active: selectedBlock.borderColor === color.value }"
+        :style="{ background: color.swatch }"
+        @click="setBlockStyle({ borderColor: color.value })"
+      ></button>
+    </div>
+
     <input
       ref="fileInputRef"
       type="file"
@@ -650,6 +704,57 @@ const lineDashTypes = [
   { label: '双点线', value: 'dot-dash' }
 ]
 
+const blockBgColors = [
+  { value: 'default', swatch: 'repeating-conic-gradient(#c0c4c0 0% 25%, #e8ebe8 0% 50%) 50% / 8px 8px' },
+  { value: 'green', swatch: '#6bbd8f' },
+  { value: 'blue', swatch: '#6fa8d6' },
+  { value: 'yellow', swatch: '#d4b27a' },
+  { value: 'pink', swatch: '#d49595' },
+  { value: 'gray', swatch: '#939a96' }
+]
+const blockFontSizes = [
+  { value: 12, label: '小' },
+  { value: 14, label: '中' },
+  { value: 16, label: '大' },
+  { value: 20, label: '特大' }
+]
+const blockFontWeights = [
+  { value: 400, label: '常规' },
+  { value: 500, label: '中等' },
+  { value: 700, label: '粗体' }
+]
+const blockTextColors = [
+  { value: '#1a1f1c', swatch: '#5a625e' },
+  { value: '#52a377', swatch: '#6bbd8f' },
+  { value: '#4d8cbe', swatch: '#6fa8d6' },
+  { value: '#b8955a', swatch: '#d4b27a' },
+  { value: '#d97676', swatch: '#e08080' }
+]
+const blockBorderStyles = [
+  { value: 'solid', label: '实线' },
+  { value: 'dashed', label: '虚线' },
+  { value: 'dotted', label: '点线' },
+  { value: 'none', label: '无' }
+]
+const blockBorderColors = [
+  { value: '#e4e7e4', swatch: '#939a96' },
+  { value: '#6bbd8f', swatch: '#6bbd8f' },
+  { value: '#6fa8d6', swatch: '#6fa8d6' },
+  { value: '#d4b27a', swatch: '#d4b27a' },
+  { value: '#d97676', swatch: '#e08080' }
+]
+
+const selectedBlock = computed(() => {
+  if (!selectedBlockId.value || !note.value) return null
+  return blocks.value.find(b => b.id === selectedBlockId.value) || null
+})
+
+function setBlockStyle(patch) {
+  if (!note.value || !selectedBlockId.value) return
+  saveHistory()
+  noteStore.updateBlock(note.value.id, selectedBlockId.value, patch)
+}
+
 // 兼容旧数据：从混杂的 style 字段解析出 shape 和 dash
 function resolveConnShape(conn) {
   if (conn.shape) return conn.shape
@@ -691,7 +796,7 @@ const lineColors = ['#6bbd8f', '#7fa8c4', '#c9a96e', '#b88a7a', '#8fa89a', '#a89
 
 const note = computed(() => {
   const id = route.params.id
-  return noteStore.notes.find(n => n.id === id) || null
+  return noteStore.notes.find(n => n.id === id && !n.deleted) || null
 })
 
 const blocks = computed(() => note.value?.blocks || [])
@@ -815,31 +920,37 @@ const minimapBounds = computed(() => {
   }
 })
 
-const minimapViewBox = computed(() => {
+const minimapSquare = computed(() => {
   const { minX, minY, maxX, maxY } = minimapBounds.value
   const w = maxX - minX
   const h = maxY - minY
-  return `${minX} ${minY} ${w} ${h}`
+  const side = Math.max(w, h)
+  const cx = (minX + maxX) / 2
+  const cy = (minY + maxY) / 2
+  return { vbMinX: cx - side / 2, vbMinY: cy - side / 2, side }
+})
+
+const minimapViewBox = computed(() => {
+  const { vbMinX, vbMinY, side } = minimapSquare.value
+  return `${vbMinX} ${vbMinY} ${side} ${side}`
 })
 
 const minimapViewportStyle = computed(() => {
-  const { minX, minY, maxX, maxY } = minimapBounds.value
-  const totalW = maxX - minX
-  const totalH = maxY - minY
-  
+  const { vbMinX, vbMinY, side } = minimapSquare.value
+
   const rect = canvasRef.value?.getBoundingClientRect()
   if (!rect) return {}
-  
+
   const viewW = rect.width / canvasConfig.value.zoom
   const viewH = rect.height / canvasConfig.value.zoom
   const viewX = -canvasConfig.value.offsetX / canvasConfig.value.zoom
   const viewY = -canvasConfig.value.offsetY / canvasConfig.value.zoom
-  
-  const left = ((viewX - minX) / totalW) * 100
-  const top = ((viewY - minY) / totalH) * 100
-  const width = (viewW / totalW) * 100
-  const height = (viewH / totalH) * 100
-  
+
+  const left = ((viewX - vbMinX) / side) * 100
+  const top = ((viewY - vbMinY) / side) * 100
+  const width = (viewW / side) * 100
+  const height = (viewH / side) * 100
+
   return {
     left: `${Math.max(0, Math.min(100, left))}%`,
     top: `${Math.max(0, Math.min(100, top))}%`,
@@ -887,8 +998,8 @@ onUnmounted(() => {
 })
 
 watch(() => route.params.id, (newId) => {
-  if (noteStore.notes.find(n => n.id === newId)) {
-    const n = noteStore.notes.find(n => n.id === newId)
+  const n = noteStore.notes.find(n => n.id === newId && !n.deleted)
+  if (n) {
     noteTitle.value = n.title
     canvasConfig.value = { ...n.canvasConfig }
   }
@@ -1150,21 +1261,19 @@ function onMinimapMouseDown(e) {
 
 function jumpToMinimapPosition(e) {
   if (!minimapRef.value) return
-  
+
   const rect = minimapRef.value.getBoundingClientRect()
-  const { minX, minY, maxX, maxY } = minimapBounds.value
-  const totalW = maxX - minX
-  const totalH = maxY - minY
-  
+  const { vbMinX, vbMinY, side } = minimapSquare.value
+
   const ratioX = (e.clientX - rect.left) / rect.width
   const ratioY = (e.clientY - rect.top) / rect.height
-  
+
   const canvasRect = canvasRef.value.getBoundingClientRect()
   const viewW = canvasRect.width / canvasConfig.value.zoom
   const viewH = canvasRect.height / canvasConfig.value.zoom
-  
-  const targetX = minX + ratioX * totalW - viewW / 2
-  const targetY = minY + ratioY * totalH - viewH / 2
+
+  const targetX = vbMinX + ratioX * side - viewW / 2
+  const targetY = vbMinY + ratioY * side - viewH / 2
   
   canvasConfig.value.offsetX = -targetX * canvasConfig.value.zoom
   canvasConfig.value.offsetY = -targetY * canvasConfig.value.zoom
@@ -2297,7 +2406,11 @@ function deleteSelectedConnection() {
   left: 0;
   right: 0;
   bottom: 0;
-  background-image: radial-gradient(circle, #dce0db 1px, transparent 1px);
+  background-image:
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+  background-size: 24px 24px;
+  opacity: 0.5;
   pointer-events: none;
 }
 
@@ -2346,7 +2459,7 @@ function deleteSelectedConnection() {
 
 .connection-toolbar {
   position: absolute;
-  bottom: 20px;
+  bottom: 48px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -2366,6 +2479,40 @@ function deleteSelectedConnection() {
 .connection-toolbar > span {
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+.block-style-toolbar {
+  gap: 6px;
+  padding: 8px 12px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  max-width: calc(100% - 60px);
+}
+
+.block-style-toolbar::-webkit-scrollbar {
+  display: none;
+}
+
+.block-style-toolbar > span {
+  font-size: 12px;
+}
+
+.block-style-toolbar .style-btn {
+  padding: 4px 9px;
+  font-size: 12px;
+}
+
+.block-style-toolbar .color-btn {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--text-secondary);
+}
+
+.block-style-toolbar .color-btn.active {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px var(--primary-color);
 }
 
 .style-btn {
@@ -2473,15 +2620,15 @@ function deleteSelectedConnection() {
 
 .right-panel {
   position: absolute;
-  right: 8px;
-  top: 70px;
-  bottom: 20px;
-  width: 140px;
-  z-index: 5;
-  border-left: 1px solid var(--border-light);
-  border-radius: var(--radius-md);
+  right: 16px;
+  top: 68px;
+  width: 150px;
+  height: 150px;
+  z-index: 300;
   background: var(--bg-secondary);
-  box-shadow: -2px 0 10px rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
   overflow: hidden;
 }
 
@@ -2490,11 +2637,11 @@ function deleteSelectedConnection() {
   top: 0;
   left: 0;
   right: 0;
-  bottom: 36px;
+  bottom: 0;
   overflow: hidden;
   cursor: pointer;
-  opacity: 0.7;
-  transition: opacity var(--transition-fast), width var(--transition-fast);
+  opacity: 0.85;
+  transition: opacity var(--transition-fast);
 }
 
 .minimap:hover {
@@ -2504,14 +2651,15 @@ function deleteSelectedConnection() {
 .zoom-controls-bottom {
   position: absolute;
   bottom: 0;
-  left: 0;
   right: 0;
-  display: flex;
+  z-index: 200;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 4px;
-  padding: 6px 8px;
+  padding: 6px 8px 6px 12px;
   border-top: 1px solid var(--border-light);
+  border-left: 1px solid var(--border-light);
+  background: var(--bg-secondary);
   opacity: 0.8;
   transition: opacity var(--transition-fast);
   box-sizing: border-box;

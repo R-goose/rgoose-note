@@ -46,102 +46,12 @@
             <polyline points="14 2 14 8 20 8"/>
           </svg>
         </button>
-        <button class="action-btn" @click.stop="showStyleMenu = !showStyleMenu" title="样式">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82A1.65 1.65 0 0 0 3.17 14H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.17A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 8.93 4H9a1.65 1.65 0 0 0 1-1.51V2a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.49a1.65 1.65 0 0 0 1 1.51h.07a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c0 .63.37 1.2.94 1.46H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.66a1.65 1.65 0 0 0-.94 1.54z"/>
-          </svg>
-        </button>
         <button class="action-btn delete" @click.stop="$emit('delete', block.id)" title="删除">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="3 6 5 6 21 6"/>
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
           </svg>
         </button>
-      </div>
-    </div>
-
-    <div v-if="showStyleMenu" class="style-menu" @click.stop>
-      <div class="style-group">
-        <span class="style-label">背景颜色</span>
-        <div class="style-options">
-          <button
-            v-for="color in blockColors"
-            :key="color.value"
-            class="color-option"
-            :class="{ active: (block.color || 'green') === color.value }"
-            :style="{ background: color.preview }"
-            @click="updateStyle({ color: color.value })"
-          ></button>
-        </div>
-      </div>
-      <div class="style-group">
-        <span class="style-label">字体大小</span>
-        <div class="style-options text-options">
-          <button
-            v-for="size in fontSizes"
-            :key="size.value"
-            class="style-chip"
-            :class="{ active: (block.fontSize || 14) === size.value }"
-            @click="updateStyle({ fontSize: size.value })"
-          >
-            {{ size.label }}
-          </button>
-        </div>
-      </div>
-      <div class="style-group">
-        <span class="style-label">字体粗细</span>
-        <div class="style-options text-options">
-          <button
-            v-for="weight in fontWeights"
-            :key="weight.value"
-            class="style-chip"
-            :class="{ active: (block.fontWeight || 400) === weight.value }"
-            @click="updateStyle({ fontWeight: weight.value })"
-          >
-            {{ weight.label }}
-          </button>
-        </div>
-      </div>
-      <div class="style-group">
-        <span class="style-label">文字颜色</span>
-        <div class="style-options">
-          <button
-            v-for="color in textColors"
-            :key="color.value"
-            class="color-option"
-            :class="{ active: (block.textColor || '#1a1f1c') === color.value }"
-            :style="{ background: color.value }"
-            @click="updateStyle({ textColor: color.value })"
-          ></button>
-        </div>
-      </div>
-      <div class="style-group">
-        <span class="style-label">边框</span>
-        <div class="style-options text-options">
-          <button
-            v-for="border in borderStyles"
-            :key="border.value"
-            class="style-chip"
-            :class="{ active: (block.borderStyle || 'solid') === border.value }"
-            @click="updateStyle({ borderStyle: border.value })"
-          >
-            {{ border.label }}
-          </button>
-        </div>
-      </div>
-      <div class="style-group">
-        <span class="style-label">边框颜色</span>
-        <div class="style-options">
-          <button
-            v-for="color in borderColors"
-            :key="color.value"
-            class="color-option"
-            :class="{ active: (block.borderColor === color.value) }"
-            :style="{ background: color.value }"
-            @click="updateStyle({ borderColor: color.value })"
-          ></button>
-        </div>
       </div>
     </div>
 
@@ -271,59 +181,13 @@ const emit = defineEmits([
 const noteStore = useNoteStore()
 const blockRef = ref(null)
 const editorRef = ref(null)
-const showStyleMenu = ref(false)
 const showLinkModal = ref(false)
 const linkText = ref('')
 const linkUrl = ref('')
 let resizeObserver = null
 
-const blockColors = [
-  { value: 'green', preview: '#eef9f3' },
-  { value: 'blue', preview: '#eef5fb' },
-  { value: 'yellow', preview: '#faf4e8' },
-  { value: 'pink', preview: '#fdf1f1' },
-  { value: 'gray', preview: '#f4f6f4' }
-]
-
-const fontSizes = [
-  { value: 12, label: '小' },
-  { value: 14, label: '中' },
-  { value: 16, label: '大' },
-  { value: 20, label: '特大' }
-]
-
-const fontWeights = [
-  { value: 400, label: '常规' },
-  { value: 500, label: '中等' },
-  { value: 700, label: '粗体' }
-]
-
-const textColors = [
-  { value: '#1a1f1c', label: '黑' },
-  { value: '#52a377', label: '绿' },
-  { value: '#4d8cbe', label: '蓝' },
-  { value: '#b8955a', label: '黄' },
-  { value: '#d97676', label: '红' }
-]
-
-const borderStyles = [
-  { value: 'solid', label: '实线' },
-  { value: 'dashed', label: '虚线' },
-  { value: 'dotted', label: '点线' },
-  { value: 'double', label: '双线' },
-  { value: 'none', label: '无' }
-]
-
-const borderColors = [
-  { value: '#e4e7e4', label: '浅灰' },
-  { value: '#6bbd8f', label: '绿' },
-  { value: '#6fa8d6', label: '蓝' },
-  { value: '#d4b27a', label: '黄' },
-  { value: '#d97676', label: '红' }
-]
-
 const linkedNoteTitle = computed(() => {
-  const note = noteStore.notes.find(n => n.id === props.block.linkedNoteId)
+  const note = noteStore.notes.find(n => n.id === props.block.linkedNoteId && !n.deleted)
   return note?.title || '未找到笔记'
 })
 
@@ -343,7 +207,7 @@ const blockStyle = computed(() => {
 const editorStyle = computed(() => ({
   fontSize: `${props.block.fontSize || 14}px`,
   fontWeight: props.block.fontWeight || 400,
-  color: props.block.textColor || '#1a1f1c'
+  color: props.block.textColor || 'var(--text-primary)'
 }))
 
 watch(
@@ -415,10 +279,6 @@ function onEditorKeyDown(e) {
   }
 }
 
-function updateStyle(patch) {
-  emit('update', props.block.id, patch)
-}
-
 function openLinkModal() {
   linkText.value = ''
   linkUrl.value = ''
@@ -451,14 +311,7 @@ function reportResize() {
   }
 }
 
-function handleDocumentClick(e) {
-  if (showStyleMenu.value && !blockRef.value?.contains(e.target)) {
-    showStyleMenu.value = false
-  }
-}
-
 onMounted(() => {
-  document.addEventListener('click', handleDocumentClick)
   nextTick(() => {
     syncEditorContent()
     reportResize()
@@ -472,7 +325,6 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  document.removeEventListener('click', handleDocumentClick)
   if (resizeObserver) {
     resizeObserver.disconnect()
     resizeObserver = null
@@ -616,7 +468,7 @@ onUnmounted(() => {
   width: 32px;
   height: 32px;
   border-radius: var(--radius-sm);
-  background: rgba(255,255,255,0.7);
+  background: var(--bg-tertiary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -643,62 +495,6 @@ onUnmounted(() => {
   color: var(--text-tertiary);
 }
 
-.style-menu {
-  position: absolute;
-  top: 34px;
-  right: 8px;
-  z-index: 20;
-  width: 200px;
-  max-height: 320px;
-  overflow-y: auto;
-  padding: 12px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-}
-
-.style-group + .style-group {
-  margin-top: 12px;
-}
-
-.style-label {
-  display: block;
-  font-size: 11px;
-  color: var(--text-tertiary);
-  margin-bottom: 6px;
-}
-
-.style-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.color-option {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 2px solid transparent;
-}
-
-.color-option.active {
-  border-color: var(--text-primary);
-}
-
-.text-options .style-chip {
-  padding: 5px 8px;
-  border-radius: var(--radius-sm);
-  background: var(--bg-tertiary);
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.text-options .style-chip.active {
-  background: var(--primary-soft);
-  color: var(--primary-dark);
-}
-
 .connect-dot {
   position: absolute;
   width: 10px;
@@ -723,11 +519,18 @@ onUnmounted(() => {
   transform: scale(1.2);
 }
 
-.block-color-green { background: var(--bg-secondary); }
-.block-color-blue { background: #f9fbff; }
-.block-color-yellow { background: #fffdf8; }
-.block-color-pink { background: #fffafb; }
-.block-color-gray { background: #fafbfa; }
+.block-color-default { background: var(--bg-primary); }
+.block-color-green { background: #e6f4ec; }
+.block-color-blue { background: #e8f1fa; }
+.block-color-yellow { background: #f7efd9; }
+.block-color-pink { background: #f8e4e4; }
+.block-color-gray { background: #ecefed; }
+
+[data-theme="dark"] .block-color-green { background: #1e2e27; }
+[data-theme="dark"] .block-color-blue { background: #1a2632; }
+[data-theme="dark"] .block-color-yellow { background: #2d2818; }
+[data-theme="dark"] .block-color-pink { background: #311e23; }
+[data-theme="dark"] .block-color-gray { background: #252927; }
 
 .block-border-solid { border-style: solid; }
 .block-border-dashed { border-style: dashed; }

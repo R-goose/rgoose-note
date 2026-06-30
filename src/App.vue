@@ -39,6 +39,7 @@ import ToastContainer from '@/components/ToastContainer.vue'
 import { useNoteStore } from '@/stores/note'
 import { usePlanStore } from '@/stores/plan'
 import { useSyncStore } from '@/stores/sync'
+import { useThemeStore } from '@/stores/theme'
 import { useToast } from '@/composables/useToast'
 
 const sidebarCollapsed = ref(false)
@@ -91,6 +92,9 @@ function handleKeydown(e, noteStore, planStore, syncStore) {
 }
 
 onMounted(() => {
+  const themeStore = useThemeStore()
+  themeStore.init()
+
   const saved = localStorage.getItem('sidebar-collapsed')
   if (saved !== null) {
     sidebarCollapsed.value = saved === 'true'

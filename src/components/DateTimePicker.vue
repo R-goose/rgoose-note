@@ -296,7 +296,7 @@ onUnmounted(() => {
   padding: 10px 14px;
   border-radius: 999px;
   border: 1px solid var(--border-light);
-  background: rgba(255, 255, 255, 0.68);
+  background: var(--bg-secondary);
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);

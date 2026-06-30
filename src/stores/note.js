@@ -12,7 +12,7 @@ export const useNoteStore = defineStore('note', () => {
   const lastSyncTime = ref(0)
 
   const currentNote = computed(() => {
-    return notes.value.find(n => n.id === currentNoteId.value) || null
+    return notes.value.find(n => n.id === currentNoteId.value && !n.deleted) || null
   })
 
   const sortedNotes = computed(() => {
@@ -44,11 +44,11 @@ export const useNoteStore = defineStore('note', () => {
   })
 
   const rootFolders = computed(() => {
-    return folders.value.filter(f => !f.parentId).sort((a, b) => a.createdAt - b.createdAt)
+    return folders.value.filter(f => !f.parentId && !f.deleted).sort((a, b) => a.createdAt - b.createdAt)
   })
 
   function getChildFolders(parentId) {
-    return folders.value.filter(f => f.parentId === parentId).sort((a, b) => a.createdAt - b.createdAt)
+    return folders.value.filter(f => f.parentId === parentId && !f.deleted).sort((a, b) => a.createdAt - b.createdAt)
   }
 
   function getFolderNoteCount(folderId) {
@@ -98,22 +98,23 @@ export const useNoteStore = defineStore('note', () => {
   function isFolderNameDuplicate(name, parentId = null, excludeId = null) {
     const trimmedName = name.trim()
     if (!trimmedName) return false
-    
-    const sameParentDuplicate = folders.value.some(f => 
-      f.name === trimmedName && 
-      f.parentId === parentId && 
+
+    const sameParentDuplicate = folders.value.some(f =>
+      !f.deleted &&
+      f.name === trimmedName &&
+      f.parentId === parentId &&
       f.id !== excludeId
     )
-    
+
     if (sameParentDuplicate) return true
-    
+
     if (parentId) {
       const parentFolder = folders.value.find(f => f.id === parentId)
-      if (parentFolder && parentFolder.name === trimmedName) {
+      if (parentFolder && !parentFolder.deleted && parentFolder.name === trimmedName) {
         return true
       }
     }
-    
+
     return false
   }
 
@@ -160,7 +161,7 @@ export const useNoteStore = defineStore('note', () => {
   
   function getAllChildFolderIds(parentId) {
     const result = []
-    const children = folders.value.filter(f => f.parentId === parentId)
+    const children = folders.value.filter(f => f.parentId === parentId && !f.deleted)
     children.forEach(child => {
       result.push(child.id)
       result.push(...getAllChildFolderIds(child.id))
@@ -174,7 +175,7 @@ export const useNoteStore = defineStore('note', () => {
     let currentId = folderId
     while (currentId) {
       const folder = folders.value.find(f => f.id === currentId)
-      if (!folder) break
+      if (!folder || folder.deleted) break
       path.unshift(folder.name)
       currentId = folder.parentId
     }
@@ -276,12 +277,10 @@ export const useNoteStore = defineStore('note', () => {
   function searchNotes(keyword) {
     if (!keyword) return sortedNotes.value
     const lower = keyword.toLowerCase()
-    return notes.value.filter(n => {
-      if ((n.title || '').toLowerCase().includes(lower)) return true
-      return n.blocks.some(b => 
-        (b.content || '').toLowerCase().includes(lower)
-      )
-    }).sort((a, b) => b.updatedAt - a.updatedAt)
+    return notes.value.filter(n => !n.deleted && (
+      (n.title || '').toLowerCase().includes(lower) ||
+      n.blocks.some(b => (b.content || '').toLowerCase().includes(lower))
+    )).sort((a, b) => b.updatedAt - a.updatedAt)
   }
 
   function addBlock(noteId, blockData) {
