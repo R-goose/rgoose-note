@@ -95,6 +95,7 @@
         <NoteBlock
           v-for="block in blocks"
           :key="block.id"
+          :ref="el => { if (el) blockRefs[block.id] = el }"
           :block="block"
           :selected="selectedBlockId === block.id"
           :connect-mode="connectMode"
@@ -113,6 +114,7 @@
           @preview-image="showImagePreview"
           @open-note="openLinkedNote"
           @resize="onBlockResize"
+          @resize-block="onBlockResizeBlock"
           @save-selection="saveBlockSelection"
         />
       </div>
@@ -323,7 +325,7 @@
       </button>
     </div>
 
-    <div v-if="selectedBlock && selectedBlock.type !== 'image' && selectedBlock.type !== 'note-link'" class="connection-toolbar block-style-toolbar">
+    <div v-if="selectedBlock" class="connection-toolbar block-style-toolbar">
       <span>背景：</span>
       <button
         v-for="color in blockBgColors"
@@ -333,31 +335,51 @@
         :style="{ background: color.swatch }"
         @click="setBlockStyle({ color: color.value })"
       ></button>
-      <span>字号：</span>
-      <button
-        v-for="size in blockFontSizes"
-        :key="size.value"
-        class="style-btn"
-        :class="{ active: (selectedBlock.fontSize || 14) === size.value }"
-        @click="setBlockStyle({ fontSize: size.value })"
-      >{{ size.label }}</button>
-      <span>粗细：</span>
-      <button
-        v-for="weight in blockFontWeights"
-        :key="weight.value"
-        class="style-btn"
-        :class="{ active: (selectedBlock.fontWeight || 400) === weight.value }"
-        @click="setBlockStyle({ fontWeight: weight.value })"
-      >{{ weight.label }}</button>
-      <span>文字色：</span>
-      <button
-        v-for="color in blockTextColors"
-        :key="color.value"
-        class="color-btn"
-        :class="{ active: (selectedBlock.textColor || '#1a1f1c') === color.value }"
-        :style="{ background: color.swatch }"
-        @click="setBlockStyle({ textColor: color.value })"
-      ></button>
+      <template v-if="selectedBlock.type === 'text'">
+        <span>文字：</span>
+        <button class="style-btn" @mousedown.prevent @click="formatSelection('bold')" title="加粗">
+          <strong>B</strong>
+        </button>
+        <button class="style-btn" @mousedown.prevent @click="formatSelection('italic')" title="斜体">
+          <em>I</em>
+        </button>
+        <button class="style-btn" @mousedown.prevent @click="formatSelection('underline')" title="下划线">
+          <span style="text-decoration: underline;">U</span>
+        </button>
+        <button class="style-btn" @mousedown.prevent @click="formatSelection('strikeThrough')" title="删除线">
+          <span style="text-decoration: line-through;">S</span>
+        </button>
+        <span class="style-divider"></span>
+        <button
+          v-for="color in blockTextColors"
+          :key="'sel-' + color.value"
+          class="color-btn"
+          :style="{ background: color.swatch }"
+          :title="'文字颜色 ' + color.value"
+          @mousedown.prevent
+          @click="formatSelection('foreColor', color.value)"
+        ></button>
+      </template>
+      <template v-if="selectedBlock.type === 'text'">
+        <span>字号：</span>
+        <button
+          v-for="size in blockFontSizes"
+          :key="size.value"
+          class="style-btn"
+          :class="{ active: (selectedBlock.fontSize || 14) === size.value }"
+          @mousedown.prevent
+          @click="formatSelection('fontSize', String(size.value))"
+        >{{ size.label }}</button>
+        <span>粗细：</span>
+        <button
+          v-for="weight in blockFontWeights"
+          :key="weight.value"
+          class="style-btn"
+          :class="{ active: (selectedBlock.fontWeight || 400) === weight.value }"
+          @mousedown.prevent
+          @click="formatSelection('fontWeight', String(weight.value))"
+        >{{ weight.label }}</button>
+      </template>
       <span>边框：</span>
       <button
         v-for="border in blockBorderStyles"
@@ -626,6 +648,11 @@ function onBlockResize({ id, width, height }) {
   blockSizes.value = { ...blockSizes.value, [id]: { width, height } }
 }
 
+function onBlockResizeBlock({ id, width, height, x, y }) {
+  blockSizes.value = { ...blockSizes.value, [id]: { width, height } }
+  noteStore.updateBlock(note.value.id, id, { width, height, x, y })
+}
+
 const draggingBlock = ref(null)
 const dragOffset = ref({ x: 0, y: 0 })
 const hasDragged = ref(false) // 标记是否真正发生了拖拽
@@ -744,10 +771,36 @@ const blockBorderColors = [
   { value: '#d97676', swatch: '#e08080' }
 ]
 
+const blockRefs = {}
+
 const selectedBlock = computed(() => {
   if (!selectedBlockId.value || !note.value) return null
   return blocks.value.find(b => b.id === selectedBlockId.value) || null
 })
+
+function formatSelection(command, value = null) {
+  if (!selectedBlockId.value) return
+  const inst = blockRefs[selectedBlockId.value]
+  if (!inst) return
+
+  const realSel = window.getSelection()
+  let hasRealSelection = false
+  if (realSel && realSel.rangeCount > 0) {
+    const r = realSel.getRangeAt(0)
+    if (!r.collapsed) hasRealSelection = true
+  }
+
+  if ((command === 'fontSize' || command === 'fontWeight') && !hasRealSelection) {
+    const patch = command === 'fontSize' ? { fontSize: Number(value) } : { fontWeight: Number(value) }
+    saveHistory()
+    noteStore.updateBlock(note.value.id, selectedBlockId.value, patch)
+    inst.clearInlineStyle(command)
+    return
+  }
+
+  saveHistory()
+  inst.formatSelection(command, value)
+}
 
 function setBlockStyle(patch) {
   if (!note.value || !selectedBlockId.value) return
@@ -2502,6 +2555,14 @@ function deleteSelectedConnection() {
 .block-style-toolbar .style-btn {
   padding: 4px 9px;
   font-size: 12px;
+}
+
+.block-style-toolbar .style-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border-color);
+  flex-shrink: 0;
+  margin: 0 2px;
 }
 
 .block-style-toolbar .color-btn {

@@ -46,6 +46,71 @@
             <polyline points="14 2 14 8 20 8"/>
           </svg>
         </button>
+        <div v-if="block.type !== 'note-link' && block.type !== 'image'" class="insert-menu-wrap">
+          <button class="action-btn" @mousedown.prevent @click.stop="showInsertMenu = !showInsertMenu" title="插入">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </button>
+          <div v-if="showInsertMenu" class="insert-menu" @click.stop>
+            <button class="insert-item" @mousedown.prevent @click="insertList('ul')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="8" y1="6" x2="21" y2="6"/>
+                <line x1="8" y1="12" x2="21" y2="12"/>
+                <line x1="8" y1="18" x2="21" y2="18"/>
+                <circle cx="3.5" cy="6" r="1.5" fill="currentColor" stroke="none"/>
+                <circle cx="3.5" cy="12" r="1.5" fill="currentColor" stroke="none"/>
+                <circle cx="3.5" cy="18" r="1.5" fill="currentColor" stroke="none"/>
+              </svg>
+              <span>无序列表</span>
+            </button>
+            <button class="insert-item" @mousedown.prevent @click="insertList('ol')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="10" y1="6" x2="21" y2="6"/>
+                <line x1="10" y1="12" x2="21" y2="12"/>
+                <line x1="10" y1="18" x2="21" y2="18"/>
+                <path d="M4 6h1v4"/>
+                <path d="M4 10h2"/>
+                <path d="M6 16H4l2-2v2H4"/>
+              </svg>
+              <span>有序列表</span>
+            </button>
+            <div class="table-picker-wrap">
+              <button class="insert-item" @mousedown.prevent @click="toggleTablePicker">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <rect x="3" y="3" width="18" height="18" rx="1"/>
+                  <line x1="3" y1="9" x2="21" y2="9"/>
+                  <line x1="3" y1="15" x2="21" y2="15"/>
+                  <line x1="9" y1="3" x2="9" y2="21"/>
+                  <line x1="15" y1="3" x2="15" y2="21"/>
+                </svg>
+                <span>表格</span>
+              </button>
+              <div v-if="showTablePicker" class="table-grid-picker" @click.stop>
+                <div class="table-grid">
+                  <div
+                    v-for="n in 36"
+                    :key="n"
+                    class="grid-cell"
+                    :class="{ active: isCellActive(n) }"
+                    @mousedown.prevent
+                    @mouseover="onCellHover(n)"
+                    @click="onTableGridSelect(n)"
+                  ></div>
+                </div>
+                <div class="table-grid-label">{{ tableHoverRows }} × {{ tableHoverCols }}</div>
+              </div>
+            </div>
+            <button class="insert-item" @mousedown.prevent @click="insertCodeBlock">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="16 18 22 12 16 6"/>
+                <polyline points="8 6 2 12 8 18"/>
+              </svg>
+              <span>代码块</span>
+            </button>
+          </div>
+        </div>
         <button class="action-btn delete" @click.stop="$emit('delete', block.id)" title="删除">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="3 6 5 6 21 6"/>
@@ -56,7 +121,7 @@
     </div>
 
     <div class="block-content">
-      <div v-if="block.type === 'image' && block.imageUrl" class="image-container" @dblclick.stop="$emit('add-image', block.id)">
+      <div v-if="block.type === 'image' && block.imageUrl" class="image-container" @dblclick.stop="$emit('add-image', block.id)" @wheel.stop>
         <img :src="block.imageUrl" alt="" draggable="false" @click.stop="$emit('preview-image', block.imageUrl)" />
         <button class="change-image-btn" @click.stop="$emit('add-image', block.id)">更换图片</button>
       </div>
@@ -65,6 +130,7 @@
         v-else-if="block.type === 'note-link' && block.linkedNoteId"
         class="note-link-block"
         @click.stop="$emit('open-note', block.linkedNoteId)"
+        @wheel.stop
       >
         <div class="note-link-icon">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -92,6 +158,7 @@
         @mouseup="saveSelection"
         @keyup="saveSelection"
         @focus="saveSelection"
+        @wheel.stop
         @mousedown.stop
       ></div>
     </div>
@@ -120,6 +187,17 @@
       @mousedown.stop="$emit('connect-start', block.id, 'left')"
       @mouseup.stop="$emit('connect-end', block.id, 'left')"
     ></div>
+
+    <template v-if="!connectMode">
+      <div class="resize-handle resize-handle-se" @mousedown.stop="onResizeStart($event, 'se')"></div>
+      <div class="resize-handle resize-handle-sw" @mousedown.stop="onResizeStart($event, 'sw')"></div>
+      <div class="resize-handle resize-handle-ne" @mousedown.stop="onResizeStart($event, 'ne')"></div>
+      <div class="resize-handle resize-handle-nw" @mousedown.stop="onResizeStart($event, 'nw')"></div>
+      <div class="resize-handle resize-handle-e" @mousedown.stop="onResizeStart($event, 'e')"></div>
+      <div class="resize-handle resize-handle-s" @mousedown.stop="onResizeStart($event, 's')"></div>
+      <div class="resize-handle resize-handle-w" @mousedown.stop="onResizeStart($event, 'w')"></div>
+      <div class="resize-handle resize-handle-n" @mousedown.stop="onResizeStart($event, 'n')"></div>
+    </template>
   </div>
 
   <Teleport to="body">
@@ -175,6 +253,7 @@ const emit = defineEmits([
   'preview-image',
   'open-note',
   'resize',
+  'resize-block',
   'save-selection'
 ])
 
@@ -182,6 +261,10 @@ const noteStore = useNoteStore()
 const blockRef = ref(null)
 const editorRef = ref(null)
 const showLinkModal = ref(false)
+const showInsertMenu = ref(false)
+const showTablePicker = ref(false)
+const tableHoverRows = ref(1)
+const tableHoverCols = ref(1)
 const linkText = ref('')
 const linkUrl = ref('')
 let resizeObserver = null
@@ -195,8 +278,15 @@ const blockStyle = computed(() => {
   const style = {
     left: `${props.block.x}px`,
     top: `${props.block.y}px`,
-    width: `${props.block.width || 220}px`,
-    minHeight: `${props.block.height || 60}px`
+    width: `${props.block.width || 220}px`
+  }
+  const isAutoSize = props.block.type === 'image' || props.block.type === 'note-link'
+  if (!isAutoSize && props.block.height && props.block.height > 0) {
+    style.height = `${props.block.height}px`
+  } else if (props.block.height && props.block.height > 0) {
+    style.minHeight = `${props.block.height}px`
+  } else {
+    style.minHeight = `${props.block.minHeight || 60}px`
   }
   if (props.block.borderColor) {
     style.borderColor = props.block.borderColor
@@ -230,7 +320,7 @@ function onClick() {
 }
 
 function onMouseDown(e) {
-  if (e.target.closest('.action-btn') || e.target.closest('.style-menu') || e.target.closest('.connect-dot')) {
+  if (e.target.closest('.action-btn') || e.target.closest('.style-menu') || e.target.closest('.connect-dot') || e.target.closest('.resize-handle') || e.target.closest('.insert-menu') || e.target.closest('.table-grid-picker')) {
     return
   }
   if (e.target.closest('.text-editor')) {
@@ -266,6 +356,29 @@ function saveSelection() {
   emit('save-selection', props.block.id, selection.getRangeAt(0).cloneRange())
 }
 
+let isNormalizing = false
+function onSelectionChange() {
+  if (isNormalizing) return
+  if (!editorRef.value || document.activeElement !== editorRef.value) return
+  const sel = window.getSelection()
+  if (!sel || !sel.isCollapsed || sel.rangeCount === 0) return
+  const range = sel.getRangeAt(0)
+  const node = range.startContainer
+  if (node.nodeType !== Node.TEXT_NODE || range.startOffset !== 0) return
+  if (!editorRef.value.contains(node)) return
+  const li = node.parentElement
+  if (!li || li.tagName !== 'LI') return
+  if (!li.querySelector('ul, ol')) return
+  if (li.firstChild !== node) return
+  isNormalizing = true
+  const newRange = document.createRange()
+  newRange.selectNodeContents(node)
+  newRange.collapse(false)
+  sel.removeAllRanges()
+  sel.addRange(newRange)
+  isNormalizing = false
+}
+
 function onPaste(e) {
   e.preventDefault()
   const text = e.clipboardData?.getData('text/plain') || ''
@@ -277,6 +390,219 @@ function onEditorKeyDown(e) {
     e.preventDefault()
     document.execCommand('insertHTML', false, '&nbsp;&nbsp;')
   }
+}
+
+function focusEditorAtEnd() {
+  if (editorRef.value && document.activeElement === editorRef.value) return
+  editorRef.value?.focus()
+  if (editorRef.value) {
+    const range = document.createRange()
+    range.selectNodeContents(editorRef.value)
+    range.collapse(false)
+    const sel = window.getSelection()
+    sel.removeAllRanges()
+    sel.addRange(range)
+  }
+}
+
+function formatSelection(command, value = null) {
+  if (!editorRef.value) return false
+  editorRef.value.focus()
+  const sel = window.getSelection()
+
+  let hasSelection = false
+  if (sel && sel.rangeCount > 0) {
+    const r = sel.getRangeAt(0)
+    if (!r.collapsed && editorRef.value.contains(r.commonAncestorContainer)) {
+      hasSelection = true
+    }
+  }
+
+  if (!hasSelection) {
+    const fullRange = document.createRange()
+    fullRange.selectNodeContents(editorRef.value)
+    sel.removeAllRanges()
+    sel.addRange(fullRange)
+  }
+
+  if (command === 'foreColor' || command === 'hiliteColor') {
+    document.execCommand('styleWithCSS', false, true)
+    document.execCommand(command, false, value)
+    document.execCommand('styleWithCSS', false, false)
+  } else if (command === 'fontSize') {
+    applyInlineStyle({ fontSize: value + 'px' })
+  } else if (command === 'fontWeight') {
+    applyInlineStyle({ fontWeight: value })
+  } else {
+    document.execCommand(command, false, value)
+  }
+  emit('update', props.block.id, { content: editorRef.value.innerHTML })
+  return true
+}
+
+function applyInlineStyle(props) {
+  const sel = window.getSelection()
+  if (!sel || sel.rangeCount === 0) return
+  const range = sel.getRangeAt(0)
+  if (range.collapsed) return
+
+  const span = document.createElement('span')
+  if (props.fontSize) span.style.fontSize = props.fontSize
+  if (props.fontWeight) span.style.fontWeight = props.fontWeight
+
+  span.appendChild(range.extractContents())
+  range.insertNode(span)
+
+  const target = mergeUpward(span, props) || span
+  cleanupEmptySpans(editorRef.value)
+
+  if (editorRef.value.contains(target)) {
+    sel.removeAllRanges()
+    const newRange = document.createRange()
+    newRange.selectNodeContents(target)
+    sel.addRange(newRange)
+  }
+}
+
+function mergeUpward(span, props) {
+  const parent = span.parentNode
+  if (!parent || parent.nodeType !== 1 || parent.tagName !== 'SPAN' || !parent.style.cssText) return null
+  if (parent.children.length !== 1 || parent.children[0] !== span) return null
+  if (parent.textContent.trim() !== span.textContent.trim()) return null
+  const css = parent.style.cssText
+  const stripped = css.replace(/font-size[^;]*;?/g, '').replace(/font-weight[^;]*;?/g, '').trim()
+  let merged = false
+  if (props.fontSize && /font-size/.test(css) && !stripped) {
+    parent.style.fontSize = props.fontSize
+    merged = true
+  } else if (props.fontWeight && /font-weight/.test(css) && !stripped) {
+    parent.style.fontWeight = props.fontWeight
+    merged = true
+  }
+  if (merged) {
+    while (span.firstChild) parent.insertBefore(span.firstChild, span)
+    parent.removeChild(span)
+    return parent
+  }
+  return null
+}
+
+function cleanupEmptySpans(root) {
+  root.querySelectorAll('span').forEach(s => {
+    if (!s.hasChildNodes()) s.remove()
+  })
+}
+
+function clearInlineStyle(prop) {
+  if (!editorRef.value) return
+  if (prop === 'fontWeight') {
+    editorRef.value.querySelectorAll('b, strong').forEach(b => {
+      const txt = document.createTextNode(b.textContent)
+      b.replaceWith(txt)
+    })
+  }
+  const spans = editorRef.value.querySelectorAll('span[style]')
+  spans.forEach(s => {
+    if (prop === 'fontSize') s.style.removeProperty('font-size')
+    if (prop === 'fontWeight') s.style.removeProperty('font-weight')
+    if (!s.style.cssText) {
+      const parent = s.parentNode
+      while (s.firstChild) parent.insertBefore(s.firstChild, s)
+      parent.removeChild(s)
+    }
+  })
+  emit('update', props.block.id, { content: editorRef.value.innerHTML })
+}
+
+defineExpose({ formatSelection, clearInlineStyle })
+
+function insertList(type) {
+  showInsertMenu.value = false
+  focusEditorAtEnd()
+  const tag = type === 'ol' ? 'ol' : 'ul'
+
+  const sel = window.getSelection()
+  const anchor = sel?.anchorNode
+  if (anchor && editorRef.value?.contains(anchor)) {
+    let liNode = anchor.nodeType === Node.ELEMENT_NODE ? anchor : anchor.parentElement
+    while (liNode && liNode !== editorRef.value) {
+      if (liNode.tagName === 'LI') {
+        let existing = liNode.querySelector(tag)
+        if (existing) {
+          const item = document.createElement('li')
+          item.textContent = '子列表项'
+          existing.appendChild(item)
+        } else {
+          const sub = document.createElement(tag)
+          const item = document.createElement('li')
+          item.textContent = '子列表项'
+          sub.appendChild(item)
+          liNode.appendChild(sub)
+        }
+        const range = document.createRange()
+        range.selectNodeContents(liNode.querySelector(`${tag} li:last-child`))
+        range.collapse(false)
+        sel.removeAllRanges()
+        sel.addRange(range)
+        emit('update', props.block.id, { content: editorRef.value.innerHTML })
+        return
+      }
+      liNode = liNode.parentElement
+    }
+  }
+
+  const html = `<${tag}><li>列表项</li></${tag}>`
+  document.execCommand('insertHTML', false, html)
+  emit('update', props.block.id, { content: editorRef.value.innerHTML })
+}
+
+function insertCodeBlock() {
+  showInsertMenu.value = false
+  focusEditorAtEnd()
+  const html = `<pre><code>// 在此输入代码</code></pre><p><br></p>`
+  document.execCommand('insertHTML', false, html)
+  emit('update', props.block.id, { content: editorRef.value.innerHTML })
+}
+
+function toggleTablePicker() {
+  showTablePicker.value = !showTablePicker.value
+  tableHoverRows.value = 1
+  tableHoverCols.value = 1
+}
+
+function isCellActive(n) {
+  const row = Math.ceil(n / 6)
+  const col = ((n - 1) % 6) + 1
+  return row <= tableHoverRows.value && col <= tableHoverCols.value
+}
+
+function onCellHover(n) {
+  tableHoverRows.value = Math.ceil(n / 6)
+  tableHoverCols.value = ((n - 1) % 6) + 1
+}
+
+function onTableGridSelect() {
+  insertTable(tableHoverRows.value, tableHoverCols.value)
+}
+
+function insertTable(rows = 3, cols = 3) {
+  showInsertMenu.value = false
+  showTablePicker.value = false
+  focusEditorAtEnd()
+  let html = '<table>'
+  for (let r = 0; r < rows; r++) {
+    html += '<tr>'
+    for (let c = 0; c < cols; c++) {
+      const cellText = r === 0 ? `列${c + 1}` : ''
+      html += r === 0
+        ? `<th>${cellText}</th>`
+        : `<td>${cellText}</td>`
+    }
+    html += '</tr>'
+  }
+  html += '</table><p><br></p>'
+  document.execCommand('insertHTML', false, html)
+  emit('update', props.block.id, { content: editorRef.value.innerHTML })
 }
 
 function openLinkModal() {
@@ -311,7 +637,77 @@ function reportResize() {
   }
 }
 
+let resizingInfo = null
+
+function onResizeStart(e, dir) {
+  e.preventDefault()
+  const block = props.block
+  resizingInfo = {
+    dir,
+    startX: e.clientX,
+    startY: e.clientY,
+    startLeft: block.x,
+    startTop: block.y,
+    startWidth: block.width || 240,
+    startHeight: block.height || block.minHeight || 80
+  }
+  document.addEventListener('mousemove', onResizeMove)
+  document.addEventListener('mouseup', onResizeEnd)
+}
+
+function onResizeMove(e) {
+  if (!resizingInfo) return
+  const dx = e.clientX - resizingInfo.startX
+  const dy = e.clientY - resizingInfo.startY
+  const { dir, startLeft, startTop, startWidth, startHeight } = resizingInfo
+  const minW = 120
+  const minH = 60
+  let newWidth = startWidth
+  let newHeight = startHeight
+  let newX = startLeft
+  let newY = startTop
+
+  if (dir.includes('e')) {
+    newWidth = Math.max(minW, startWidth + dx)
+  }
+  if (dir.includes('s')) {
+    newHeight = Math.max(minH, startHeight + dy)
+  }
+  if (dir.includes('w')) {
+    newWidth = Math.max(minW, startWidth - dx)
+    newX = startLeft + (startWidth - newWidth)
+  }
+  if (dir.includes('n')) {
+    newHeight = Math.max(minH, startHeight - dy)
+    newY = startTop + (startHeight - newHeight)
+  }
+
+  emit('resize-block', {
+    id: props.block.id,
+    width: newWidth,
+    height: newHeight,
+    x: newX,
+    y: newY
+  })
+}
+
+function onResizeEnd() {
+  if (!resizingInfo) return
+  resizingInfo = null
+  document.removeEventListener('mousemove', onResizeMove)
+  document.removeEventListener('mouseup', onResizeEnd)
+}
+
+function closeInsertMenu(e) {
+  if (!blockRef.value?.contains(e.target)) {
+    showInsertMenu.value = false
+    showTablePicker.value = false
+  }
+}
+
 onMounted(() => {
+  document.addEventListener('click', closeInsertMenu)
+  document.addEventListener('selectionchange', onSelectionChange)
   nextTick(() => {
     syncEditorContent()
     reportResize()
@@ -325,6 +721,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  document.removeEventListener('click', closeInsertMenu)
+  document.removeEventListener('selectionchange', onSelectionChange)
   if (resizeObserver) {
     resizeObserver.disconnect()
     resizeObserver = null
@@ -404,20 +802,106 @@ onUnmounted(() => {
   background: rgba(217, 118, 118, 0.1);
 }
 
+.insert-menu-wrap {
+  position: relative;
+}
+
+.insert-menu {
+  position: absolute;
+  top: 28px;
+  right: 0;
+  z-index: 30;
+  min-width: 120px;
+  padding: 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+
+.insert-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-align: left;
+  transition: background var(--transition-fast);
+}
+
+.insert-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.table-picker-wrap {
+  position: relative;
+}
+
+.table-grid-picker {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  margin-left: 6px;
+  z-index: 40;
+  padding: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+
+.table-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 18px);
+  grid-template-rows: repeat(6, 18px);
+  gap: 3px;
+}
+
+.grid-cell {
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--border-light);
+  border-radius: 3px;
+  background: var(--bg-primary);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.grid-cell.active {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.table-grid-label {
+  margin-top: 6px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
 .block-content {
   padding: 10px 12px 12px;
   flex: 1;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .text-editor {
-  min-height: 36px;
+  flex: 1;
+  min-height: 0;
   outline: none;
   color: var(--text-primary);
   line-height: 1.6;
   font-size: 14px;
   word-break: break-word;
   cursor: text;
+  overflow: auto;
 }
 
 .text-editor:empty::before {
@@ -428,6 +912,104 @@ onUnmounted(() => {
 .text-editor :deep(a) {
   color: var(--primary-dark);
   text-decoration: underline;
+}
+
+.text-editor :deep(ul),
+.text-editor :deep(ol) {
+  margin: 6px 0;
+  padding-left: 24px;
+}
+
+.text-editor :deep(li) {
+  margin: 2px 0;
+}
+
+.text-editor :deep(ul li::marker) {
+  color: var(--primary-color);
+}
+
+.text-editor :deep(li ul),
+.text-editor :deep(li ol) {
+  margin: 2px 0 4px;
+}
+
+.text-editor :deep(li ul li::marker) {
+  content: '◦';
+  color: var(--text-tertiary);
+}
+
+.text-editor :deep(li ul li ul li::marker) {
+  content: '▪';
+  color: var(--text-tertiary);
+}
+
+.text-editor :deep(ol) {
+  list-style-type: decimal;
+}
+
+.text-editor :deep(ol li::marker) {
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.text-editor :deep(li ol) {
+  list-style-type: lower-alpha;
+}
+
+.text-editor :deep(li ol li::marker) {
+  color: var(--info-color, #4a90d9);
+  font-weight: 500;
+}
+
+.text-editor :deep(li ol li ol) {
+  list-style-type: lower-roman;
+}
+
+.text-editor :deep(li ol li ol li::marker) {
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.text-editor :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 13px;
+}
+
+.text-editor :deep(th),
+.text-editor :deep(td) {
+  border: 1px solid var(--border-color);
+  padding: 6px 10px;
+  text-align: left;
+  min-width: 40px;
+  min-height: 28px;
+  height: 28px;
+}
+
+.text-editor :deep(th) {
+  background: var(--bg-tertiary);
+  font-weight: 600;
+}
+
+.text-editor :deep(pre) {
+  position: relative;
+  margin: 10px 0;
+  padding: 12px 14px 12px 18px;
+  background: #1e2228;
+  border: 1px solid #2d333b;
+  border-left: 4px solid #6bbd8f;
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+}
+
+.text-editor :deep(pre code) {
+  display: block;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  color: #e6e6e6;
+  white-space: pre;
+  line-height: 1.5;
 }
 
 .image-container {
@@ -518,6 +1100,49 @@ onUnmounted(() => {
 .connect-dot:hover {
   transform: scale(1.2);
 }
+
+.resize-handle {
+  position: absolute;
+  z-index: 20;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.note-block:hover .resize-handle,
+.note-block.selected .resize-handle {
+  opacity: 1;
+}
+
+.resize-handle-se,
+.resize-handle-sw,
+.resize-handle-ne,
+.resize-handle-nw {
+  width: 12px;
+  height: 12px;
+}
+
+.resize-handle-e,
+.resize-handle-w {
+  width: 8px;
+  height: 100%;
+  top: 0;
+}
+
+.resize-handle-n,
+.resize-handle-s {
+  width: 100%;
+  height: 8px;
+  left: 0;
+}
+
+.resize-handle-se { right: -3px; bottom: -3px; cursor: se-resize; }
+.resize-handle-sw { left: -3px; bottom: -3px; cursor: sw-resize; }
+.resize-handle-ne { right: -3px; top: -3px; cursor: ne-resize; }
+.resize-handle-nw { left: -3px; top: -3px; cursor: nw-resize; }
+.resize-handle-e { right: -3px; cursor: e-resize; }
+.resize-handle-w { left: -3px; cursor: w-resize; }
+.resize-handle-n { top: -3px; cursor: n-resize; }
+.resize-handle-s { bottom: -3px; cursor: s-resize; }
 
 .block-color-default { background: var(--bg-primary); }
 .block-color-green { background: #e6f4ec; }
