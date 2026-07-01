@@ -27,20 +27,20 @@
         </svg>
       </div>
       <div class="block-actions">
-        <button v-if="block.type !== 'image'" class="action-btn" @click.stop="$emit('add-image', block.id)" title="插入图片">
+        <button v-if="block.type !== 'image'" class="action-btn" @click.stop="$emit('add-image', block.id)" :title="`插入图片 ${sc('insertImage')}`.trim()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="3" width="18" height="18" rx="2"/>
             <circle cx="8.5" cy="8.5" r="1.5"/>
             <polyline points="21 15 16 10 5 21"/>
           </svg>
         </button>
-        <button v-if="block.type !== 'note-link' && block.type !== 'image'" class="action-btn" @click.stop="openLinkModal" title="插入链接">
+        <button v-if="block.type !== 'note-link' && block.type !== 'image'" class="action-btn" @click.stop="openLinkModal" :title="`插入链接 ${sc('insertLink')}`.trim()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
             <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
           </svg>
         </button>
-        <button v-if="block.type !== 'note-link' && block.type !== 'image'" class="action-btn" @click.stop="$emit('add-note-link', block.id)" title="引用笔记">
+        <button v-if="block.type !== 'note-link' && block.type !== 'image'" class="action-btn" @click.stop="$emit('add-note-link', block.id)" :title="`引用笔记 ${sc('insertQuote')}`.trim()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
             <polyline points="14 2 14 8 20 8"/>
@@ -64,6 +64,7 @@
                 <circle cx="3.5" cy="18" r="1.5" fill="currentColor" stroke="none"/>
               </svg>
               <span>无序列表</span>
+              <span class="shortcut-hint">{{ sc('insertUL') }}</span>
             </button>
             <button class="insert-item" @mousedown.prevent @click="insertList('ol')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -75,6 +76,7 @@
                 <path d="M6 16H4l2-2v2H4"/>
               </svg>
               <span>有序列表</span>
+              <span class="shortcut-hint">{{ sc('insertOL') }}</span>
             </button>
             <div class="table-picker-wrap">
               <button class="insert-item" @mousedown.prevent @click="toggleTablePicker">
@@ -86,6 +88,7 @@
                   <line x1="15" y1="3" x2="15" y2="21"/>
                 </svg>
                 <span>表格</span>
+                <span class="shortcut-hint">{{ sc('insertTable') }}</span>
               </button>
               <div v-if="showTablePicker" class="table-grid-picker" @click.stop>
                 <div class="table-grid">
@@ -108,6 +111,7 @@
                 <polyline points="8 6 2 12 8 18"/>
               </svg>
               <span>代码块</span>
+              <span class="shortcut-hint">{{ sc('insertCode') }}</span>
             </button>
           </div>
         </div>
@@ -230,6 +234,17 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useNoteStore } from '@/stores/note'
+import { useShortcutStore } from '@/stores/shortcut'
+
+const shortcutStore = useShortcutStore()
+shortcutStore.init()
+
+const SHORTCUT_DISPLAY = { Ctrl: 'Ctrl', Shift: 'Shift', Alt: 'Alt', Up: '↑', Down: '↓', Left: '←', Right: '→', Space: '空格', Del: 'Del', Esc: 'Esc', Enter: 'Enter' }
+function sc(actionId) {
+  const combo = shortcutStore.getCombo(actionId)
+  if (!combo) return ''
+  return combo.split('+').map(p => SHORTCUT_DISPLAY[p] || p).join('+')
+}
 
 const props = defineProps({
   block: Object,
@@ -386,9 +401,28 @@ function onPaste(e) {
 }
 
 function onEditorKeyDown(e) {
-  if (e.key === 'Tab') {
+  if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey && !e.altKey) {
     e.preventDefault()
     document.execCommand('insertHTML', false, '&nbsp;&nbsp;')
+    return
+  }
+
+  const insertMap = [
+    ['insertUL',   () => insertList('ul')],
+    ['insertOL',   () => insertList('ol')],
+    ['insertCode', () => insertCodeBlock()],
+    ['insertTable',() => insertTable(3, 3)],
+    ['insertLink', () => openLinkModal()],
+    ['insertImage',() => emit('add-image', props.block.id)],
+    ['insertQuote',() => emit('add-note-link', props.block.id)]
+  ]
+  for (const [actionId, handler] of insertMap) {
+    if (shortcutStore.matches(e, actionId)) {
+      if (props.block.type === 'note-link' || props.block.type === 'image') return
+      e.preventDefault()
+      handler()
+      return
+    }
   }
 }
 
@@ -835,6 +869,13 @@ onUnmounted(() => {
 .insert-item:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
+}
+
+.insert-item .shortcut-hint {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-family: ui-monospace, monospace;
 }
 
 .table-picker-wrap {

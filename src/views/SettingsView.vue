@@ -185,6 +185,48 @@
       </section>
 
       <section class="settings-section">
+        <h2 class="section-title"><span class="title-bar bar-purple"></span>快捷键</h2>
+        <div class="shortcut-toolbar">
+          <span class="shortcut-tip">点击按键框重新录入，按 Esc 取消</span>
+          <button class="btn btn-secondary btn-sm" @click="resetAllShortcuts">全部恢复默认</button>
+        </div>
+        <div class="shortcut-groups">
+          <div v-for="(actions, group) in shortcutStore.groupedActions" :key="group" class="shortcut-group">
+            <div class="shortcut-group-title">{{ group }}</div>
+            <div class="shortcut-list">
+              <div v-for="act in actions" :key="act.id" class="shortcut-item">
+                <div class="shortcut-info">
+                  <div class="shortcut-name">
+                    {{ act.label }}
+                    <span v-if="!shortcutStore.isDefault(act.id)" class="custom-tag">自定义</span>
+                  </div>
+                </div>
+                <div class="shortcut-actions">
+                  <button
+                    class="keybind-box"
+                    :class="{ recording: recordingId === act.id, conflict: conflictInfo(act.id) }"
+                    @click="startRecording(act.id)"
+                    @keydown="onRecordKeydown($event, act.id)"
+                    @blur="cancelRecording"
+                  >
+                    <template v-if="recordingId === act.id">按下快捷键…</template>
+                    <template v-else>{{ formatCombo(shortcutStore.getCombo(act.id)) }}</template>
+                  </button>
+                  <button
+                    v-if="!shortcutStore.isDefault(act.id)"
+                    class="btn-reset"
+                    title="恢复默认"
+                    @click="shortcutStore.resetShortcut(act.id)"
+                  >↺</button>
+                </div>
+                <div v-if="conflictInfo(act.id)" class="conflict-warn">与「{{ conflictInfo(act.id).label }}」冲突</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="settings-section">
         <h2 class="section-title"><span class="title-bar bar-green"></span>关于</h2>
         <div class="settings-list">
           <div class="setting-item">
@@ -234,6 +276,7 @@ import { computed, ref } from 'vue'
 import { useNoteStore } from '@/stores/note'
 import { usePlanStore } from '@/stores/plan'
 import { useSyncStore } from '@/stores/sync'
+import { useShortcutStore, eventToCombo, ACTION_META } from '@/stores/shortcut'
 import { exportAsJSON, importFromJSON, mergeData, loadFromStorage, saveToStorage } from '@/utils/storage'
 import { formatDate } from '@/utils'
 import { useToast } from '@/composables/useToast'
@@ -243,6 +286,8 @@ const { error: toastError, success: toastSuccess, info: toastInfo } = useToast()
 const noteStore = useNoteStore()
 const planStore = usePlanStore()
 const syncStore = useSyncStore()
+const shortcutStore = useShortcutStore()
+shortcutStore.init()
 const showImportConfirm = ref(false)
 const pendingImportData = ref(null)
 
@@ -377,6 +422,57 @@ function cancelImport() {
   showImportConfirm.value = false
   pendingImportData.value = null
 }
+
+const recordingId = ref(null)
+
+function formatCombo(combo) {
+  if (!combo) return '未设置'
+  return combo.split('+').map(p => {
+    const m = { Ctrl: 'Ctrl', Shift: 'Shift', Alt: 'Alt', Up: '↑', Down: '↓', Left: '←', Right: '→', Space: '空格', Del: 'Delete', Esc: 'Esc', Enter: 'Enter' }
+    return m[p] || p
+  }).join(' + ')
+}
+
+function startRecording(actionId) {
+  recordingId.value = actionId
+}
+
+function cancelRecording() {
+  recordingId.value = null
+}
+
+function onRecordKeydown(e, actionId) {
+  e.preventDefault()
+  e.stopPropagation()
+  if (e.key === 'Escape') {
+    recordingId.value = null
+    return
+  }
+  if (e.key === 'Tab') return
+  if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return
+
+  const combo = eventToCombo(e)
+  const conflict = shortcutStore.findConflict(actionId, combo)
+  if (conflict) {
+    toastError(`该快捷键已被「${ACTION_META[conflict].label}」占用`)
+    recordingId.value = null
+    return
+  }
+  shortcutStore.setShortcut(actionId, combo)
+  recordingId.value = null
+  toastSuccess('快捷键已更新')
+}
+
+function conflictInfo(actionId) {
+  const combo = shortcutStore.getCombo(actionId)
+  const conflict = shortcutStore.findConflict(actionId, combo)
+  return conflict ? ACTION_META[conflict] : null
+}
+
+function resetAllShortcuts() {
+  shortcutStore.resetAll()
+  toastSuccess('已恢复全部默认快捷键')
+}
 </script>
 
 <style scoped>
@@ -440,6 +536,152 @@ function cancelImport() {
 
 .bar-green {
   background: var(--primary-color);
+}
+
+.bar-purple {
+  background: #9b6dd7;
+}
+
+.shortcut-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 12px;
+}
+
+.shortcut-tip {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.btn-sm {
+  padding: 5px 12px;
+  font-size: 12px;
+}
+
+.shortcut-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.shortcut-group-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  padding-left: 2px;
+}
+
+.shortcut-list {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.shortcut-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-light);
+  position: relative;
+  flex-wrap: wrap;
+}
+
+.shortcut-item:last-child {
+  border-bottom: none;
+}
+
+.shortcut-info {
+  flex: 1;
+  min-width: 140px;
+}
+
+.shortcut-name {
+  font-size: 14px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.custom-tag {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  font-weight: 600;
+}
+
+.shortcut-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.keybind-box {
+  min-width: 110px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+}
+
+.keybind-box:hover {
+  border-color: var(--primary-color);
+}
+
+.keybind-box.recording {
+  border-color: var(--primary-color);
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  box-shadow: 0 0 0 2px rgba(var(--primary-color-rgb, 82, 163, 119), 0.15);
+}
+
+.keybind-box.conflict {
+  border-color: var(--danger-color, #d97676);
+  color: var(--danger-color, #d97676);
+}
+
+.btn-reset {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.btn-reset:hover {
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.conflict-warn {
+  position: absolute;
+  bottom: 2px;
+  right: 16px;
+  font-size: 11px;
+  color: var(--danger-color, #d97676);
 }
 
 .settings-list {

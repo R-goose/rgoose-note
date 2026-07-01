@@ -40,6 +40,7 @@ import { useNoteStore } from '@/stores/note'
 import { usePlanStore } from '@/stores/plan'
 import { useSyncStore } from '@/stores/sync'
 import { useThemeStore } from '@/stores/theme'
+import { useShortcutStore } from '@/stores/shortcut'
 import { useToast } from '@/composables/useToast'
 
 const sidebarCollapsed = ref(false)
@@ -84,8 +85,8 @@ function handleManualSync(noteStore, planStore, syncStore) {
   }, 400)
 }
 
-function handleKeydown(e, noteStore, planStore, syncStore) {
-  if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+function handleKeydown(e, noteStore, planStore, syncStore, shortcutStore) {
+  if (shortcutStore.matches(e, 'sync')) {
     e.preventDefault()
     handleManualSync(noteStore, planStore, syncStore)
   }
@@ -127,7 +128,10 @@ onMounted(() => {
     syncStore.sync(noteStore, planStore)
   }
 
-  const onKeydown = (e) => handleKeydown(e, noteStore, planStore, syncStore)
+  const shortcutStore = useShortcutStore()
+  shortcutStore.init()
+
+  const onKeydown = (e) => handleKeydown(e, noteStore, planStore, syncStore, shortcutStore)
   window.addEventListener('keydown', onKeydown)
   window.__rgooseKeydown = onKeydown
 

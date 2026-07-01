@@ -485,7 +485,7 @@
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
           </svg>
           复制块
-          <span class="shortcut">Ctrl+D</span>
+          <span class="shortcut">{{ sc('duplicate') }}</span>
         </div>
         <div class="context-menu-item" @click="copySelectedBlock">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -493,7 +493,7 @@
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
           </svg>
           拷贝
-          <span class="shortcut">Ctrl+C</span>
+          <span class="shortcut">{{ sc('copy') }}</span>
         </div>
         <div class="context-menu-item" @click="pasteBlockHere">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -501,7 +501,7 @@
             <rect x="8" y="2" width="8" height="4" rx="1"/>
           </svg>
           粘贴
-          <span class="shortcut">Ctrl+V</span>
+          <span class="shortcut">{{ sc('paste') }}</span>
         </div>
         <div class="context-menu-divider"></div>
         <div class="context-menu-item danger" @click="deleteSelectedBlock">
@@ -510,7 +510,7 @@
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
           </svg>
           删除
-          <span class="shortcut">Del</span>
+          <span class="shortcut">{{ sc('delete') }}</span>
         </div>
       </template>
       <template v-else-if="contextMenu.type === 'canvas'">
@@ -522,7 +522,7 @@
             <line x1="9" y1="15" x2="15" y2="15"/>
           </svg>
           新建文本块
-          <span class="shortcut">N</span>
+          <span class="shortcut">{{ sc('newBlock') }}</span>
         </div>
         <div class="context-menu-item" @click="addImageBlockAtContext">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -538,7 +538,7 @@
             <rect x="8" y="2" width="8" height="4" rx="1"/>
           </svg>
           粘贴块
-          <span class="shortcut">Ctrl+V</span>
+          <span class="shortcut">{{ sc('paste') }}</span>
         </div>
         <div class="context-menu-divider"></div>
         <div class="context-menu-item" @click="toggleConnectMode">
@@ -548,7 +548,7 @@
             <line x1="10" y1="14" x2="21" y2="3"/>
           </svg>
           {{ connectMode ? '退出连线模式' : '连线模式' }}
-          <span class="shortcut">T</span>
+          <span class="shortcut">{{ sc('toggleConnect') }}</span>
         </div>
         <div class="context-menu-divider"></div>
         <div class="context-menu-item" @click="resetView">
@@ -557,7 +557,7 @@
             <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
           </svg>
           重置视图
-          <span class="shortcut">Ctrl+0</span>
+          <span class="shortcut">{{ sc('zoomReset') }}</span>
         </div>
       </template>
     </div>
@@ -614,6 +614,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useNoteStore } from '@/stores/note'
+import { useShortcutStore } from '@/stores/shortcut'
 import NoteBlock from '@/components/NoteBlock.vue'
 import CustomSelect from '@/components/CustomSelect.vue'
 import interact, { rect } from 'interactjs'
@@ -624,6 +625,8 @@ const { error: toastError } = useToast()
 const route = useRoute()
 const router = useRouter()
 const noteStore = useNoteStore()
+const shortcutStore = useShortcutStore()
+shortcutStore.init()
 
 const canvasRef = ref(null)
 const fileInputRef = ref(null)
@@ -937,6 +940,13 @@ const contextMenuStyle = computed(() => ({
   top: `${contextMenu.value.y}px`
 }))
 
+const SHORTCUT_DISPLAY = { Ctrl: 'Ctrl', Shift: 'Shift', Alt: 'Alt', Up: '↑', Down: '↓', Left: '←', Right: '→', Space: '空格', Del: 'Del', Esc: 'Esc', Enter: 'Enter' }
+function sc(actionId) {
+  const combo = shortcutStore.getCombo(actionId)
+  if (!combo) return ''
+  return combo.split('+').map(p => SHORTCUT_DISPLAY[p] || p).join('+')
+}
+
 const filteredNotesForLink = computed(() => {
   const allNotes = noteStore.allSortedNotes || noteStore.notes
   if (!noteLinkSearch.value) return allNotes
@@ -1041,6 +1051,7 @@ onMounted(() => {
   window.addEventListener('mouseup', onWindowMouseUp)
   window.addEventListener('mousemove', onWindowMouseMove)
   window.addEventListener('mousedown', onWindowMouseDown)
+  window.addEventListener('blur', onWindowBlur)
 })
 
 onUnmounted(() => {
@@ -1048,6 +1059,7 @@ onUnmounted(() => {
   window.removeEventListener('mouseup', onWindowMouseUp)
   window.removeEventListener('mousemove', onWindowMouseMove)
   window.removeEventListener('mousedown', onWindowMouseDown)
+  window.removeEventListener('blur', onWindowBlur)
 })
 
 watch(() => route.params.id, (newId) => {
@@ -1062,18 +1074,16 @@ function onKeyDown(e) {
   const isEditing = document.activeElement?.contentEditable === 'true' || 
                     document.activeElement?.tagName === 'INPUT' ||
                     document.activeElement?.tagName === 'TEXTAREA'
-  
-  const ctrlKey = e.ctrlKey || e.metaKey
-  
-  if (ctrlKey && e.key.toLowerCase() === 'c' && selectedBlockId.value && !isEditing) {
+
+  if (shortcutStore.matches(e, 'copy') && selectedBlockId.value && !isEditing) {
     const block = blocks.value.find(b => b.id === selectedBlockId.value)
     if (block) {
       copiedBlock.value = JSON.parse(JSON.stringify(block))
     }
     return
   }
-  
-  if (ctrlKey && e.key.toLowerCase() === 'v' && copiedBlock.value && !isEditing) {
+
+  if (shortcutStore.matches(e, 'paste') && copiedBlock.value && !isEditing) {
     const rect = canvasRef.value.getBoundingClientRect()
     const centerX = (rect.width / 2 - canvasConfig.value.offsetX) / canvasConfig.value.zoom - 120
     const centerY = (rect.height / 2 - canvasConfig.value.offsetY) / canvasConfig.value.zoom - 30
@@ -1093,8 +1103,8 @@ function onKeyDown(e) {
     e.preventDefault()
     return
   }
-  
-  if (ctrlKey && e.key.toLowerCase() === 'd' && selectedBlockId.value && !isEditing) {
+
+  if (shortcutStore.matches(e, 'duplicate') && selectedBlockId.value && !isEditing) {
     const block = blocks.value.find(b => b.id === selectedBlockId.value)
     if (block && note.value) {
       saveHistory()
@@ -1108,14 +1118,18 @@ function onKeyDown(e) {
     e.preventDefault()
     return
   }
-  
-  if ((e.key === 'Delete' || e.key === 'Backspace') && selectedBlockId.value && !isEditing) {
+
+  if (shortcutStore.matches(e, 'delete') && selectedBlockId.value && !isEditing) {
     deleteBlock(selectedBlockId.value)
     e.preventDefault()
     return
   }
-  
-  if (e.key === 'Escape') {
+
+  if (shortcutStore.matches(e, 'escape')) {
+    if (contextMenu.value.show) {
+      contextMenu.value.show = false
+      return
+    }
     selectedBlockId.value = null
     selectedConnectionId.value = null
     connectMode.value = false
@@ -1123,69 +1137,68 @@ function onKeyDown(e) {
     copiedBlock.value = null
     return
   }
-  
-  if (ctrlKey && e.key === '+' || (ctrlKey && e.key === '=')) {
+
+  if (shortcutStore.matches(e, 'zoomIn')) {
     zoomIn()
     e.preventDefault()
     return
   }
-  
-  if (ctrlKey && e.key === '-') {
+
+  if (shortcutStore.matches(e, 'zoomOut')) {
     zoomOut()
     e.preventDefault()
     return
   }
-  
-  if (ctrlKey && e.key === '0') {
+
+  if (shortcutStore.matches(e, 'zoomReset')) {
     resetView()
     e.preventDefault()
     return
   }
-  
-  if ((e.key === 'n' || e.key === 'N') && !isEditing) {
+
+  if (shortcutStore.matches(e, 'newBlock') && !isEditing) {
     addTextBlock()
     e.preventDefault()
     return
   }
-  
-  if ((e.key === 't' || e.key === 'T') && !isEditing) {
+
+  if (shortcutStore.matches(e, 'toggleConnect') && !isEditing) {
     toggleConnectMode()
     e.preventDefault()
     return
   }
 
-  // 撤销 Ctrl+Z
-  if (ctrlKey && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+  if (shortcutStore.matches(e, 'undo')) {
     undo()
     e.preventDefault()
     return
   }
 
-  // 重做 Ctrl+Y 或 Ctrl+Shift+Z
-  if (ctrlKey && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
+  if (shortcutStore.matches(e, 'redo')) {
     redo()
     e.preventDefault()
     return
   }
-  
-  if (selectedBlockId.value && !isEditing && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+
+  const moveActions = ['moveUp', 'moveDown', 'moveLeft', 'moveRight']
+  const moveKey = moveActions.find(a => shortcutStore.matches(e, a))
+  if (moveKey && selectedBlockId.value && !isEditing) {
     const block = blocks.value.find(b => b.id === selectedBlockId.value)
     if (block && note.value) {
       const step = e.shiftKey ? 20 : 5
       let { x, y } = block
-      if (e.key === 'ArrowUp') y -= step
-      if (e.key === 'ArrowDown') y += step
-      if (e.key === 'ArrowLeft') x -= step
-      if (e.key === 'ArrowRight') x += step
-      // 碰撞检测
+      if (moveKey === 'moveUp') y -= step
+      if (moveKey === 'moveDown') y += step
+      if (moveKey === 'moveLeft') x -= step
+      if (moveKey === 'moveRight') x += step
       const { x: finalX, y: finalY } = resolveCollision(selectedBlockId.value, x, y)
       noteStore.updateBlock(note.value.id, selectedBlockId.value, { x: finalX, y: finalY })
     }
     e.preventDefault()
     return
   }
-  
-  if (e.key === ' ' && !isEditing) {
+
+  if (shortcutStore.matches(e, 'panCanvas') && !isEditing) {
     if (!isPanning.value) {
       isPanning.value = true
       panStart.value = {
@@ -1233,6 +1246,7 @@ function saveCanvasConfig() {
 
 function onWheel(e) {
   e.preventDefault()
+  if (contextMenu.value.show) contextMenu.value.show = false
   const delta = e.deltaY > 0 ? -0.1 : 0.1
   const newZoom = Math.max(0.3, Math.min(2, canvasConfig.value.zoom + delta))
   
@@ -1260,12 +1274,18 @@ function onWindowMouseUp() {
 }
 
 function onWindowMouseDown(e) {
+  if (e.button === 2) return
   if (contextMenu.value.show && !e.target.closest('.context-menu')) {
     contextMenu.value.show = false
   }
   if (showExportMenu.value && !e.target.closest('.export-dropdown')) {
     showExportMenu.value = false
   }
+}
+
+function onWindowBlur() {
+  if (contextMenu.value.show) contextMenu.value.show = false
+  if (showExportMenu.value) showExportMenu.value = false
 }
 
 function onContextMenu(e) {

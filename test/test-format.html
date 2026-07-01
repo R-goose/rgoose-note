@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+body { font-family: sans-serif; padding: 20px; }
+.toolbar { margin-bottom: 10px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.toolbar button { padding: 4px 10px; cursor: pointer; }
+.editor {
+  border: 1px solid #ccc; padding: 12px; min-height: 80px;
+  outline: none; line-height: 1.6;
+}
+.output { margin-top: 12px; background: #f5f5f5; padding: 8px; font-family: monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
+</style>
+</head>
+<body>
+<h3>格式化测试</h3>
+<div class="toolbar">
+  <button data-cmd="bold"><b>B</b></button>
+  <button data-cmd="italic"><i>I</i></button>
+  <button data-cmd="underline"><u>U</u></button>
+  <button data-cmd="fontSize" data-val="12">字号12</button>
+  <button data-cmd="fontSize" data-val="20">字号20</button>
+  <button data-cmd="fontWeight" data-val="400">细</button>
+  <button data-cmd="fontWeight" data-val="700">粗</button>
+  <button data-cmd="foreColor" data-val="#ff0000" style="background:#ff0000;color:#fff">红</button>
+</div>
+<div class="editor" contenteditable="true" id="editor">这是一段测试文字，请选中其中一部分然后点击上方按钮。</div>
+<div class="output" id="output">HTML 输出区</div>
+
+<script>
+const editor = document.getElementById('editor')
+const output = document.getElementById('output')
+
+function applyInlineStyle(prop, value) {
+  const sel = window.getSelection()
+  if (!sel || sel.rangeCount === 0) return
+  const range = sel.getRangeAt(0)
+  if (range.collapsed) return
+  if (prop === 'fontSize') {
+    document.execCommand('styleWithCSS', false, true)
+    document.execCommand('fontSize', false, '7')
+    document.execCommand('styleWithCSS', false, false)
+    editor.querySelectorAll('span[style*="font-size"]').forEach(f => f.style.fontSize = value + 'px')
+    editor.querySelectorAll('font[size="7"]').forEach(f => {
+      const span = document.createElement('span')
+      span.style.fontSize = value + 'px'
+      while (f.firstChild) span.appendChild(f.firstChild)
+      f.replaceWith(span)
+    })
+  } else if (prop === 'fontWeight') {
+    document.execCommand('styleWithCSS', false, true)
+    document.execCommand('bold', false, null)
+    document.execCommand('styleWithCSS', false, false)
+    editor.querySelectorAll('span[style*="font-weight"]').forEach(s => s.style.fontWeight = value)
+    editor.querySelectorAll('b').forEach(b => {
+      const span = document.createElement('span')
+      span.style.fontWeight = value
+      while (b.firstChild) span.appendChild(b.firstChild)
+      b.replaceWith(span)
+    })
+  }
+}
+
+function formatSelection(command, value) {
+  editor.focus()
+  const sel = window.getSelection()
+  let hasSelection = false
+  if (sel && sel.rangeCount > 0) {
+    const r = sel.getRangeAt(0)
+    if (!r.collapsed && editor.contains(r.commonAncestorContainer)) hasSelection = true
+  }
+  if (!hasSelection) {
+    const fullRange = document.createRange()
+    fullRange.selectNodeContents(editor)
+    sel.removeAllRanges()
+    sel.addRange(fullRange)
+  }
+  if (command === 'foreColor') {
+    document.execCommand('styleWithCSS', false, true)
+    document.execCommand(command, false, value)
+    document.execCommand('styleWithCSS', false, false)
+  } else if (command === 'fontSize' || command === 'fontWeight') {
+    applyInlineStyle(command, value)
+  } else {
+    document.execCommand(command, false, value)
+  }
+  output.textContent = editor.innerHTML
+}
+
+document.querySelectorAll('.toolbar button').forEach(btn => {
+  btn.addEventListener('mousedown', e => e.preventDefault())
+  btn.addEventListener('click', () => {
+    formatSelection(btn.dataset.cmd, btn.dataset.val)
+  })
+})
+</script>
+</body>
+</html>
