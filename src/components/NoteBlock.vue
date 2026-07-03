@@ -860,7 +860,7 @@ onUnmounted(() => {
   top: 28px;
   right: 0;
   z-index: 30;
-  min-width: 120px;
+  min-width: 190px;
   padding: 4px;
   background: var(--bg-secondary);
   border: 1px solid var(--border-light);
