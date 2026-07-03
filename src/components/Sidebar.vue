@@ -788,9 +788,9 @@ function confirmDeleteFolder() {
   folderToDelete.value = null
 }
 
-onMounted(() => {
-  noteStore.init()
-  planStore.init()
+onMounted(async () => {
+  await noteStore.init()
+  await planStore.init()
   document.addEventListener('click', hideFolderContextMenu)
   document.addEventListener('click', handleFolderSelectDocClick)
 })

@@ -1,5 +1,8 @@
 const STORAGE_KEY = 'rgoose_note_data'
 const LAST_SYNC_KEY = 'rgoose_note_last_sync'
+const MIGRATED_KEY = 'rgoose_data_migrated_to_file'
+
+const isElectron = typeof window !== 'undefined' && window.electronAPI?.isElectron === true
 
 export function loadFromStorage() {
   try {
@@ -24,14 +27,78 @@ export function saveToStorage(data) {
   }
 }
 
+export async function loadFromStore() {
+  if (isElectron) {
+    try {
+      const data = await window.electronAPI.readDataFile()
+      if (data) return data
+    } catch (e) {
+      console.error('Failed to read data file:', e)
+    }
+  }
+  return loadFromStorage()
+}
+
+export async function saveToStore(data) {
+  const plain = JSON.parse(JSON.stringify(data))
+  if (isElectron) {
+    try {
+      const ok = await window.electronAPI.writeDataFile(plain)
+      if (ok) return true
+    } catch (e) {
+      console.error('Failed to write data file:', e)
+    }
+  }
+  return saveToStorage(plain)
+}
+
+export async function migrateIfNeeded() {
+  if (!isElectron) return false
+  if (localStorage.getItem(MIGRATED_KEY)) return false
+
+  const fileData = await loadFromStore()
+  const localData = loadFromStorage()
+
+  if (localData && (!fileData || !fileData.notes?.length)) {
+    await saveToStore(localData)
+    console.log('[migrate] localStorage → 文件 已迁移')
+  }
+  localStorage.setItem(MIGRATED_KEY, '1')
+  return true
+}
+
 export function getLastSyncTime() {
   const time = localStorage.getItem(LAST_SYNC_KEY)
   return time ? parseInt(time, 10) : 0
 }
 
+export async function clearStore() {
+  if (isElectron) {
+    try {
+      await window.electronAPI.writeDataFile({ notes: [], folders: [], plans: [], updatedAt: Date.now() })
+    } catch (e) {
+      console.error('Failed to clear data file:', e)
+    }
+  }
+  localStorage.removeItem(STORAGE_KEY)
+  localStorage.removeItem(LAST_SYNC_KEY)
+  localStorage.removeItem(MIGRATED_KEY)
+}
+
 export function clearStorage() {
   localStorage.removeItem(STORAGE_KEY)
   localStorage.removeItem(LAST_SYNC_KEY)
+}
+
+export async function getStorageInfo() {
+  if (isElectron) {
+    try {
+      return await window.electronAPI.getStorageInfo()
+    } catch (e) {
+      return { type: 'electron-fallback', dataFile: '未知' }
+    }
+  }
+  return { type: 'web', dataFile: '浏览器本地存储 (localStorage)' }
 }
 
 export function exportAsJSON(data) {
@@ -76,13 +143,15 @@ export function mergeData(localData, remoteData) {
     folders: [...localFolders],
     notes: [...localNotes],
     plans: [...localPlans],
-    updatedAt: Math.max(localData.updatedAt || 0, remoteData.updatedAt || 0)
+    updatedAt: Math.max(Number(localData.updatedAt) || 0, Number(remoteData.updatedAt) || 0)
   }
 
   const localFolderMap = new Map(localFolders.map(f => [f.id, f]))
   remoteFolders.forEach(remoteFolder => {
     const localFolder = localFolderMap.get(remoteFolder.id)
-    if (!localFolder || (remoteFolder.updatedAt || 0) > (localFolder.updatedAt || 0)) {
+    const remoteTs = Number(remoteFolder.updatedAt) || 0
+    const localTs = Number(localFolder?.updatedAt) || 0
+    if (!localFolder || remoteTs >= localTs) {
       const idx = merged.folders.findIndex(f => f.id === remoteFolder.id)
       if (idx >= 0) {
         merged.folders[idx] = remoteFolder
@@ -95,7 +164,13 @@ export function mergeData(localData, remoteData) {
   const localNoteMap = new Map(localNotes.map(n => [n.id, n]))
   remoteNotes.forEach(remoteNote => {
     const localNote = localNoteMap.get(remoteNote.id)
-    if (!localNote || remoteNote.updatedAt > localNote.updatedAt) {
+    const remoteTs = Number(remoteNote.updatedAt) || 0
+    const localTs = Number(localNote?.updatedAt) || 0
+    const shouldImport = !localNote ||
+      remoteTs >= localTs ||
+      (!remoteNote.deleted && localNote?.deleted)
+
+    if (shouldImport) {
       const idx = merged.notes.findIndex(n => n.id === remoteNote.id)
       if (idx >= 0) {
         merged.notes[idx] = remoteNote
@@ -108,7 +183,9 @@ export function mergeData(localData, remoteData) {
   const localPlanMap = new Map(localPlans.map(p => [p.id, p]))
   remotePlans.forEach(remotePlan => {
     const localPlan = localPlanMap.get(remotePlan.id)
-    if (!localPlan || remotePlan.updatedAt > localPlan.updatedAt) {
+    const remoteTs = Number(remotePlan.updatedAt) || 0
+    const localTs = Number(localPlan?.updatedAt) || 0
+    if (!localPlan || remoteTs >= localTs) {
       const idx = merged.plans.findIndex(p => p.id === remotePlan.id)
       if (idx >= 0) {
         merged.plans[idx] = remotePlan

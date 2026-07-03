@@ -287,14 +287,39 @@
         </div>
       </div>
     </Teleport>
+
+    <Teleport to="body">
+      <div v-if="deleteFolderState.show" class="modal-overlay" @click.self="deleteFolderState.show = false">
+        <div class="modal-content confirm-modal">
+          <div class="confirm-header">
+            <div class="confirm-icon warning">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+            </div>
+            <div>
+              <h3>确认删除文件夹</h3>
+              <p>确定删除文件夹「{{ deleteFolderState.target?.name }}」？文件夹内的笔记不会被删除。</p>
+            </div>
+          </div>
+          <div class="confirm-actions">
+            <button class="btn btn-secondary" @click="deleteFolderState.show = false">取消</button>
+            <button class="btn btn-primary" @click="confirmDeleteFolder">确认删除</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, reactive, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNoteStore } from '@/stores/note'
 import { formatDate as formatDateUtil } from '@/utils'
+import { resolveImageUrl, isImageRef } from '@/utils/imageStore'
 
 const router = useRouter()
 const noteStore = useNoteStore()
@@ -377,10 +402,30 @@ function getNotePreview(note) {
   return div.textContent?.slice(0, 80) || '空白笔记'
 }
 
-function getNoteCover(note) {
+const resolvedCovers = reactive({})
+
+async function resolveCover(note) {
+  const raw = getNoteCoverRaw(note)
+  if (!raw) { resolvedCovers[note.id] = null; return }
+  if (isImageRef(raw)) {
+    resolvedCovers[note.id] = await resolveImageUrl(raw)
+  } else {
+    resolvedCovers[note.id] = raw
+  }
+}
+
+watch(filteredNotes, (notes) => {
+  notes.forEach(n => resolveCover(n))
+}, { immediate: true })
+
+function getNoteCoverRaw(note) {
   if (!note.blocks?.length) return null
   const imgBlock = note.blocks.find(b => b.type === 'image' && b.imageUrl)
   return imgBlock?.imageUrl || null
+}
+
+function getNoteCover(note) {
+  return resolvedCovers[note.id] || null
 }
 
 function getFolderPath(folderId) {
@@ -395,6 +440,7 @@ const contextMenu = ref({ show: false, type: 'note', x: 0, y: 0, target: null })
 const contextMenuStyle = computed(() => ({ left: `${contextMenu.value.x}px`, top: `${contextMenu.value.y}px` }))
 
 const renameState = ref({ show: false, id: '', name: '', isFolder: false })
+const deleteFolderState = ref({ show: false, target: null })
 
 function onNoteContextMenu(e, note) {
   contextMenu.value = { show: true, type: 'note', x: e.clientX, y: e.clientY, target: note }
@@ -418,9 +464,7 @@ function execCtxAction(action) {
     else if (action === 'rename') {
       renameState.value = { show: true, id: target.id, name: target.name, isFolder: true }
     } else if (action === 'delete') {
-      if (confirm(`确定删除文件夹「${target.name}」？文件夹内的笔记不会被删除。`)) {
-        noteStore.deleteFolder(target.id)
-      }
+      deleteFolderState.value = { show: true, target }
     }
   }
 }
@@ -433,6 +477,12 @@ function confirmRename() {
 }
 function cancelRename() {
   renameState.value.show = false
+}
+function confirmDeleteFolder() {
+  if (deleteFolderState.value.target) {
+    noteStore.deleteFolder(deleteFolderState.value.target.id)
+  }
+  deleteFolderState.value.show = false
 }
 function onGlobalClick(e) {
   if (contextMenu.value.show && !e.target.closest('.context-menu')) closeContextMenu()
@@ -453,7 +503,7 @@ onUnmounted(() => window.removeEventListener('mousedown', onGlobalClick))
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px calc(28px + var(--window-controls-width)) 20px 28px;
+  padding: 20px 28px;
   border-bottom: 1px solid var(--border-light);
   background: var(--bg-secondary);
   flex-shrink: 0;
@@ -484,6 +534,7 @@ onUnmounted(() => window.removeEventListener('mousedown', onGlobalClick))
   display: flex;
   align-items: center;
   gap: 12px;
+  margin-left: auto;
 }
 
 .search-box {

@@ -21,7 +21,6 @@ export const ACTION_META = {
   moveLeft:      { label: '左移块(Shift加速)', group: '画布', default: 'Left' },
   moveRight:     { label: '右移块(Shift加速)', group: '画布', default: 'Right' },
   escape:        { label: '取消/关闭菜单', group: '通用', default: 'Esc' },
-  sync:          { label: '云同步', group: '通用', default: 'Ctrl+S' },
   insertUL:      { label: '插入无序列表', group: '插入内容', default: 'Ctrl+Shift+L' },
   insertOL:      { label: '插入有序列表', group: '插入内容', default: 'Ctrl+Shift+N' },
   insertCode:    { label: '插入代码块', group: '插入内容', default: 'Ctrl+Shift+K' },

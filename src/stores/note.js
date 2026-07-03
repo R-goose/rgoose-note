@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { generateId, getTimestamp, deepClone } from '@/utils'
-import { loadFromStorage, saveToStorage, getLastSyncTime, clearStorage } from '@/utils/storage'
+import { loadFromStore, saveToStore, getLastSyncTime, migrateIfNeeded, clearStore } from '@/utils/storage'
+import { saveImage } from '@/utils/imageStore'
 
 export const useNoteStore = defineStore('note', () => {
   const notes = ref([])
@@ -59,18 +60,28 @@ export const useNoteStore = defineStore('note', () => {
     return folders.value.filter(f => f.parentId === folderId && !f.deleted).length
   }
 
-  function init() {
-    const data = loadFromStorage()
-    if (data && data.notes) {
-      notes.value = data.notes
-    }
-    if (data && data.folders) {
-      folders.value = data.folders
-    }
-    lastSyncTime.value = getLastSyncTime()
+  let initPromise = null
+  async function init() {
+    if (initPromise) return initPromise
+    initPromise = (async () => {
+      await migrateIfNeeded()
+      const data = await loadFromStore()
+      if (data && data.notes) {
+        notes.value = data.notes
+      }
+      if (data && data.folders) {
+        folders.value = data.folders
+      }
+      lastSyncTime.value = getLastSyncTime()
+    })()
+    return initPromise
   }
 
   let persistTimer = null
+  let pendingPlans = null
+  function setPendingPlans(plans) {
+    pendingPlans = plans
+  }
   function persist() {
     if (persistTimer) clearTimeout(persistTimer)
     persistTimer = setTimeout(() => {
@@ -85,22 +96,22 @@ export const useNoteStore = defineStore('note', () => {
       doPersist()
     }
   }
-  function doPersist() {
+  async function doPersist() {
     const data = {
       notes: notes.value,
       folders: folders.value,
-      plans: loadFromStorage()?.plans || [],
+      plans: pendingPlans || (await loadFromStore())?.plans || [],
       updatedAt: getTimestamp()
     }
-    saveToStorage(data)
+    await saveToStore(data)
     lastSyncTime.value = getLastSyncTime()
   }
-  function clearCache() {
+  async function clearCache() {
     if (persistTimer) {
       clearTimeout(persistTimer)
       persistTimer = null
     }
-    clearStorage()
+    await clearStore()
   }
 
   function createFolder(name = '新文件夹', parentId = null) {
@@ -114,6 +125,7 @@ export const useNoteStore = defineStore('note', () => {
     }
     folders.value.push(folder)
     persist()
+    flushPersist()
     return folder
   }
 
@@ -254,6 +266,7 @@ export const useNoteStore = defineStore('note', () => {
     }
     notes.value.unshift(note)
     persist()
+    flushPersist()
     return note
   }
 
@@ -420,12 +433,12 @@ export const useNoteStore = defineStore('note', () => {
   }
 
   function replaceAll(newNotes) {
-    notes.value = newNotes
+    notes.value = JSON.parse(JSON.stringify(newNotes || []))
     persist()
   }
 
   function replaceAllFolders(newFolders) {
-    folders.value = newFolders
+    folders.value = JSON.parse(JSON.stringify(newFolders || []))
     persist()
   }
 
@@ -453,6 +466,7 @@ export const useNoteStore = defineStore('note', () => {
     persist,
     flushPersist,
     clearCache,
+    setPendingPlans,
     createFolder,
     isFolderNameDuplicate,
     renameFolder,

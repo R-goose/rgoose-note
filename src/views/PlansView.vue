@@ -284,7 +284,7 @@ function savePlan() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px calc(28px + var(--window-controls-width)) 20px 28px;
+  padding: 20px 28px;
   border-bottom: 1px solid var(--border-light);
   background: var(--bg-secondary);
   flex-shrink: 0;
@@ -294,6 +294,13 @@ function savePlan() {
   display: flex;
   align-items: baseline;
   gap: 12px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
 }
 
 .header-left h1 {

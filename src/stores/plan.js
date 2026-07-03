@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { generateId, getTimestamp } from '@/utils'
-import { loadFromStorage, saveToStorage, getLastSyncTime } from '@/utils/storage'
+import { loadFromStore, getLastSyncTime } from '@/utils/storage'
+import { useNoteStore } from './note'
 
 export const usePlanStore = defineStore('plan', () => {
   const plans = ref([])
@@ -35,27 +36,37 @@ export const usePlanStore = defineStore('plan', () => {
     })
   })
 
-  function init() {
-    const data = loadFromStorage()
-    if (data && data.plans) {
-      plans.value = data.plans
-    }
-    lastSyncTime.value = getLastSyncTime()
-    checkReminders()
-    startReminderCheck()
+  let initPromise = null
+  async function init() {
+    if (initPromise) return initPromise
+    initPromise = (async () => {
+      const data = await loadFromStore()
+      if (data && data.plans) {
+        plans.value = data.plans
+      }
+      lastSyncTime.value = getLastSyncTime()
+      checkReminders()
+      startReminderCheck()
+    })()
+    return initPromise
   }
 
+  let persistTimer = null
   function persist() {
-    const existing = loadFromStorage()
-    const data = {
-      notes: existing?.notes || [],
-      folders: existing?.folders || [],
-      connections: existing?.connections || [],
-      plans: plans.value,
-      updatedAt: getTimestamp()
+    if (persistTimer) clearTimeout(persistTimer)
+    persistTimer = setTimeout(() => {
+      flushPersist()
+      persistTimer = null
+    }, 500)
+  }
+  function flushPersist() {
+    if (persistTimer) {
+      clearTimeout(persistTimer)
+      persistTimer = null
     }
-    saveToStorage(data)
-    lastSyncTime.value = getTimestamp()
+    const noteStore = useNoteStore()
+    noteStore.setPendingPlans(plans.value)
+    noteStore.persist()
   }
 
   function createPlan(title, options = {}) {
@@ -141,7 +152,7 @@ export const usePlanStore = defineStore('plan', () => {
   }
 
   function replaceAll(newPlans) {
-    plans.value = newPlans
+    plans.value = JSON.parse(JSON.stringify(newPlans || []))
     persist()
   }
 
@@ -153,6 +164,7 @@ export const usePlanStore = defineStore('plan', () => {
     lastSyncTime,
     init,
     persist,
+    flushPersist,
     createPlan,
     updatePlan,
     deletePlan,

@@ -47,10 +47,11 @@
             引用
           </button>
           <button class="btn btn-secondary" @click="showExportMenu = !showExportMenu" title="导出">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7 10 12 15 17 10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
+           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
             </svg>
             导出
           </button>
@@ -413,7 +414,7 @@
       ref="fileInputRef"
       type="file"
       accept="image/*"
-      style="position: fixed; top: -100px; left: -100px; width: 0; height: 0; opacity: 0; pointer-events: none;"
+      class="hidden-file-input"
       @change="onImageFileSelect"
     />
     
@@ -629,6 +630,7 @@ import NoteBlock from '@/components/NoteBlock.vue'
 import CustomSelect from '@/components/CustomSelect.vue'
 import interact, { rect } from 'interactjs'
 import { useToast } from '@/composables/useToast'
+import { saveImage, resolveImageUrl, preloadImages, isImageRef } from '@/utils/imageStore'
 
 const { error: toastError } = useToast()
 
@@ -1052,8 +1054,8 @@ function getBlockMinimapColor(block) {
   return colors[block.color] || '#e8eae8'
 }
 
-onMounted(() => {
-  noteStore.init()
+onMounted(async () => {
+  await noteStore.init()
   if (note.value) {
     noteTitle.value = note.value.title
     canvasConfig.value = { ...note.value.canvasConfig }
@@ -1827,8 +1829,9 @@ function onImageFileSelect(e) {
   isImageLoading.value = true
   
   const reader = new FileReader()
-  reader.onload = (ev) => {
+  reader.onload = async (ev) => {
     const imgData = ev.target.result
+    const imgRef = await saveImage(imgData)
     let centerX, centerY
     
     if (contextMenu.value.canvasXForImage !== undefined) {
@@ -1848,7 +1851,7 @@ function onImageFileSelect(e) {
         const block = note.value.blocks.find(b => b.id === currentImageBlockId.value)
         if (block?.type === 'image') {
           noteStore.updateBlock(note.value.id, currentImageBlockId.value, {
-            imageUrl: imgData
+            imageUrl: imgRef
           })
           selectedBlockId.value = currentImageBlockId.value
         } else if (block) {
@@ -1858,7 +1861,7 @@ function onImageFileSelect(e) {
             x: imgX,
             y: imgY,
             type: 'image',
-            imageUrl: imgData,
+            imageUrl: imgRef,
             width: 280,
             minHeight: 200
           })
@@ -1877,7 +1880,7 @@ function onImageFileSelect(e) {
           x: centerX,
           y: centerY,
           type: 'image',
-          imageUrl: imgData,
+          imageUrl: imgRef,
           width: 280,
           minHeight: 200
         })
@@ -2558,6 +2561,15 @@ function deleteSelectedConnection() {
   border-radius: var(--radius-lg);
 }
 
+.hidden-file-input {
+  position: fixed;
+  top: -1000px;
+  left: -1000px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
 .zoom-controls {
   display: flex;
   align-items: center;
@@ -2624,11 +2636,11 @@ function deleteSelectedConnection() {
 
 .connection-path {
   pointer-events: none;
-  transition: stroke 0.2s ease;
+  transition: stroke 0.2s ease, stroke-width 0.2s ease;
 }
 
 .connection-path.selected {
-  filter: drop-shadow(0 0 2px var(--primary-color));
+  stroke-width: 3px;
 }
 
 .connection-hit {

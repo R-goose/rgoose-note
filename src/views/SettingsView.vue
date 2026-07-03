@@ -17,12 +17,13 @@
               <div class="setting-desc">将所有笔记和计划导出为 JSON 文件备份</div>
             </div>
             <button class="btn btn-secondary btn-export" @click="handleExport">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+ 
               导出
             </button>
           </div>
@@ -33,24 +34,24 @@
               <div class="setting-desc">从 JSON 备份文件恢复数据</div>
             </div>
             <button class="btn btn-secondary btn-import" @click="handleImport">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="17 8 12 3 7 8" />
-                <line x1="12" y1="3" x2="12" y2="15" />
-              </svg>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
               导入
             </button>
           </div>
 
           <div class="setting-item">
             <div class="setting-info">
-              <div class="setting-name">同步状态</div>
-              <div class="setting-desc">上次同步：{{ lastSyncTimeStr }}</div>
+              <div class="setting-name">保存状态</div>
+              <div class="setting-desc">上次保存：{{ lastSyncTimeStr }}</div>
             </div>
             <div class="sync-badge synced">
               <div class="sync-dot synced"></div>
-              已同步
+              已保存
             </div>
           </div>
 
@@ -69,133 +70,92 @@
             </button>
           </div>
 
+          <div v-if="storageSize" class="setting-item storage-usage-item">
+            <div class="setting-info">
+              <div class="setting-name">存储占用</div>
+              <div class="storage-usage-bar">
+                <div class="usage-segment notes" :style="{ width: notesUsagePercent + '%' }" title="笔记数据"></div>
+                <div class="usage-segment images" :style="{ width: imagesUsagePercent + '%' }" title="图片文件"></div>
+                <div class="usage-segment backups" :style="{ width: backupUsagePercent + '%' }" title="备份文件"></div>
+              </div>
+              <div class="storage-usage-detail">
+                <span class="usage-tag notes">笔记 {{ formatBytes(storageSize.dataSize) }}</span>
+                <span class="usage-tag images">图片 {{ formatBytes(storageSize.imagesDirSize) }}</span>
+                <span class="usage-tag backups">备份 {{ formatBytes(storageSize.backupSize) }}（{{ storageSize.backupCount }} 份）</span>
+              </div>
+            </div>
+          </div>
+
           <div class="setting-item">
             <div class="setting-info">
-              <div class="setting-name">文件存储位置</div>
-              <div class="setting-desc">{{ storageLocation }}</div>
+              <div class="setting-name">本地备份</div>
+              <div class="setting-desc">生成完整备份（含数据和图片），最多保留 5 份</div>
             </div>
-            <button class="btn btn-secondary" @click="copyStorageLocation">
+            <button class="btn btn-export" @click="handleCreateBackup">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                 stroke-linecap="round">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
               </svg>
-              复制
+              生成备份
             </button>
           </div>
-        </div>
-      </section>
 
-      <section class="settings-section">
-        <h2 class="section-title"><span class="title-bar bar-yellow"></span>云同步</h2>
-        <div class="settings-list">
-          <div class="setting-item">
-            <div class="setting-info">
-              <div class="setting-name">启用云同步</div>
-              <div class="setting-desc">开启后可在多端之间同步笔记和计划</div>
+          <div v-if="backups.length" class="backup-list">
+            <div v-for="b in backups" :key="b.name" class="backup-item">
+              <div class="backup-info">
+                <span class="backup-time">{{ formatBackupTime(b.mtime) }}</span>
+                <span class="backup-size">{{ formatBytes(b.size) }}</span>
+              </div>
+              <button class="action-icon-btn danger" @click="handleDeleteBackup(b.name)" title="删除备份">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                </svg>
+              </button>
             </div>
-            <label class="switch">
-              <input type="checkbox" :checked="syncStore.enabled" @change="toggleEnabled($event)" />
-              <span class="switch-slider"></span>
-            </label>
           </div>
 
-          <div v-if="syncStore.enabled" class="cloud-config">
-            <div class="form-row">
-              <label class="form-label">同步后端</label>
-              <div class="backend-tabs">
-                <button class="backend-tab" :class="{ active: syncStore.type === 'gist' }"
-                  @click="syncStore.setType('gist')">GitHub Gist</button>
-                <button class="backend-tab" :class="{ active: syncStore.type === 'gitee' }"
-                  @click="syncStore.setType('gitee')">Gitee 代码片段</button>
-                <button class="backend-tab" :class="{ active: syncStore.type === 'webdav' }"
-                  @click="syncStore.setType('webdav')">WebDAV</button>
+          <div class="setting-item storage-location-item">
+            <div class="setting-info">
+              <div class="setting-name">
+                文件存储位置
+                <span v-if="storageIsCustom" class="custom-badge">自定义</span>
+              </div>
+              <div class="setting-desc">{{ storageLocation }}</div>
+              <div v-if="migrating" class="migrating-hint">
+                <span class="mini-spinner"></span> 正在迁移数据，请稍候...
               </div>
             </div>
-
-            <template v-if="syncStore.type === 'gist' || syncStore.type === 'gitee'">
-              <div class="form-row">
-                <label class="form-label">{{ syncStore.type === 'gitee' ? 'Gitee 私人令牌' : 'GitHub Token' }}</label>
-                <input type="password" class="input"
-                  :placeholder="syncStore.type === 'gitee' ? '在 Gitee → 设置 → 私人令牌 生成' : 'ghp_xxxxxxxx'"
-                  :value="syncStore.gistConfig.token"
-                  @input="syncStore.updateGistConfig({ token: $event.target.value })" />
-                <div v-if="syncStore.type === 'gitee'" class="form-hint">在 Gitee → 设置 → 私人令牌 创建，需勾选 gists（代码片段）权限</div>
-                <div v-else class="form-hint">在 GitHub → Settings → Developer settings → Personal access tokens 创建，需勾选
-                  gist 权限</div>
-              </div>
-              <div class="form-row">
-                <label class="form-label">{{ syncStore.type === 'gitee' ? 'Gitee 片段 ID（可选）' : 'Gist ID（可选）' }}</label>
-                <input type="text" class="input"
-                  :placeholder="syncStore.type === 'gitee' ? '留空则首次推送时自动创建；填写后将固定使用该片段' : '留空则首次推送时自动创建'"
-                  :value="syncStore.gistConfig.gistId"
-                  @input="syncStore.updateGistConfig({ gistId: $event.target.value })" />
-                <div v-if="syncStore.type === 'gitee'" class="form-hint">如果你填了 Gitee 片段 ID，后续会一直更新这个片段；ID
-                  不存在时不会自动新建别的片段。</div>
-              </div>
-            </template>
-
-            <template v-else>
-              <div class="form-row">
-                <label class="form-label">WebDAV 地址</label>
-                <input type="text" class="input" placeholder="https://dav.jianguoyun.com/dav/R-Goose/"
-                  :value="syncStore.webdavConfig.url"
-                  @input="syncStore.updateWebdavConfig({ url: $event.target.value })" />
-              </div>
-              <div class="form-row">
-                <label class="form-label">用户名</label>
-                <input type="text" class="input" :value="syncStore.webdavConfig.username"
-                  @input="syncStore.updateWebdavConfig({ username: $event.target.value })" />
-              </div>
-              <div class="form-row">
-                <label class="form-label">密码 / 应用密码</label>
-                <input type="password" class="input" :value="syncStore.webdavConfig.password"
-                  @input="syncStore.updateWebdavConfig({ password: $event.target.value })" />
-                <div class="form-hint">坚果云等请在账户设置里生成专属应用密码</div>
-              </div>
-            </template>
-
-            <div class="form-row">
-              <label class="form-label">自动同步</label>
-              <label class="switch small">
-                <input type="checkbox" :checked="syncStore.autoSync" @change="toggleAutoSync($event)" />
-                <span class="switch-slider"></span>
-              </label>
-              <span class="form-hint">每隔 {{ syncStore.autoSyncInterval }} 秒自动同步</span>
-            </div>
-
-            <div class="form-row" v-if="syncStore.autoSync">
-              <label class="form-label">同步间隔（秒）</label>
-              <input type="number" class="input interval-input" min="10" step="10" :value="syncStore.autoSyncInterval"
-                @change="syncStore.setAutoSyncInterval($event.target.value)" />
-            </div>
-
-            <div class="cloud-actions">
-              <button class="btn btn-secondary" :disabled="syncStore.syncing" @click="handleTest">
-                测试连接
-              </button>
-              <button class="btn btn-secondary" :disabled="syncStore.syncing" @click="handlePull">
+            <div class="storage-actions">
+              <button class="btn btn-secondary" @click="copyStorageLocation">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                   stroke-linecap="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                 </svg>
-                拉取
+                复制
               </button>
-              <button class="btn btn-primary" :disabled="syncStore.syncing" @click="handlePush">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                  stroke-linecap="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="17 8 12 3 7 8" />
-                  <line x1="12" y1="3" x2="12" y2="15" />
-                </svg>
-                {{ syncStore.syncing ? '同步中...' : '立即同步' }}
-              </button>
+              <template v-if="storageType === 'electron'">
+                <button v-if="!storageIsCustom" class="btn btn-export" :disabled="migrating" @click="handleChangeStorage">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                  </svg>
+                  更改位置
+                </button>
+                <button v-else class="btn btn-export" :disabled="migrating" @click="handleResetStorage">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round">
+                    <polyline points="1 4 1 10 7 10" />
+                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+                  </svg>
+                  恢复默认
+                </button>
+              </template>
             </div>
-
-            <div v-if="cloudSyncText" class="sync-status-text">{{ cloudSyncText }}</div>
-            <div v-if="syncStore.lastError" class="sync-error-text">上次错误：{{ syncStore.lastError }}</div>
           </div>
         </div>
       </section>
@@ -248,13 +208,13 @@
           <div class="setting-item">
             <div class="setting-info">
               <div class="setting-name brand-name">R-Goose Note</div>
-              <div class="setting-desc">版本 1.0.2</div>
+              <div class="setting-desc">版本 1.0.3</div>
             </div>
           </div>
           <div class="setting-item">
             <div class="setting-info">
               <div class="setting-name">平台支持</div>
-              <div class="setting-desc">Web / Windows / 移动端</div>
+              <div class="setting-desc">Web / Windows</div>
             </div>
           </div>
         </div>
@@ -285,6 +245,78 @@
         </div>
       </div>
     </Teleport>
+
+    <Teleport to="body">
+      <div v-if="showClearCacheConfirm" class="modal-overlay" @click.self="showClearCacheConfirm = false">
+        <div class="modal-content confirm-modal">
+          <div class="confirm-header">
+            <div class="confirm-icon warning">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+            </div>
+            <div>
+              <h3>确认清除缓存</h3>
+              <p>此操作将删除本地存储的所有笔记和计划数据，且不可恢复。建议操作前先「导出数据」备份。</p>
+            </div>
+          </div>
+          <div class="confirm-actions">
+            <button class="btn btn-secondary" @click="showClearCacheConfirm = false">取消</button>
+            <button class="btn btn-primary" @click="confirmClearCache">确认清除</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div v-if="showStorageMigrateConfirm" class="modal-overlay" @click.self="showStorageMigrateConfirm = false">
+        <div class="modal-content confirm-modal">
+          <div class="confirm-header">
+            <div class="confirm-icon warning">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+            </div>
+            <div>
+              <h3>更改存储位置</h3>
+              <p>将完整迁移当前数据（笔记+图片）到新位置：<br><code class="path-code">{{ pendingStorageDir }}</code><br>迁移完成后建议重启应用以完全生效。</p>
+            </div>
+          </div>
+          <div class="confirm-actions">
+            <button class="btn btn-secondary" @click="showStorageMigrateConfirm = false">取消</button>
+            <button class="btn btn-primary" @click="performChangeStorage">确认迁移</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
+      <div v-if="showStorageResetConfirm" class="modal-overlay" @click.self="showStorageResetConfirm = false">
+        <div class="modal-content confirm-modal">
+          <div class="confirm-header">
+            <div class="confirm-icon warning">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+            </div>
+            <div>
+              <h3>恢复默认存储位置</h3>
+              <p>当前数据会迁移回应用默认目录。建议操作前先生成备份。</p>
+            </div>
+          </div>
+          <div class="confirm-actions">
+            <button class="btn btn-secondary" @click="showStorageResetConfirm = false">取消</button>
+            <button class="btn btn-primary" @click="performResetStorage">确认恢复</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -292,20 +324,20 @@
 import { computed, ref, onMounted } from 'vue'
 import { useNoteStore } from '@/stores/note'
 import { usePlanStore } from '@/stores/plan'
-import { useSyncStore } from '@/stores/sync'
 import { useShortcutStore, eventToCombo, ACTION_META } from '@/stores/shortcut'
-import { exportAsJSON, importFromJSON, mergeData, loadFromStorage, saveToStorage } from '@/utils/storage'
-import { formatDate } from '@/utils'
+import { exportAsJSON, importFromJSON, mergeData, loadFromStore, saveToStore } from '@/utils/storage'
+import { collectImageRefsFromData, buildImageBundle, restoreImageBundle, remapImageRefsInData } from '@/utils/imageStore'
+import { formatDate, formatBytes } from '@/utils'
 import { useToast } from '@/composables/useToast'
 
 const { error: toastError, success: toastSuccess, info: toastInfo } = useToast()
 
 const noteStore = useNoteStore()
 const planStore = usePlanStore()
-const syncStore = useSyncStore()
 const shortcutStore = useShortcutStore()
 shortcutStore.init()
 const showImportConfirm = ref(false)
+const showClearCacheConfirm = ref(false)
 const pendingImportData = ref(null)
 
 const lastSyncTimeStr = computed(() => {
@@ -315,59 +347,73 @@ const lastSyncTimeStr = computed(() => {
 })
 
 const storageLocation = ref('')
+const storageType = ref('')
+const storageIsCustom = ref(false)
+const storageSize = ref(null)
+const backups = ref([])
+const migrating = ref(false)
+const showStorageMigrateConfirm = ref(false)
+const showStorageResetConfirm = ref(false)
+const pendingStorageDir = ref('')
+
+async function loadStorageSize() {
+  if (window.electronAPI?.getStorageSize) {
+    try {
+      storageSize.value = await window.electronAPI.getStorageSize()
+    } catch (e) {
+      storageSize.value = null
+    }
+  }
+}
+
+async function loadBackups() {
+  if (window.electronAPI?.listBackups) {
+    try {
+      backups.value = await window.electronAPI.listBackups()
+    } catch (e) {
+      backups.value = []
+    }
+  }
+}
 
 onMounted(async () => {
-  if (window.electronAPI?.getDataPath) {
+  if (window.electronAPI?.getStorageInfo) {
     try {
-      storageLocation.value = await window.electronAPI.getDataPath()
+      const info = await window.electronAPI.getStorageInfo()
+      storageType.value = info.type
+      storageLocation.value = info.dataDir || '本地应用数据目录'
+      storageIsCustom.value = info.isCustom
     } catch (e) {
       storageLocation.value = '本地应用数据目录'
     }
   } else {
+    storageType.value = 'web'
     storageLocation.value = '浏览器本地存储 (localStorage) · key: rgoose_note_data'
   }
+  await loadStorageSize()
+  await loadBackups()
 })
 
-const cloudSyncText = computed(() => {
-  if (!syncStore.enabled) return ''
-  if (syncStore.syncing) return '正在同步...'
-  if (!syncStore.lastCloudSync) return '尚未同步到云端'
-  return `上次云端同步：${formatDate(syncStore.lastCloudSync, 'YYYY-MM-DD HH:mm')}`
+const notesUsagePercent = computed(() => {
+  if (!storageSize.value) return 0
+  const total = (storageSize.value.dataSize || 0) + (storageSize.value.imagesDirSize || 0) + (storageSize.value.backupSize || 0)
+  return total > 0 ? ((storageSize.value.dataSize || 0) / total) * 100 : 0
+})
+const imagesUsagePercent = computed(() => {
+  if (!storageSize.value) return 0
+  const total = (storageSize.value.dataSize || 0) + (storageSize.value.imagesDirSize || 0) + (storageSize.value.backupSize || 0)
+  return total > 0 ? ((storageSize.value.imagesDirSize || 0) / total) * 100 : 0
+})
+const backupUsagePercent = computed(() => {
+  if (!storageSize.value) return 0
+  const total = (storageSize.value.dataSize || 0) + (storageSize.value.imagesDirSize || 0) + (storageSize.value.backupSize || 0)
+  return total > 0 ? ((storageSize.value.backupSize || 0) / total) * 100 : 0
 })
 
-function toggleEnabled(e) {
-  syncStore.setEnabled(e.target.checked)
-}
-
-function toggleAutoSync(e) {
-  syncStore.setAutoSync(e.target.checked)
-}
-
-async function handleTest() {
-  try {
-    await syncStore.test()
-    toastSuccess('连接成功，凭证有效')
-  } catch (err) {
-    toastError('连接失败：' + err.message)
-  }
-}
-
-async function handlePull() {
-  try {
-    await syncStore.pull(noteStore, planStore)
-    toastSuccess('已从云端拉取并合并数据')
-  } catch (err) {
-    toastError('拉取失败：' + err.message)
-  }
-}
-
-async function handlePush() {
-  try {
-    await syncStore.sync(noteStore, planStore)
-    toastSuccess('同步完成')
-  } catch (err) {
-    toastError('同步失败：' + (syncStore.lastError || err.message))
-  }
+function formatBackupTime(mtime) {
+  const d = new Date(mtime)
+  const pad = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 async function copyStorageLocation() {
@@ -391,30 +437,160 @@ async function copyStorageLocation() {
   }
 }
 
-function handleClearCache() {
-  if (!confirm('确定清除本地缓存数据吗？\n\n此操作将删除本地存储的所有笔记和计划数据，且不可恢复。\n建议操作前先「导出数据」备份。')) {
+async function handleClearCache() {
+  showClearCacheConfirm.value = true
+}
+
+async function confirmClearCache() {
+  showClearCacheConfirm.value = false
+  await noteStore.clearCache()
+  noteStore.replaceAll([])
+  noteStore.replaceAllFolders([])
+  toastSuccess('本地缓存已清除')
+  await loadStorageSize()
+}
+
+async function handleCreateBackup() {
+  if (window.electronAPI?.createBackup) {
+    const res = await window.electronAPI.createBackup()
+    if (res?.ok) {
+      toastSuccess('备份已生成')
+      await loadBackups()
+      await loadStorageSize()
+    } else {
+      toastError('备份失败：' + (res?.error || '未知错误'))
+    }
+  } else {
+    toastError('当前环境不支持本地备份')
+  }
+}
+
+async function handleDeleteBackup(name) {
+  if (window.electronAPI?.deleteBackup) {
+    const ok = await window.electronAPI.deleteBackup(name)
+    if (ok) {
+      toastSuccess('备份已删除')
+      await loadBackups()
+      await loadStorageSize()
+    }
+  }
+}
+
+async function handleChangeStorage() {
+  if (!window.electronAPI?.pickDataDir || migrating.value) return
+  const picked = await window.electronAPI.pickDataDir()
+  if (!picked) return
+
+  if (picked === storageLocation.value) {
+    toastError('选择的新位置与当前位置相同')
     return
   }
-  noteStore.clearCache()
-  noteStore.notes = []
-  noteStore.folders = []
-  toastSuccess('本地缓存已清除')
+
+  pendingStorageDir.value = picked
+  showStorageMigrateConfirm.value = true
+}
+
+async function performChangeStorage() {
+  showStorageMigrateConfirm.value = false
+  const target = pendingStorageDir.value
+  pendingStorageDir.value = ''
+  if (!target) return
+
+  migrating.value = true
+  try {
+    const res = await window.electronAPI.changeDataDir(target)
+    if (res?.ok) {
+      storageLocation.value = res.newDir
+      storageIsCustom.value = true
+      toastSuccess('数据迁移完成，建议重启应用以完全生效')
+      await noteStore.flushPersist?.()
+      await loadStorageSize()
+    } else {
+      toastError('迁移失败：' + (res?.error || '未知错误'))
+    }
+  } catch (e) {
+    toastError('迁移失败：' + e.message)
+  } finally {
+    migrating.value = false
+  }
+}
+
+async function handleResetStorage() {
+  if (!window.electronAPI?.resetDataDir || migrating.value) return
+  showStorageResetConfirm.value = true
+}
+
+async function performResetStorage() {
+  showStorageResetConfirm.value = false
+  migrating.value = true
+  try {
+    const res = await window.electronAPI.resetDataDir()
+    if (res?.ok) {
+      storageLocation.value = res.newDir
+      storageIsCustom.value = false
+      toastSuccess('已恢复默认存储位置')
+      await loadStorageSize()
+    } else {
+      toastError('恢复失败：' + (res?.error || '未知错误'))
+    }
+  } catch (e) {
+    toastError('恢复失败：' + e.message)
+  } finally {
+    migrating.value = false
+  }
 }
 
 async function handleExport() {
-  const data = {
+  const baseData = {
     notes: noteStore.notes,
+    folders: noteStore.folders,
     plans: planStore.plans,
     exportedAt: Date.now(),
-    version: '1.0.0'
+    version: '2.0.0'
   }
 
-  if (window.electronAPI?.exportData) {
-    await window.electronAPI.exportData(data)
-  } else {
-    exportAsJSON(data)
+  const refs = collectImageRefsFromData(baseData)
+  let imageBundle = {}
+  try {
+    imageBundle = await buildImageBundle(refs)
+  } catch (e) {
+    console.error('buildImageBundle failed:', e)
   }
-  toastSuccess('数据已成功导出')
+
+  const payload = JSON.parse(JSON.stringify({
+    ...baseData,
+    images: imageBundle,
+    imageCount: Object.keys(imageBundle).length
+  }))
+
+  try {
+    if (window.electronAPI?.exportData) {
+      const ok = await window.electronAPI.exportData(payload)
+      if (!ok) {
+        toastError('导出已取消')
+        return
+      }
+    } else {
+      exportAsJSON(payload)
+    }
+    toastSuccess(`数据已导出（含 ${payload.imageCount} 张图片）`)
+  } catch (err) {
+    toastError('导出失败：' + (err?.message || '未知错误'))
+  }
+}
+
+function pickJSONFile() {
+  return new Promise((resolve, reject) => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.json,application/json'
+    input.onchange = () => {
+      const file = input.files?.[0]
+      if (file) resolve(file)
+      else reject(new Error('未选择文件'))
+    }
+    input.click()
+  })
 }
 
 async function handleImport() {
@@ -424,32 +600,60 @@ async function handleImport() {
     if (window.electronAPI?.importData) {
       data = await window.electronAPI.importData()
     } else {
-      data = await importFromJSON()
+      const file = await pickJSONFile()
+      data = await importFromJSON(file)
     }
 
-    if (data) {
+    if (data && typeof data === 'object') {
       pendingImportData.value = data
       showImportConfirm.value = true
+    } else {
+      toastError('导入失败：文件格式无效')
     }
   } catch (err) {
-    toastError('导入失败：' + err.message)
+    if (err?.message === '未选择文件') return
+    toastError('导入失败：' + (err?.message || '未知错误'))
   }
 }
 
-function confirmImport() {
+async function confirmImport() {
   if (!pendingImportData.value) return
 
-  const currentData = loadFromStorage()
-  const mergedData = mergeData(currentData, pendingImportData.value)
-  saveToStorage(mergedData)
+  try {
+    const importData = pendingImportData.value
+    let refMap = {}
 
-  if (mergedData.folders) noteStore.replaceAllFolders(mergedData.folders)
-  noteStore.replaceAll(mergedData.notes || [])
-  planStore.replaceAll(mergedData.plans || [])
+    if (importData.images && typeof importData.images === 'object') {
+      try {
+        await restoreImageBundle(importData.images, refMap)
+        remapImageRefsInData(importData, refMap)
+      } catch (e) {
+        console.error('restoreImageBundle failed:', e)
+      }
+    }
 
-  showImportConfirm.value = false
-  pendingImportData.value = null
-  toastSuccess('数据导入完成')
+    const currentData = {
+      notes: noteStore.notes,
+      folders: noteStore.folders,
+      plans: planStore.plans
+    }
+    const mergedData = mergeData(currentData, importData)
+
+    if (mergedData.folders) noteStore.replaceAllFolders(mergedData.folders)
+    noteStore.replaceAll(mergedData.notes || [])
+    planStore.replaceAll(mergedData.plans || [])
+
+    noteStore.setPendingPlans(mergedData.plans || [])
+    await saveToStore(mergedData)
+    noteStore.flushPersist()
+    planStore.flushPersist()
+
+    showImportConfirm.value = false
+    pendingImportData.value = null
+    toastSuccess('数据导入完成')
+  } catch (err) {
+    toastError('导入失败：' + (err?.message || '未知错误'))
+  }
 }
 
 function cancelImport() {
@@ -518,7 +722,7 @@ function resetAllShortcuts() {
 }
 
 .view-header {
-  padding: 20px calc(28px + var(--window-controls-width)) 20px 28px;
+  padding: 20px 28px;
   border-bottom: 1px solid var(--border-light);
   background: var(--bg-secondary);
   flex-shrink: 0;
@@ -878,13 +1082,6 @@ function resetAllShortcuts() {
   }
 }
 
-.cloud-config {
-  padding: 16px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
 .form-row {
   display: flex;
   flex-direction: column;
@@ -912,30 +1109,6 @@ function resetAllShortcuts() {
 
 .interval-input {
   max-width: 120px;
-}
-
-.backend-tabs {
-  display: flex;
-  gap: 6px;
-  background: var(--bg-tertiary);
-  padding: 4px;
-  border-radius: 999px;
-  width: fit-content;
-}
-
-.backend-tab {
-  padding: 7px 16px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  transition: all var(--transition-fast);
-}
-
-.backend-tab.active {
-  background: var(--bg-secondary);
-  color: var(--primary-dark);
-  box-shadow: var(--shadow-sm);
 }
 
 .switch {
@@ -998,24 +1171,168 @@ function resetAllShortcuts() {
   transform: translateX(16px);
 }
 
-.cloud-actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-top: 6px;
+.title-bar.bar-yellow {
+  background: #d4b27a;
 }
 
-.sync-status-text {
+.storage-usage-item {
+  flex-direction: column;
+  align-items: stretch !important;
+  gap: 8px;
+}
+
+.custom-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--primary-color, #6bbd8f);
+  background: var(--primary-soft, #e8f3ec);
+  border-radius: 999px;
+  vertical-align: middle;
+}
+
+.storage-location-item .setting-info {
+  max-width: 60%;
+}
+
+.storage-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.migrating-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
   font-size: 12px;
+  color: var(--primary-color, #6bbd8f);
+}
+
+.mini-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--primary-soft, #e8f3ec);
+  border-top-color: var(--primary-color, #6bbd8f);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.path-code {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 6px;
+  font-family: 'SF Mono', Consolas, monospace;
+  font-size: 11px;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  word-break: break-all;
+}
+
+.storage-usage-bar {
+  display: flex;
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--bg-tertiary);
+  margin-top: 4px;
+}
+
+.usage-segment {
+  height: 100%;
+  transition: width 0.4s ease;
+}
+
+.usage-segment.notes { background: var(--primary-color, #6bbd8f); }
+.usage-segment.images { background: var(--secondary-color, #d4b27a); }
+.usage-segment.backups { background: color-mix(in srgb, var(--text-tertiary, #999) 60%, transparent); }
+
+.storage-usage-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 2px;
+}
+
+.usage-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.usage-tag::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.usage-tag.notes::before { background: var(--primary-color, #6bbd8f); }
+.usage-tag.images::before { background: var(--secondary-color, #d4b27a); }
+.usage-tag.backups::before { background: color-mix(in srgb, var(--text-tertiary, #999) 60%, transparent); }
+
+.backup-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0 8px;
+}
+
+.backup-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  transition: background var(--transition-fast);
+}
+
+.backup-item:hover {
+  background: var(--bg-hover);
+}
+
+.backup-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.backup-time {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.backup-size {
   color: var(--text-tertiary);
 }
 
-.sync-error-text {
-  font-size: 12px;
-  color: var(--warning-color);
+.action-icon-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  background: transparent;
+  transition: all var(--transition-fast);
 }
 
-.title-bar.bar-yellow {
-  background: #d4b27a;
+.action-icon-btn.danger:hover {
+  color: var(--warning-color, #d97676);
+  background: var(--warning-soft, #fbecec);
 }
 </style>

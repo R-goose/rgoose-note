@@ -33,19 +33,15 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import Sidebar from '@/components/Sidebar.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
+import { useThemeStore } from '@/stores/theme'
 import { useNoteStore } from '@/stores/note'
 import { usePlanStore } from '@/stores/plan'
-import { useSyncStore } from '@/stores/sync'
-import { useThemeStore } from '@/stores/theme'
-import { useShortcutStore } from '@/stores/shortcut'
-import { useToast } from '@/composables/useToast'
 
 const sidebarCollapsed = ref(false)
 const isMaximized = ref(false)
-const { success: toastSuccess, error: toastError, info: toastInfo } = useToast()
 
 function toggleSidebar() {
   sidebarCollapsed.value = !sidebarCollapsed.value
@@ -54,6 +50,7 @@ function toggleSidebar() {
 
 const api = typeof window !== 'undefined' ? window.electronAPI : null
 let unsubMaximize = null
+let onBeforeUnload = null
 
 function onMinimize() {
   api?.windowMinimize?.()
@@ -65,32 +62,6 @@ function onClose() {
   api?.windowClose?.()
 }
 
-let pushTimer = null
-let manualSyncTimer = null
-
-function handleManualSync(noteStore, planStore, syncStore) {
-  if (!syncStore.enabled) {
-    toastInfo('云同步未开启，请在设置中开启')
-    return
-  }
-  if (manualSyncTimer) clearTimeout(manualSyncTimer)
-  manualSyncTimer = setTimeout(async () => {
-    if (syncStore.syncing) return
-    try {
-      await syncStore.sync(noteStore, planStore)
-      toastSuccess('同步完成')
-    } catch {
-      toastError('同步失败：' + (syncStore.lastError || '未知错误'))
-    }
-  }, 400)
-}
-
-function handleKeydown(e, noteStore, planStore, syncStore, shortcutStore) {
-  if (shortcutStore.matches(e, 'sync')) {
-    e.preventDefault()
-    handleManualSync(noteStore, planStore, syncStore)
-  }
-}
 
 onMounted(() => {
   const themeStore = useThemeStore()
@@ -101,59 +72,28 @@ onMounted(() => {
     sidebarCollapsed.value = saved === 'true'
   }
 
-  const noteStore = useNoteStore()
-  const planStore = usePlanStore()
-  const syncStore = useSyncStore()
-  syncStore.init()
-  syncStore.bindAutoSync(() => {
-    if (!syncStore.syncing) {
-      syncStore.sync(noteStore, planStore)
-    }
-  })
-
-  const schedulePush = () => {
-    if (!syncStore.enabled || !syncStore.autoSync) return
-    if (pushTimer) clearTimeout(pushTimer)
-    pushTimer = setTimeout(() => {
-      if (!syncStore.syncing) {
-        syncStore.push(noteStore, planStore).catch(() => {})
-      }
-    }, 5000)
-  }
-
-  watch(() => noteStore.notes, schedulePush, { deep: true })
-  watch(() => planStore.plans, schedulePush, { deep: true })
-
-  if (syncStore.enabled && syncStore.autoSync) {
-    syncStore.sync(noteStore, planStore)
-  }
-
-  const shortcutStore = useShortcutStore()
-  shortcutStore.init()
-
-  const onKeydown = (e) => handleKeydown(e, noteStore, planStore, syncStore, shortcutStore)
-  window.addEventListener('keydown', onKeydown)
-  window.__rgooseKeydown = onKeydown
-
   if (api?.onMaximizeChange) {
     api.windowIsMaximized?.().then(v => { isMaximized.value = !!v })
     unsubMaximize = api.onMaximizeChange(v => { isMaximized.value = !!v })
   }
 
-  const onBeforeUnload = () => {
-    noteStore.flushPersist?.()
+  const noteStore = useNoteStore()
+  const planStore = usePlanStore()
+  onBeforeUnload = () => {
+    noteStore.flushPersist()
+    planStore.flushPersist()
   }
   window.addEventListener('beforeunload', onBeforeUnload)
 })
 
 onUnmounted(() => {
-  if (window.__rgooseKeydown) {
-    window.removeEventListener('keydown', window.__rgooseKeydown)
-    window.__rgooseKeydown = null
-  }
   if (unsubMaximize) {
     unsubMaximize()
     unsubMaximize = null
+  }
+  if (onBeforeUnload) {
+    window.removeEventListener('beforeunload', onBeforeUnload)
+    onBeforeUnload = null
   }
 })
 </script>

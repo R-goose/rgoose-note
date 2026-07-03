@@ -126,7 +126,7 @@
 
     <div class="block-content">
       <div v-if="block.type === 'image' && block.imageUrl" class="image-container" @dblclick.stop="$emit('add-image', block.id)" @wheel.stop>
-        <img :src="block.imageUrl" alt="" draggable="false" @click.stop="$emit('preview-image', block.imageUrl)" />
+        <img :src="resolvedImageUrl" alt="" draggable="false" @click.stop="$emit('preview-image', resolvedImageUrl)" />
         <button class="change-image-btn" @click.stop="$emit('add-image', block.id)">更换图片</button>
       </div>
 
@@ -235,6 +235,7 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useNoteStore } from '@/stores/note'
 import { useShortcutStore } from '@/stores/shortcut'
+import { resolveImageUrl, isImageRef } from '@/utils/imageStore'
 
 const shortcutStore = useShortcutStore()
 shortcutStore.init()
@@ -252,6 +253,20 @@ const props = defineProps({
   connectMode: Boolean,
   connectingFrom: String
 })
+
+const resolvedImageUrl = ref('')
+watch(
+  () => props.block?.imageUrl,
+  async (url) => {
+    if (!url) { resolvedImageUrl.value = ''; return }
+    if (isImageRef(url)) {
+      resolvedImageUrl.value = await resolveImageUrl(url)
+    } else {
+      resolvedImageUrl.value = url
+    }
+  },
+  { immediate: true }
+)
 
 const emit = defineEmits([
   'select',
