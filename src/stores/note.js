@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { generateId, getTimestamp, deepClone } from '@/utils'
-import { loadFromStorage, saveToStorage, getLastSyncTime } from '@/utils/storage'
+import { loadFromStorage, saveToStorage, getLastSyncTime, clearStorage } from '@/utils/storage'
 
 export const useNoteStore = defineStore('note', () => {
   const notes = ref([])
@@ -70,7 +70,22 @@ export const useNoteStore = defineStore('note', () => {
     lastSyncTime.value = getLastSyncTime()
   }
 
+  let persistTimer = null
   function persist() {
+    if (persistTimer) clearTimeout(persistTimer)
+    persistTimer = setTimeout(() => {
+      doPersist()
+      persistTimer = null
+    }, 500)
+  }
+  function flushPersist() {
+    if (persistTimer) {
+      clearTimeout(persistTimer)
+      persistTimer = null
+      doPersist()
+    }
+  }
+  function doPersist() {
     const data = {
       notes: notes.value,
       folders: folders.value,
@@ -79,6 +94,13 @@ export const useNoteStore = defineStore('note', () => {
     }
     saveToStorage(data)
     lastSyncTime.value = getLastSyncTime()
+  }
+  function clearCache() {
+    if (persistTimer) {
+      clearTimeout(persistTimer)
+      persistTimer = null
+    }
+    clearStorage()
   }
 
   function createFolder(name = '新文件夹', parentId = null) {
@@ -352,6 +374,7 @@ export const useNoteStore = defineStore('note', () => {
         dir: 'forward',
         color: '#6bbd8f',
         width: '2',
+        label: '',
         createdAt: getTimestamp(),
         ...overrides
       }
@@ -428,6 +451,8 @@ export const useNoteStore = defineStore('note', () => {
     lastSyncTime,
     init,
     persist,
+    flushPersist,
+    clearCache,
     createFolder,
     isFolderNameDuplicate,
     renameFolder,

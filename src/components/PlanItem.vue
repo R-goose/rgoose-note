@@ -99,13 +99,14 @@ function formatDueDate(timestamp) {
   background: var(--bg-secondary);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
-  transition: all var(--transition-fast);
+  transition: all var(--transition-normal);
   cursor: pointer;
 }
 
 .plan-item:hover {
-  box-shadow: var(--shadow-sm);
-  border-color: var(--border-color);
+  border-color: color-mix(in srgb, var(--secondary-color) 35%, var(--border-color));
+  box-shadow: 0 8px 22px -10px color-mix(in srgb, var(--secondary-color) 30%, rgba(0, 0, 0, 0.12));
+  transform: translateY(-2px);
 }
 
 .plan-item.completed {
@@ -194,8 +195,8 @@ function formatDueDate(timestamp) {
 }
 
 .priority-tag {
-  padding: 2px 8px;
-  border-radius: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
   background: var(--bg-tertiary);
   font-weight: 500;
 }
@@ -212,34 +213,39 @@ function formatDueDate(timestamp) {
 
 .plan-actions {
   display: flex;
-  gap: 4px;
+  gap: 5px;
   opacity: 0;
-  transition: opacity var(--transition-fast);
+  transform: translateY(-4px);
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
   flex-shrink: 0;
 }
 
 .plan-item:hover .plan-actions {
   opacity: 1;
+  transform: translateY(0);
 }
 
 .action-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius-sm);
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
   transition: all var(--transition-fast);
 }
 
 .action-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+  background: var(--secondary-color);
+  color: #fff;
+  transform: scale(1.1);
 }
 
 .action-btn.delete:hover {
-  color: var(--warning-color);
-  background: rgba(217, 118, 118, 0.1);
+  color: #fff;
+  background: var(--warning-color);
 }
 </style>

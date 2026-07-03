@@ -17,6 +17,34 @@
     </header>
     
     <div class="plans-content">
+      <div class="plans-bg-decor" aria-hidden="true">
+        <svg class="bg-blob bg-blob-1" viewBox="0 0 400 400" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <radialGradient id="planBlobG1" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="currentColor" stop-opacity="0.75"/>
+              <stop offset="100%" stop-color="currentColor" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <circle cx="200" cy="200" r="180" fill="url(#planBlobG1)"/>
+        </svg>
+        <svg class="bg-blob bg-blob-2" viewBox="0 0 300 300" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <radialGradient id="planBlobG2" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="currentColor" stop-opacity="0.7"/>
+              <stop offset="100%" stop-color="currentColor" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <circle cx="150" cy="150" r="140" fill="url(#planBlobG2)"/>
+        </svg>
+        <svg class="bg-rings" viewBox="0 0 200 200" fill="none">
+          <circle cx="100" cy="100" r="40" stroke="currentColor" stroke-width="1"/>
+          <circle cx="100" cy="100" r="65" stroke="currentColor" stroke-width="1" opacity="0.6"/>
+          <circle cx="100" cy="100" r="90" stroke="currentColor" stroke-width="1" opacity="0.3"/>
+        </svg>
+        <div class="bg-grid-lines"></div>
+        <div class="bg-dots"></div>
+      </div>
+      <div class="plans-content-inner">
       <div v-if="!sortedPlans.length" class="empty-state">
         <svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="1.5">
           <rect x="18" y="24" width="84" height="78" rx="6"/>
@@ -112,6 +140,7 @@
         </div>
       </div>
       </template>
+      </div>
     </div>
     
     <Teleport to="body">
@@ -286,6 +315,96 @@ function savePlan() {
   flex: 1;
   overflow-y: auto;
   padding: 24px 28px;
+  position: relative;
+}
+
+.plans-bg-decor {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.plans-content-inner {
+  position: relative;
+  z-index: 1;
+}
+
+.bg-blob {
+  position: absolute;
+  bottom: -120px;
+  color: var(--secondary-color);
+  opacity: 0.16;
+  filter: blur(8px);
+}
+
+.bg-blob-1 {
+  left: 8%;
+  width: 340px;
+  height: 340px;
+  animation: blobDrift 24s ease-in-out infinite;
+}
+
+.bg-blob-2 {
+  right: 12%;
+  bottom: -160px;
+  width: 280px;
+  height: 280px;
+  color: var(--primary-color);
+  opacity: 0.14;
+  animation: blobDrift 30s ease-in-out infinite reverse;
+}
+
+@keyframes blobDrift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(20px, -15px) scale(1.08); }
+}
+
+.bg-rings {
+  position: absolute;
+  right: 22%;
+  bottom: -50px;
+  width: 200px;
+  height: 200px;
+  color: var(--secondary-color);
+  opacity: 0.22;
+  animation: ringsSpin 40s linear infinite;
+}
+
+@keyframes ringsSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.bg-grid-lines {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 240px;
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--secondary-color) 45%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--secondary-color) 45%, transparent) 1px, transparent 1px);
+  background-size: 44px 44px;
+  opacity: 0.5;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 55%);
+  mask-image: linear-gradient(180deg, transparent 0%, #000 55%);
+  transform: perspective(400px) rotateX(55deg);
+  transform-origin: bottom center;
+}
+
+.bg-dots {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 200px;
+  background-image: radial-gradient(color-mix(in srgb, var(--secondary-color) 60%, transparent) 1.4px, transparent 1.4px);
+  background-size: 22px 22px;
+  opacity: 0.5;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 45%, transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0%, #000 45%, transparent 100%);
 }
 
 .empty-state {

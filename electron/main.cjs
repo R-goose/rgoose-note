@@ -11,9 +11,10 @@ function createWindow() {
     minWidth: 800,
     minHeight: 600,
     frame: false,
-    transparent: true,
     resizable: true,
-    backgroundColor: '#00000000',
+    backgroundColor: '#fafbfa',
+    hasShadow: true,
+    roundedCorners: true,
     icon: path.join(__dirname, '../build/icon.ico'),
     webPreferences: {
       nodeIntegration: false,
@@ -60,6 +61,10 @@ ipcMain.handle('window-close', () => {
 
 ipcMain.handle('window-is-maximized', () => {
   return mainWindow ? mainWindow.isMaximized() : false
+})
+
+ipcMain.handle('get-data-path', () => {
+  return path.join(app.getPath('userData'), 'rgoose_note_data.json')
 })
 
 ipcMain.handle('export-data', async (_event, data) => {

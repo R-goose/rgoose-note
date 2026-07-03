@@ -7,6 +7,7 @@
     </header>
 
     <div class="settings-content">
+     <div class="settings-inner">
       <section class="settings-section">
         <h2 class="section-title"><span class="title-bar bar-blue"></span>数据管理</h2>
         <div class="settings-list">
@@ -51,6 +52,21 @@
               <div class="sync-dot synced"></div>
               已同步
             </div>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-info">
+              <div class="setting-name">清除缓存</div>
+              <div class="setting-desc">清除本地存储数据（操作前请先导出备份）</div>
+            </div>
+            <button class="btn btn-danger-outline" @click="handleClearCache">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
+              清除
+            </button>
           </div>
 
           <div class="setting-item">
@@ -243,6 +259,7 @@
           </div>
         </div>
       </section>
+     </div>
     </div>
 
     <Teleport to="body">
@@ -272,7 +289,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useNoteStore } from '@/stores/note'
 import { usePlanStore } from '@/stores/plan'
 import { useSyncStore } from '@/stores/sync'
@@ -297,11 +314,18 @@ const lastSyncTimeStr = computed(() => {
   return formatDate(lastSync, 'YYYY年MM月DD日 HH:mm')
 })
 
-const storageLocation = computed(() => {
+const storageLocation = ref('')
+
+onMounted(async () => {
   if (window.electronAPI?.getDataPath) {
-    return window.electronAPI.getDataPath()
+    try {
+      storageLocation.value = await window.electronAPI.getDataPath()
+    } catch (e) {
+      storageLocation.value = '本地应用数据目录'
+    }
+  } else {
+    storageLocation.value = '浏览器本地存储 (localStorage) · key: rgoose_note_data'
   }
-  return '浏览器本地存储 (localStorage) · key: rgoose_note_data'
 })
 
 const cloudSyncText = computed(() => {
@@ -365,6 +389,16 @@ async function copyStorageLocation() {
   } catch {
     toastError('复制失败，请手动选择文本复制')
   }
+}
+
+function handleClearCache() {
+  if (!confirm('确定清除本地缓存数据吗？\n\n此操作将删除本地存储的所有笔记和计划数据，且不可恢复。\n建议操作前先「导出数据」备份。')) {
+    return
+  }
+  noteStore.clearCache()
+  noteStore.notes = []
+  noteStore.folders = []
+  toastSuccess('本地缓存已清除')
 }
 
 async function handleExport() {
@@ -500,10 +534,14 @@ function resetAllShortcuts() {
   flex: 1;
   overflow-y: auto;
   padding: 28px 32px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.settings-inner {
   max-width: 900px;
   margin: 0 auto;
   width: 100%;
-  box-sizing: border-box;
 }
 
 .settings-section {
@@ -762,6 +800,16 @@ function resetAllShortcuts() {
 .btn-export:hover {
   background: var(--primary-soft);
   border-color: var(--primary-color);
+}
+
+.btn-danger-outline {
+  color: var(--warning-color, #d97676);
+  border-color: var(--warning-color, #d97676);
+}
+
+.btn-danger-outline:hover {
+  background: var(--warning-soft, #fbecec);
+  border-color: var(--warning-color, #d97676);
 }
 
 .btn-import {

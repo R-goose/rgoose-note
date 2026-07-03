@@ -30,38 +30,51 @@
       </button>
     </div>
     
-    <nav class="sidebar-nav">
-      <router-link to="/notes" class="nav-item nav-notes" active-class="active">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <line x1="16" y1="13" x2="8" y2="13"/>
-          <line x1="16" y1="17" x2="8" y2="17"/>
+    <div v-if="!collapsed" class="sidebar-collapsible-group">
+      <button class="group-header" @click="toggleSection('toolbar')">
+        <span class="group-header-title">工具栏</span>
+        <svg class="group-toggle-icon" :class="{ collapsed: isSectionCollapsed('toolbar') }" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <polyline points="6 9 12 15 18 9"/>
         </svg>
-        <span v-if="!collapsed">笔记</span>
-      </router-link>
-      <router-link to="/plans" class="nav-item nav-plans" active-class="active">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <rect x="3" y="4" width="18" height="18" rx="2"/>
-          <line x1="16" y1="2" x2="16" y2="6"/>
-          <line x1="8" y1="2" x2="8" y2="6"/>
-          <line x1="3" y1="10" x2="21" y2="10"/>
-        </svg>
-        <span v-if="!collapsed">计划</span>
-        <span v-if="!collapsed && todayPlanCount" class="badge">{{ todayPlanCount }}</span>
-      </router-link>
-      <router-link to="/settings" class="nav-item nav-settings" active-class="active">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <circle cx="12" cy="12" r="3"/>
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-        </svg>
-        <span v-if="!collapsed">设置</span>
-      </router-link>
-    </nav>
+      </button>
+      <nav v-show="!isSectionCollapsed('toolbar')" class="sidebar-nav">
+        <router-link to="/notes" class="nav-item nav-notes" active-class="active">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+          <span>笔记</span>
+        </router-link>
+        <router-link to="/plans" class="nav-item nav-plans" active-class="active">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <rect x="3" y="4" width="18" height="18" rx="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+          <span>计划</span>
+          <span v-if="todayPlanCount" class="badge">{{ todayPlanCount }}</span>
+        </router-link>
+        <router-link to="/settings" class="nav-item nav-settings" active-class="active">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+          <span>设置</span>
+        </router-link>
+      </nav>
+    </div>
     
-    <div v-if="!collapsed" class="sidebar-section">
+    <div v-if="!collapsed" class="sidebar-collapsible-group group-folders">
       <div class="section-header">
-        <span>文件夹</span>
+        <button class="group-header section-header-btn" @click="toggleSection('folders')">
+          <span class="group-header-title">文件夹</span>
+          <svg class="group-toggle-icon" :class="{ collapsed: isSectionCollapsed('folders') }" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
         <button class="btn-icon-small" @click="createNewFolder()" title="新建文件夹">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <line x1="12" y1="5" x2="12" y2="19"/>
@@ -69,12 +82,12 @@
           </svg>
         </button>
       </div>
-      <div class="folder-list">
+      <div v-show="!isSectionCollapsed('folders')" class="folder-list">
         <template v-for="item in visibleFolders" :key="item.folder.id">
           <div
             class="folder-item"
             :class="{ active: noteStore.currentFolderId === item.folder.id }"
-            :style="{ paddingLeft: (item.depth * 18 + 12) + 'px' }"
+            :style="{ paddingLeft: (item.depth * 16 + 4) + 'px' }"
             @click="onFolderClick(item.folder)"
             @dblclick.stop="startRenameFolder(item.folder)"
             @contextmenu.prevent="showFolderContextMenu($event, item.folder)"
@@ -204,7 +217,6 @@
       <div class="section-header" style="margin-top: 12px;">
         <div class="section-title-wrapper">
           <span>最近笔记</span>
-          <span v-if="currentFolderName" class="current-folder-tag">{{ currentFolderName }}</span>
         </div>
       </div>
       <div class="note-list">
@@ -248,7 +260,7 @@
       <button type="button" class="theme-row" :title="themeStore.isDark ? '切换到浅色模式' : '切换到深色模式'" @click="themeStore.toggle">
         <div class="theme-row-left">
           <span class="theme-row-icon">
-            <svg v-if="themeStore.isDark" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg v-if="!themeStore.isDark" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="4"/>
               <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
             </svg>
@@ -445,6 +457,13 @@ const newFolderName = ref('')
 const newFolderParentId = ref(null)
 const folderContextMenu = ref({ show: false, x: 0, y: 0, folder: null })
 const expandedFolderIds = ref(new Set())
+const collapsedSections = ref({})
+function toggleSection(key) {
+  collapsedSections.value = { ...collapsedSections.value, [key]: !collapsedSections.value[key] }
+}
+function isSectionCollapsed(key) {
+  return !!collapsedSections.value[key]
+}
 const showCreateNoteModal = ref(false)
 const newNoteTitle = ref('')
 const noteTitleInputRef = ref(null)
@@ -543,6 +562,11 @@ function hasChildFolders(folderId) {
 }
 
 function onFolderClick(folder) {
+  if (noteStore.currentFolderId === folder.id) {
+    noteStore.setCurrentFolder(null)
+    router.push('/notes')
+    return
+  }
   if (hasChildFolders(folder.id)) {
     toggleFolderExpandById(folder.id)
   }
@@ -834,8 +858,69 @@ onUnmounted(() => {
   color: var(--text-primary);
 }
 
+.sidebar-collapsible-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.group-folders {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 16px 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.group-header:hover {
+  color: var(--text-secondary);
+}
+
+.group-header-title {
+  position: relative;
+  padding-left: 10px;
+}
+
+.group-header-title::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 12px;
+  background: var(--primary-color);
+  border-radius: 2px;
+  opacity: 0.7;
+}
+
+.group-toggle-icon {
+  transition: transform 0.2s ease;
+}
+
+.group-toggle-icon.collapsed {
+  transform: rotate(-90deg);
+}
+
+.section-header-btn {
+  padding: 12px 4px 8px;
+}
+
 .sidebar-nav {
-  padding: 12px 12px;
+  padding: 4px 12px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -953,6 +1038,8 @@ onUnmounted(() => {
 }
 
 .folder-list {
+  flex: 1;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -970,7 +1057,7 @@ onUnmounted(() => {
 .folder-item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 7px;
   padding: 8px 10px;
   border-radius: var(--radius-md);
   cursor: pointer;

@@ -139,6 +139,11 @@ onMounted(() => {
     api.windowIsMaximized?.().then(v => { isMaximized.value = !!v })
     unsubMaximize = api.onMaximizeChange(v => { isMaximized.value = !!v })
   }
+
+  const onBeforeUnload = () => {
+    noteStore.flushPersist?.()
+  }
+  window.addEventListener('beforeunload', onBeforeUnload)
 })
 
 onUnmounted(() => {
@@ -162,12 +167,10 @@ onUnmounted(() => {
   background: var(--bg-primary);
   border-radius: 10px;
   overflow: hidden;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.22);
 }
 
 .app-container.maximized {
   border-radius: 0;
-  box-shadow: none;
 }
 
 .title-drag-bar {

@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron')
 contextBridge.exposeInMainWorld('electronAPI', {
   exportData: data => ipcRenderer.invoke('export-data', data),
   importData: () => ipcRenderer.invoke('import-data'),
+  getDataPath: () => ipcRenderer.invoke('get-data-path'),
   isElectron: true,
 
   windowMinimize: () => ipcRenderer.invoke('window-minimize'),

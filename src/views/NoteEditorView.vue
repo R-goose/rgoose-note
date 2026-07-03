@@ -121,46 +121,24 @@
       
       <svg class="connections-layer" :style="canvasTransformStyle">
         <defs>
-          <marker id="arrow-standard" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/>
-          </marker>
-          <marker id="arrow-standard-start" markerWidth="10" markerHeight="10" refX="1" refY="5" orient="auto">
-            <path d="M 10 0 L 0 5 L 10 10 z" fill="context-stroke"/>
-          </marker>
-          <marker id="arrow-thin" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto">
-            <path d="M 0 3 L 11 6 L 0 9 L 3 6 z" fill="context-stroke"/>
-          </marker>
-          <marker id="arrow-thin-start" markerWidth="12" markerHeight="12" refX="1" refY="6" orient="auto">
-            <path d="M 12 3 L 1 6 L 12 9 L 9 6 z" fill="context-stroke"/>
-          </marker>
-          <marker id="arrow-open" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto">
-            <path d="M 0 0 L 11 6 L 0 12" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </marker>
-          <marker id="arrow-open-start" markerWidth="12" markerHeight="12" refX="1" refY="6" orient="auto">
-            <path d="M 12 0 L 1 6 L 12 12" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </marker>
-          <marker id="arrow-circle" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
-            <circle cx="4" cy="4" r="3.5" fill="context-stroke"/>
-          </marker>
-          <marker id="arrow-circle-start" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
-            <circle cx="4" cy="4" r="3.5" fill="context-stroke"/>
-          </marker>
-          <marker id="arrow-square" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
-            <rect x="0.5" y="0.5" width="7" height="7" fill="context-stroke"/>
-          </marker>
-          <marker id="arrow-square-start" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
-            <rect x="0.5" y="0.5" width="7" height="7" fill="context-stroke"/>
-          </marker>
-          <marker id="arrow-diamond" markerWidth="12" markerHeight="10" refX="6" refY="5" orient="auto">
-            <path d="M 0 5 L 6 0 L 12 5 L 6 10 z" fill="context-stroke"/>
-          </marker>
-          <marker id="arrow-diamond-start" markerWidth="12" markerHeight="10" refX="6" refY="5" orient="auto">
-            <path d="M 0 5 L 6 0 L 12 5 L 6 10 z" fill="context-stroke"/>
-          </marker>
+          <marker
+            v-for="m in connectionMarkers"
+            :key="m.id"
+            :id="m.id"
+            :markerWidth="m.vw"
+            :markerHeight="m.vh"
+            :refX="m.rx"
+            :refY="m.ry"
+            orient="auto"
+            :fill="m.isOpen ? 'none' : m.color"
+            :stroke="m.isOpen ? m.color : 'none'"
+            v-html="m.html"
+          ></marker>
         </defs>
         
         <g v-for="conn in connections" :key="conn.id">
           <path
+            :data-conn-id="conn.id"
             :d="getConnectionPath(conn)"
             :stroke="conn.color"
             :stroke-width="conn.width || 2"
@@ -169,6 +147,7 @@
             :marker-start="getStartMarker(conn)"
             :marker-end="getEndMarker(conn)"
             class="connection-path"
+            :class="{ selected: selectedConnectionId === conn.id }"
             @click.stop="selectConnection(conn.id)"
           />
           <path
@@ -178,7 +157,38 @@
             fill="none"
             class="connection-hit"
             @click.stop="selectConnection(conn.id)"
+            @dblclick.stop="onConnectionDblClick(conn)"
           />
+          <g v-if="conn.label || editingConnectionLabel === conn.id" :transform="`translate(${getConnectionMidpoint(conn).x}, ${getConnectionMidpoint(conn).y})`">
+            <rect
+              :x="-labelBoxWidth(conn.label) / 2" y="-12" :width="labelBoxWidth(conn.label)" height="24" rx="4"
+              fill="var(--bg-primary)"
+              stroke="var(--border-light)"
+              class="conn-label-bg"
+            />
+            <text
+              v-if="editingConnectionLabel !== conn.id"
+              x="0" y="0"
+              text-anchor="middle"
+              dominant-baseline="central"
+              class="conn-label-text"
+              @dblclick.stop="onConnectionDblClick(conn)"
+            >{{ conn.label }}</text>
+            <foreignObject v-else :x="-labelBoxWidth(connectionLabelInput) / 2" y="-11" :width="labelBoxWidth(connectionLabelInput)" height="22">
+              <input
+                class="conn-label-edit"
+                v-model="connectionLabelInput"
+                type="text"
+                maxlength="20"
+                placeholder="连线文字"
+                @blur="commitConnectionLabel"
+                @keydown.enter.prevent="commitConnectionLabel"
+                @keydown.esc.prevent="cancelConnectionLabel"
+                @click.stop
+                @mousedown.stop
+              />
+            </foreignObject>
+          </g>
         </g>
         
         <path
@@ -658,8 +668,9 @@ function onBlockResizeBlock({ id, width, height, x, y }) {
 
 const draggingBlock = ref(null)
 const dragOffset = ref({ x: 0, y: 0 })
-const hasDragged = ref(false) // 标记是否真正发生了拖拽
-const dragStartMousePos = ref({ x: 0, y: 0 }) // 鼠标按下时的位置
+const hasDragged = ref(false)
+const dragStartMousePos = ref({ x: 0, y: 0 })
+const connectionTick = ref(0)
 
 const copiedBlock = ref(null)
 
@@ -1483,6 +1494,7 @@ function onWindowMouseMove(e) {
     const { x: finalX, y: finalY } = resolveCollision(draggingBlock.value, newX, newY)
 
     noteStore.updateBlock(note.value.id, draggingBlock.value, { x: finalX, y: finalY })
+    nextTick(() => { connectionTick.value++ })
   }
 }
 
@@ -2071,14 +2083,70 @@ function getArrowDir(conn) {
 function getEndMarker(conn) {
   const dir = getArrowDir(conn)
   if (dir === 'backward' || dir === 'none') return ''
-  return `url(#arrow-${getArrowType(conn)})`
+  return `url(#${markerId(conn, false)})`
 }
 // 起点 marker：backward / both 时显示（用反向 marker）
 function getStartMarker(conn) {
   const dir = getArrowDir(conn)
   if (dir === 'forward' || dir === 'none') return ''
-  return `url(#arrow-${getArrowType(conn)}-start)`
+  return `url(#${markerId(conn, true)})`
 }
+
+const ARROW_SHAPES = {
+  standard: {
+    end:   { vw:10, vh:10, rx:9,  ry:5, html:'<path d="M 0 0 L 10 5 L 0 10 z"/>' },
+    start: { vw:10, vh:10, rx:1,  ry:5, html:'<path d="M 10 0 L 0 5 L 10 10 z"/>' }
+  },
+  thin: {
+    end:   { vw:12, vh:12, rx:11, ry:6, html:'<path d="M 0 3 L 11 6 L 0 9 L 3 6 z"/>' },
+    start: { vw:12, vh:12, rx:1,  ry:6, html:'<path d="M 12 3 L 1 6 L 12 9 L 9 6 z"/>' }
+  },
+  open: {
+    end:   { vw:12, vh:12, rx:11, ry:6, html:'<path d="M 0 0 L 11 6 L 0 12" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>' },
+    start: { vw:12, vh:12, rx:1,  ry:6, html:'<path d="M 12 0 L 1 6 L 12 12" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>' }
+  },
+  circle: {
+    end:   { vw:8, vh:8, rx:4, ry:4, html:'<circle cx="4" cy="4" r="3.5"/>' },
+    start: { vw:8, vh:8, rx:4, ry:4, html:'<circle cx="4" cy="4" r="3.5"/>' }
+  },
+  square: {
+    end:   { vw:8, vh:8, rx:4, ry:4, html:'<rect x="0.5" y="0.5" width="7" height="7"/>' },
+    start: { vw:8, vh:8, rx:4, ry:4, html:'<rect x="0.5" y="0.5" width="7" height="7"/>' }
+  },
+  diamond: {
+    end:   { vw:12, vh:10, rx:6, ry:5, html:'<path d="M 0 5 L 6 0 L 12 5 L 6 10 z"/>' },
+    start: { vw:12, vh:10, rx:6, ry:5, html:'<path d="M 0 5 L 6 0 L 12 5 L 6 10 z"/>' }
+  }
+}
+const OPEN_ARROWS = new Set(['open'])
+
+function markerId(conn, isStart) {
+  const type = getArrowType(conn)
+  const c = (conn.color || '#6bbd8f').replace(/[^a-zA-Z0-9]/g, '')
+  return `am-${type}-${isStart ? 's' : 'e'}-${c}`
+}
+
+const connectionMarkers = computed(() => {
+  const list = []
+  const seen = new Set()
+  for (const conn of connections.value) {
+    const dir = getArrowDir(conn)
+    const type = getArrowType(conn)
+    const shape = ARROW_SHAPES[type] || ARROW_SHAPES.standard
+    const isOpen = OPEN_ARROWS.has(type)
+    const color = conn.color || '#6bbd8f'
+    const need = [{ isStart: false, show: dir === 'forward' || dir === 'both' }, { isStart: true, show: dir === 'backward' || dir === 'both' }]
+    for (const { isStart, show } of need) {
+      if (!show) continue
+      const id = markerId(conn, isStart)
+      if (seen.has(id)) continue
+      seen.add(id)
+      const s = isStart ? shape.start : shape.end
+      list.push({ id, ...s, color, isOpen })
+    }
+  }
+  return list
+})
 
 // 从矩形中心 (cx,cy) 沿 (dx,dy) 方向射线，与矩形边 [cx±halfW, cy±halfH] 的交点
 // 用 t 参数法，对 dx/dy 为 0 的情况做 Infinity 兜底，彻底避免 NaN
@@ -2320,6 +2388,63 @@ function getConnectionPath(conn) {
   return pathFromPolyline(route)
 }
 
+function labelBoxWidth(text) {
+  const len = (text || '').length
+  return Math.max(40, Math.min(200, len * 12 + 16))
+}
+
+function getConnectionMidpoint(conn) {
+  void connectionTick.value
+  const pathEl = canvasRef.value?.querySelector?.(`path.connection-path[data-conn-id="${conn.id}"]`)
+  if (pathEl && typeof pathEl.getTotalLength === 'function') {
+    try {
+      const total = pathEl.getTotalLength()
+      if (total > 0) {
+        const p = pathEl.getPointAtLength(total / 2)
+        if (Number.isFinite(p.x) && Number.isFinite(p.y)) return { x: p.x, y: p.y }
+      }
+    } catch (e) {}
+  }
+  const fromBlock = blocks.value.find(b => b.id === conn.from)
+  const toBlock = blocks.value.find(b => b.id === conn.to)
+  if (!fromBlock || !toBlock) return { x: 0, y: 0 }
+  const { width: fromW, height: fromH } = getBlockSize(conn.from, fromBlock)
+  const { width: toW, height: toH } = getBlockSize(conn.to, toBlock)
+  return {
+    x: (fromBlock.x + fromW / 2 + toBlock.x + toW / 2) / 2,
+    y: (fromBlock.y + fromH / 2 + toBlock.y + toH / 2) / 2
+  }
+}
+
+const editingConnectionLabel = ref(null)
+const connectionLabelInput = ref('')
+
+function startEditConnectionLabel(conn) {
+  if (!note.value) return
+  selectConnection(conn.id)
+  editingConnectionLabel.value = conn.id
+  connectionLabelInput.value = conn.label || ''
+  nextTick(() => {
+    const input = document.querySelector('.conn-label-edit')
+    if (input) { input.focus(); input.select() }
+  })
+}
+
+function commitConnectionLabel() {
+  if (!editingConnectionLabel.value || !note.value) return
+  saveHistory()
+  noteStore.updateConnection(note.value.id, editingConnectionLabel.value, { label: connectionLabelInput.value.trim() })
+  editingConnectionLabel.value = null
+}
+
+function cancelConnectionLabel() {
+  editingConnectionLabel.value = null
+}
+
+function onConnectionDblClick(conn) {
+  startEditConnectionLabel(conn)
+}
+
 function setConnectionStyle(shape) {
   if (selectedConnectionId.value && note.value) {
     saveHistory()
@@ -2502,6 +2627,10 @@ function deleteSelectedConnection() {
   transition: stroke 0.2s ease;
 }
 
+.connection-path.selected {
+  filter: drop-shadow(0 0 2px var(--primary-color));
+}
+
 .connection-hit {
   pointer-events: stroke;
   cursor: pointer;
@@ -2509,6 +2638,29 @@ function deleteSelectedConnection() {
 
 .connection-hit:hover + .connection-path {
   stroke-width: 3px;
+}
+
+.conn-label-bg {
+  pointer-events: none;
+}
+
+.conn-label-text {
+  pointer-events: none;
+  user-select: none;
+  font-size: 12px;
+  fill: var(--text-primary);
+}
+
+.conn-label-edit {
+  width: 100%;
+  height: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-primary);
+  padding: 0;
 }
 
 .temp-connection {
