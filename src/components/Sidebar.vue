@@ -57,6 +57,14 @@
           <span>计划</span>
           <span v-if="todayPlanCount" class="badge">{{ todayPlanCount }}</span>
         </router-link>
+        <router-link to="/tags" class="nav-item nav-tags" active-class="active">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+            <line x1="7" y1="7" x2="7.01" y2="7"/>
+          </svg>
+          <span>标签</span>
+          <span v-if="tagCount" class="badge tag-badge">{{ tagCount }}</span>
+        </router-link>
         <router-link to="/settings" class="nav-item nav-settings" active-class="active">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <circle cx="12" cy="12" r="3"/>
@@ -368,6 +376,64 @@
                 </Teleport>
               </div>
             </div>
+          <div class="modal-tag-section">
+            <label>标签 <span class="optional">（可选）</span></label>
+            <div class="modal-tag-selected">
+              <span
+                v-for="tid in selectedModalTagIds"
+                :key="tid"
+                class="modal-tag-chip"
+                :style="{ background: tagColor(tid) + '22', color: tagColor(tid), borderColor: tagColor(tid) + '55' }"
+              >
+                {{ tagName(tid) }}
+                <button type="button" class="modal-tag-remove" @click="toggleModalFolderTag(tid)" title="移除">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              </span>
+              <div class="modal-tag-add-wrap">
+                <button type="button" class="modal-tag-add-btn" @click.stop="showModalTagDropdown = !showModalTagDropdown">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <line x1="12" y1="5" x2="12" y2="19"/>
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                  </svg>
+                  添加标签
+                </button>
+                <div v-if="showModalTagDropdown" class="modal-tag-dropdown" @click.stop>
+                  <input
+                    v-model="modalTagSearch"
+                    type="text"
+                    class="input modal-tag-search"
+                    placeholder="搜索或创建标签..."
+                    @keyup.enter="createModalFolderTag"
+                  />
+                  <div class="modal-tag-list">
+                    <div
+                      v-for="t in modalAvailableTags"
+                      :key="t.id"
+                      class="modal-tag-option"
+                      :class="{ selected: selectedModalTagIds.includes(t.id) }"
+                      @click="toggleModalFolderTag(t.id)"
+                    >
+                      <span class="modal-tag-dot" :style="{ background: t.color }"></span>
+                      <span class="modal-tag-name">{{ t.name }}</span>
+                      <svg v-if="selectedModalTagIds.includes(t.id)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    </div>
+                    <div v-if="modalTagSearch.trim() && !modalExactTagExists" class="modal-tag-create" @click="createModalFolderTag">
+                      创建「{{ modalTagSearch.trim() }}」
+                    </div>
+                    <div v-if="!tagStore.tags.length && !modalTagSearch.trim()" class="modal-tag-empty">
+                      还没有标签，输入名称创建
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
           <div v-if="folderNameError" class="folder-error-tip">文件夹名称已存在</div>
           <div class="modal-actions">
             <button class="btn btn-secondary" @click="cancelCreateFolderModal">取消</button>
@@ -432,6 +498,7 @@ import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useNoteStore } from '@/stores/note'
 import { usePlanStore } from '@/stores/plan'
+import { useTagStore, TAG_PRESET_COLORS } from '@/stores/tag'
 import { useThemeStore } from '@/stores/theme'
 import { formatRelativeTime } from '@/utils'
 
@@ -445,6 +512,7 @@ const router = useRouter()
 const route = useRoute()
 const noteStore = useNoteStore()
 const planStore = usePlanStore()
+const tagStore = useTagStore()
 const themeStore = useThemeStore()
 
 const editingFolderId = ref(null)
@@ -472,12 +540,28 @@ const folderToDelete = ref(null)
 const showCreateFolderModal = ref(false)
 const newFolderModalName = ref('')
 const selectedParentFolderId = ref(null)
+const selectedModalTagIds = ref([])
+const modalTagSearch = ref('')
+const showModalTagDropdown = ref(false)
+
+const modalAvailableTags = computed(() => {
+  const kw = modalTagSearch.value.trim().toLowerCase()
+  return tagStore.tags
+    .filter(t => !kw || t.name.toLowerCase().includes(kw))
+    .sort((a, b) => a.name.localeCompare(b.name, 'zh'))
+})
+
+const modalExactTagExists = computed(() => {
+  const kw = modalTagSearch.value.trim().toLowerCase()
+  return !!kw && tagStore.tags.some(t => t.name.toLowerCase() === kw)
+})
 const folderNameInputRef = ref(null)
 const folderDropdownOpen = ref(false)
 const folderDropdownStyle = ref({})
 const folderSelectTriggerRef = ref(null)
 
 const todayPlanCount = computed(() => planStore.todayPlans?.length || 0)
+const tagCount = computed(() => tagStore.tags?.length || 0)
 const currentFolderName = computed(() => {
   if (!noteStore.currentFolderId) return ''
   return noteStore.folders.find(f => f.id === noteStore.currentFolderId)?.name || ''
@@ -633,6 +717,9 @@ function createNewFolder(parentId = null) {
   showCreateFolderModal.value = true
   newFolderModalName.value = ''
   selectedParentFolderId.value = parentId
+  selectedModalTagIds.value = []
+  modalTagSearch.value = ''
+  showModalTagDropdown.value = false
   folderNameError.value = false
   nextTick(() => focusRef(folderNameInputRef))
 }
@@ -697,7 +784,10 @@ function confirmCreateFolderModal() {
   const name = newFolderModalName.value.trim()
   if (!name) return
   if (!validateFolderName(name, null, selectedParentFolderId.value)) return
-  noteStore.createFolder(name, selectedParentFolderId.value)
+  const folder = noteStore.createFolder(name, selectedParentFolderId.value)
+  if (folder && selectedModalTagIds.value.length) {
+    noteStore.setFolderTags(folder.id, [...selectedModalTagIds.value])
+  }
   if (selectedParentFolderId.value) {
     const next = new Set(expandedFolderIds.value)
     next.add(selectedParentFolderId.value)
@@ -710,8 +800,38 @@ function cancelCreateFolderModal() {
   showCreateFolderModal.value = false
   newFolderModalName.value = ''
   selectedParentFolderId.value = null
+  selectedModalTagIds.value = []
+  modalTagSearch.value = ''
+  showModalTagDropdown.value = false
   folderNameError.value = false
   folderDropdownOpen.value = false
+}
+
+function toggleModalFolderTag(tagId) {
+  const idx = selectedModalTagIds.value.indexOf(tagId)
+  if (idx >= 0) selectedModalTagIds.value.splice(idx, 1)
+  else selectedModalTagIds.value.push(tagId)
+}
+
+function createModalFolderTag() {
+  const name = modalTagSearch.value.trim()
+  if (!name) return
+  let tag = tagStore.tags.find(t => t.name.toLowerCase() === name.toLowerCase())
+  if (!tag) {
+    tag = tagStore.createTag(name, TAG_PRESET_COLORS[tagStore.tags.length % TAG_PRESET_COLORS.length])
+  }
+  if (tag && !selectedModalTagIds.value.includes(tag.id)) {
+    selectedModalTagIds.value.push(tag.id)
+  }
+  modalTagSearch.value = ''
+}
+
+function tagName(id) {
+  return tagStore.getTag(id)?.name || ''
+}
+
+function tagColor(id) {
+  return tagStore.getTag(id)?.color || '#999'
 }
 
 function toggleFolderDropdown() {
@@ -791,14 +911,24 @@ function confirmDeleteFolder() {
 onMounted(async () => {
   await noteStore.init()
   await planStore.init()
+  await tagStore.init()
   document.addEventListener('click', hideFolderContextMenu)
   document.addEventListener('click', handleFolderSelectDocClick)
+  document.addEventListener('click', closeFolderModalTagDropdown)
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', hideFolderContextMenu)
   document.removeEventListener('click', handleFolderSelectDocClick)
+  document.removeEventListener('click', closeFolderModalTagDropdown)
 })
+
+function closeFolderModalTagDropdown(e) {
+  if (!showModalTagDropdown.value) return
+  if (e.target.closest('.modal-tag-add-wrap')) return
+  showModalTagDropdown.value = false
+  modalTagSearch.value = ''
+}
 </script>
 
 <style scoped>
@@ -950,10 +1080,12 @@ onUnmounted(() => {
 
 .nav-notes svg { color: var(--primary-color); }
 .nav-plans svg { color: var(--secondary-dark); }
+.nav-tags svg { color: #9b7bd6; }
 .nav-settings svg { color: var(--info-color); }
 
 .nav-notes:hover svg { color: var(--primary-dark); }
 .nav-plans:hover svg { color: var(--secondary-dark); }
+.nav-tags:hover svg { color: #9b7bd6; }
 .nav-settings:hover svg { color: var(--info-dark); }
 
 .nav-item.active {
@@ -963,10 +1095,12 @@ onUnmounted(() => {
 
 .nav-notes.active { background: var(--primary-soft); color: var(--primary-dark); }
 .nav-plans.active { background: var(--secondary-soft); color: var(--secondary-dark); }
+.nav-tags.active { background: rgba(155, 123, 214, 0.16); color: #9b7bd6; }
 .nav-settings.active { background: var(--info-soft); color: var(--info-dark); }
 
 .nav-notes.active svg { color: var(--primary-color); }
 .nav-plans.active svg { color: var(--secondary-color); }
+.nav-tags.active svg { color: #9b7bd6; }
 .nav-settings.active svg { color: var(--info-color); }
 
 .badge {
@@ -979,6 +1113,10 @@ onUnmounted(() => {
   border-radius: 10px;
   min-width: 20px;
   text-align: center;
+}
+
+.badge.tag-badge {
+  background: #9b7bd6;
 }
 
 .sidebar-section {
@@ -1592,5 +1730,169 @@ onUnmounted(() => {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.modal-tag-section {
+  margin-bottom: 16px;
+}
+
+.modal-tag-section > label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.modal-tag-section .optional {
+  font-weight: 400;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.modal-tag-selected {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 34px;
+  padding: 4px 6px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+}
+
+.modal-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid;
+}
+
+.modal-tag-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  color: inherit;
+  opacity: 0.6;
+  transition: opacity var(--transition-fast);
+}
+
+.modal-tag-remove:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.modal-tag-add-wrap {
+  position: relative;
+}
+
+.modal-tag-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  border: 1px dashed var(--border-color);
+  transition: all var(--transition-fast);
+}
+
+.modal-tag-add-btn:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.modal-tag-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 10000;
+  width: 220px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.modal-tag-search {
+  margin: 0;
+  border: none;
+  border-bottom: 1px solid var(--border-light);
+  border-radius: 0;
+  padding: 8px 10px;
+  font-size: 13px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.modal-tag-list {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.modal-tag-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary);
+  transition: background var(--transition-fast);
+}
+
+.modal-tag-option:hover {
+  background: var(--bg-hover);
+}
+
+.modal-tag-option.selected {
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+}
+
+.modal-tag-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.modal-tag-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modal-tag-create {
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--primary-color);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.modal-tag-create:hover {
+  background: var(--primary-soft);
+}
+
+.modal-tag-empty {
+  padding: 12px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-tertiary);
 }
 </style>

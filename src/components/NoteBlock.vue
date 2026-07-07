@@ -5,6 +5,7 @@
     :data-block-id="block.id"
     :class="{
       selected,
+      highlighted,
       'connect-mode': connectMode,
       connecting: connectingFrom === block.id,
       'connect-target': connectMode && connectingFrom && connectingFrom !== block.id,
@@ -15,7 +16,7 @@
     @mousedown.stop="onMouseDown"
     @click.stop="onClick"
   >
-    <div class="block-header">
+    <div v-if="!readOnly" class="block-header">
       <div class="block-drag-handle">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="9" cy="6" r="1" fill="currentColor"/>
@@ -26,7 +27,7 @@
           <circle cx="15" cy="18" r="1" fill="currentColor"/>
         </svg>
       </div>
-      <div class="block-actions">
+      <div v-if="!readOnly" class="block-actions">
         <button v-if="block.type !== 'image'" class="action-btn" @click.stop="$emit('add-image', block.id)" :title="`插入图片 ${sc('insertImage')}`.trim()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -125,15 +126,15 @@
     </div>
 
     <div class="block-content">
-      <div v-if="block.type === 'image' && block.imageUrl" class="image-container" @dblclick.stop="$emit('add-image', block.id)" @wheel.stop>
-        <img :src="resolvedImageUrl" alt="" draggable="false" @click.stop="$emit('preview-image', resolvedImageUrl)" />
-        <button class="change-image-btn" @click.stop="$emit('add-image', block.id)">更换图片</button>
+      <div v-if="block.type === 'image' && block.imageUrl" class="image-container" :class="{ overflow: imageOverflow }" @dblclick.stop="!readOnly && $emit('add-image', block.id)" @wheel.stop>
+        <img :src="resolvedImageUrl" alt="" draggable="false" @click.stop="$emit('preview-image', resolvedImageUrl)" @load="onImageLoad" />
+        <button v-if="!readOnly" class="change-image-btn" @click.stop="$emit('add-image', block.id)">更换图片</button>
       </div>
 
       <div
         v-else-if="block.type === 'note-link' && block.linkedNoteId"
         class="note-link-block"
-        @click.stop="$emit('open-note', block.linkedNoteId)"
+        @click.stop="$emit('open-note', { noteId: block.linkedNoteId, blockId: block.linkedBlockId || null })"
         @wheel.stop
       >
         <div class="note-link-icon">
@@ -144,7 +145,10 @@
         </div>
         <div class="note-link-info">
           <div class="note-link-title">{{ linkedNoteTitle }}</div>
-          <div class="note-link-desc">点击跳转到该笔记</div>
+          <div v-if="block.linkedBlockId && linkedBlockPreview" class="note-link-snippet">
+            <span class="note-link-quote-mark">"</span>{{ linkedBlockPreview }}<span class="note-link-quote-mark">"</span>
+          </div>
+          <div class="note-link-desc">{{ block.linkedBlockId ? '点击跳转到引用内容' : '点击跳转到该笔记' }}</div>
         </div>
       </div>
 
@@ -152,7 +156,9 @@
         v-else
         ref="editorRef"
         class="text-editor"
-        contenteditable="true"
+        :class="{ 'read-only': readOnly }"
+        :contenteditable="!readOnly"
+        spellcheck="false"
         :style="editorStyle"
         :data-placeholder="block.content ? '' : '点击输入内容...'"
         @input="onInput"
@@ -192,7 +198,7 @@
       @mouseup.stop="$emit('connect-end', block.id, 'left')"
     ></div>
 
-    <template v-if="!connectMode">
+    <template v-if="!connectMode && !readOnly">
       <div class="resize-handle resize-handle-se" @mousedown.stop="onResizeStart($event, 'se')"></div>
       <div class="resize-handle resize-handle-sw" @mousedown.stop="onResizeStart($event, 'sw')"></div>
       <div class="resize-handle resize-handle-ne" @mousedown.stop="onResizeStart($event, 'ne')"></div>
@@ -251,7 +257,9 @@ const props = defineProps({
   block: Object,
   selected: Boolean,
   connectMode: Boolean,
-  connectingFrom: String
+  connectingFrom: String,
+  readOnly: Boolean,
+  highlighted: Boolean
 })
 
 const resolvedImageUrl = ref('')
@@ -297,11 +305,22 @@ const tableHoverRows = ref(1)
 const tableHoverCols = ref(1)
 const linkText = ref('')
 const linkUrl = ref('')
+const imageOverflow = ref(false)
 let resizeObserver = null
 
 const linkedNoteTitle = computed(() => {
   const note = noteStore.notes.find(n => n.id === props.block.linkedNoteId && !n.deleted)
-  return note?.title || '未找到笔记'
+  return note?.title || '已删除的笔记'
+})
+
+const linkedBlockPreview = computed(() => {
+  if (!props.block.linkedBlockId) return ''
+  const targetNote = noteStore.notes.find(n => n.id === props.block.linkedNoteId && !n.deleted)
+  if (!targetNote) return ''
+  const targetBlock = (targetNote.blocks || []).find(b => b.id === props.block.linkedBlockId)
+  if (!targetBlock) return ''
+  const text = String(targetBlock.content || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim()
+  return text.length > 60 ? text.slice(0, 60) + '…' : text
 })
 
 const blockStyle = computed(() => {
@@ -409,9 +428,164 @@ function onSelectionChange() {
   isNormalizing = false
 }
 
+function onImageLoad(e) {
+  const img = e.target
+  imageOverflow.value = img && img.naturalHeight > 150
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+function convertInlineMd(text) {
+  let html = escapeHtml(text)
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>')
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+  html = html.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
+  html = html.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+  return html
+}
+
+function isLikelyMarkdown(text) {
+  return /(^|\n)\s*(#{1,6}\s|[-*+]\s|\d+\.\s|>\s|```|---)/.test(text) || /\|.*\|/.test(text)
+}
+
+function splitTableCells(line) {
+  let parts = line.split('|')
+  if (parts.length && parts[0].trim() === '') parts.shift()
+  if (parts.length && parts[parts.length - 1].trim() === '') parts.pop()
+  return parts.map(c => c.trim())
+}
+
+function markdownToHtml(md) {
+  const lines = md.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
+  let html = ''
+  let i = 0
+  let inList = null
+  const closeList = () => {
+    if (inList) {
+      html += `</${inList}>`
+      inList = null
+    }
+  }
+
+  while (i < lines.length) {
+    const line = lines[i]
+
+    if (/^```/.test(line.trim())) {
+      closeList()
+      const codeLines = []
+      i++
+      while (i < lines.length && !/^```/.test(lines[i].trim())) {
+        codeLines.push(lines[i])
+        i++
+      }
+      i++
+      html += `<pre><code>${escapeHtml(codeLines.join('\n'))}</code></pre>`
+      continue
+    }
+
+    if (/\|/.test(line) && i + 1 < lines.length && /^[\s|:-]+$/.test(lines[i + 1]) && /-/.test(lines[i + 1])) {
+      closeList()
+      const hCells = splitTableCells(line)
+      i += 2
+      const rows = []
+      while (i < lines.length && /\|/.test(lines[i])) {
+        rows.push(splitTableCells(lines[i]))
+        i++
+      }
+      let t = '<table><tr>'
+      hCells.forEach(c => { t += `<th>${convertInlineMd(c)}</th>` })
+      t += '</tr>'
+      rows.forEach(r => {
+        t += '<tr>'
+        r.forEach(c => { t += `<td>${convertInlineMd(c)}</td>` })
+        t += '</tr>'
+      })
+      t += '</table>'
+      html += t
+      continue
+    }
+
+    const hMatch = line.match(/^(#{1,6})\s+(.*)$/)
+    if (hMatch) {
+      closeList()
+      const level = hMatch[1].length
+      html += `<h${level}>${convertInlineMd(hMatch[2])}</h${level}>`
+      i++
+      continue
+    }
+
+    if (/^>\s?/.test(line)) {
+      closeList()
+      html += `<blockquote>${convertInlineMd(line.replace(/^>\s?/, ''))}</blockquote>`
+      i++
+      continue
+    }
+
+    if (/^\s*[-*+]\s+/.test(line)) {
+      if (inList !== 'ul') {
+        closeList()
+        html += '<ul>'
+        inList = 'ul'
+      }
+      html += `<li>${convertInlineMd(line.replace(/^\s*[-*+]\s+/, ''))}</li>`
+      i++
+      continue
+    }
+
+    if (/^\s*\d+\.\s+/.test(line)) {
+      if (inList !== 'ol') {
+        closeList()
+        html += '<ol>'
+        inList = 'ol'
+      }
+      html += `<li>${convertInlineMd(line.replace(/^\s*\d+\.\s+/, ''))}</li>`
+      i++
+      continue
+    }
+
+    if (/^(\*\*\*|---|___)\s*$/.test(line)) {
+      closeList()
+      html += '<hr>'
+      i++
+      continue
+    }
+
+    if (/^\s*(#{7,}\s)/.test(line)) {
+      closeList()
+      html += `<p style="color: var(--warning-color)">${escapeHtml(line)}</p>`
+      i++
+      continue
+    }
+
+    if (line.trim() === '') {
+      closeList()
+      i++
+      continue
+    }
+
+    closeList()
+    html += `<p>${convertInlineMd(line)}</p>`
+    i++
+  }
+  closeList()
+  return html
+}
+
 function onPaste(e) {
-  e.preventDefault()
   const text = e.clipboardData?.getData('text/plain') || ''
+  if (text && isLikelyMarkdown(text)) {
+    e.preventDefault()
+    const html = markdownToHtml(text)
+    document.execCommand('insertHTML', false, html)
+    emit('update', props.block.id, { content: editorRef.value.innerHTML })
+    return
+  }
+  e.preventDefault()
   document.execCommand('insertText', false, text)
 }
 
@@ -1068,17 +1242,76 @@ onUnmounted(() => {
   line-height: 1.5;
 }
 
+.text-editor :deep(h1),
+.text-editor :deep(h2),
+.text-editor :deep(h3),
+.text-editor :deep(h4),
+.text-editor :deep(h5),
+.text-editor :deep(h6) {
+  margin: 10px 0 6px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.text-editor :deep(h1) { font-size: 1.6em; }
+.text-editor :deep(h2) { font-size: 1.4em; }
+.text-editor :deep(h3) { font-size: 1.2em; }
+.text-editor :deep(h4) { font-size: 1.05em; }
+
+.text-editor :deep(blockquote) {
+  margin: 8px 0;
+  padding: 4px 12px;
+  border-left: 3px solid var(--primary-color);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.text-editor :deep(hr) {
+  border: none;
+  border-top: 1px solid var(--border-color);
+  margin: 10px 0;
+}
+
+.text-editor :deep(code) {
+  padding: 1px 5px;
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 0.92em;
+}
+
+.text-editor.read-only {
+  cursor: default;
+}
+
 .image-container {
   position: relative;
   border-radius: var(--radius-md);
   overflow: hidden;
+  max-height: 150px;
 }
 
 .image-container img {
   width: 100%;
+  max-height: 150px;
   display: block;
+  object-fit: cover;
   border-radius: var(--radius-md);
   cursor: zoom-in;
+}
+
+.image-container.overflow::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 28px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0));
+  pointer-events: none;
+  border-bottom-left-radius: var(--radius-md);
+  border-bottom-right-radius: var(--radius-md);
 }
 
 .change-image-btn {
@@ -1131,6 +1364,69 @@ onUnmounted(() => {
   margin-top: 2px;
   font-size: 12px;
   color: var(--text-tertiary);
+}
+
+.note-link-snippet {
+  margin-top: 4px;
+  padding: 6px 8px;
+  background: var(--bg-tertiary);
+  border-left: 3px solid var(--primary-color);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.note-link-quote-mark {
+  color: var(--primary-color);
+  font-weight: 700;
+  margin: 0 2px;
+}
+
+.note-block.highlighted {
+  animation: ref-pulse 1.2s ease-out;
+  box-shadow: 0 0 0 2px var(--primary-color), var(--shadow-lg) !important;
+  z-index: 50;
+}
+
+.note-block.highlighted .text-editor,
+.note-block.highlighted .note-link-block {
+  position: relative;
+}
+
+.note-block.highlighted .text-editor::after,
+.note-block.highlighted .note-link-block::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  height: 3px;
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--primary-color) 20%,
+    var(--primary-color) 80%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: ref-underline-flow 1.5s linear infinite;
+  border-radius: 2px;
+}
+
+@keyframes ref-underline-flow {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+@keyframes ref-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(106, 167, 134, 0.5); }
+  60% { box-shadow: 0 0 0 12px rgba(106, 167, 134, 0); }
+  100% { box-shadow: 0 0 0 2px var(--primary-color), var(--shadow-lg); }
 }
 
 .connect-dot {
@@ -1200,18 +1496,19 @@ onUnmounted(() => {
 .resize-handle-n { top: -3px; cursor: n-resize; }
 .resize-handle-s { bottom: -3px; cursor: s-resize; }
 
-.block-color-default { background: var(--bg-primary); }
-.block-color-green { background: #e6f4ec; }
-.block-color-blue { background: #e8f1fa; }
-.block-color-yellow { background: #f7efd9; }
-.block-color-pink { background: #f8e4e4; }
-.block-color-gray { background: #ecefed; }
+.block-color-default { background: var(--bg-secondary); }
+.block-color-green { background: #eaf4ee; }
+.block-color-blue { background: #ebf2fa; }
+.block-color-yellow { background: #f7f1da; }
+.block-color-pink { background: #f8e7e7; }
+.block-color-gray { background: #eeefee; }
 
-[data-theme="dark"] .block-color-green { background: #1e2e27; }
-[data-theme="dark"] .block-color-blue { background: #1a2632; }
-[data-theme="dark"] .block-color-yellow { background: #2d2818; }
-[data-theme="dark"] .block-color-pink { background: #311e23; }
-[data-theme="dark"] .block-color-gray { background: #252927; }
+[data-theme="dark"] .block-color-default { background: var(--bg-secondary); }
+[data-theme="dark"] .block-color-green { background: #223029; }
+[data-theme="dark"] .block-color-blue { background: #1e2a34; }
+[data-theme="dark"] .block-color-yellow { background: #2e2a1c; }
+[data-theme="dark"] .block-color-pink { background: #312227; }
+[data-theme="dark"] .block-color-gray { background: #262927; }
 
 .block-border-solid { border-style: solid; }
 .block-border-dashed { border-style: dashed; }

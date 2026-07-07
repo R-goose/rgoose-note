@@ -4,6 +4,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   exportData: data => ipcRenderer.invoke('export-data', data),
   importData: () => ipcRenderer.invoke('import-data'),
   getDataPath: () => ipcRenderer.invoke('get-data-path'),
+  openPath: targetPath => ipcRenderer.invoke('open-path', targetPath),
+  openBackup: name => ipcRenderer.invoke('open-backup', name),
+  openBackupsFolder: () => ipcRenderer.invoke('open-backups-folder'),
   isElectron: true,
 
   getStorageInfo: () => ipcRenderer.invoke('get-storage-info'),

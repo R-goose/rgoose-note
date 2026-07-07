@@ -58,11 +58,22 @@
       </div>
       <div class="notes-content-inner">
       <div v-if="!noteStore.currentFolderId" class="all-folders-view">
-        <div v-if="allFolders.length > 0" class="folder-grid-section">
+        <div v-if="activeTagFilter || activeFolderTagFilter" class="tag-filter-bar">
+          <span class="tag-filter-label">筛选中：</span>
+          <span v-if="activeTagFilter" class="tag-filter-chip" :style="tagChipStyle(activeTagFilter)" @click="clearTagFilter">
+            {{ tagName(activeTagFilter) }} 笔记
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </span>
+          <span v-if="activeFolderTagFilter" class="tag-filter-chip" :style="tagChipStyle(activeFolderTagFilter)" @click="clearFolderTagFilter">
+            {{ tagName(activeFolderTagFilter) }} 文件夹
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </span>
+        </div>
+        <div v-if="filteredFolders.length > 0" class="folder-grid-section">
           <h2 class="grid-section-title">全部文件夹</h2>
           <div class="folder-card-grid">
             <article
-              v-for="folder in allFolders"
+              v-for="folder in filteredFolders"
               :key="folder.id"
               class="folder-card"
               @click="enterFolder(folder.id)"
@@ -118,11 +129,29 @@
                   </span>
                   <span class="note-card-date">{{ formatDate(note.updatedAt) }}</span>
                 </div>
+                <div v-if="noteTagList(note).length" class="note-card-tags">
+                  <span
+                    v-for="t in noteTagList(note)"
+                    :key="t.id"
+                    class="note-tag-chip"
+                    :style="{ background: t.color + '22', color: t.color }"
+                    @click.stop="filterByTag(t.id)"
+                  >{{ t.name }}</span>
+                </div>
+                <div v-if="noteTagList(note).length" class="note-card-tags">
+                  <span
+                    v-for="t in noteTagList(note)"
+                    :key="t.id"
+                    class="note-tag-chip"
+                    :style="{ background: t.color + '22', color: t.color }"
+                    @click.stop="filterByTag(t.id)"
+                  >{{ t.name }}</span>
+                </div>
               </div>
             </article>
           </div>
         </div>
-        <div v-if="allFolders.length === 0 && filteredNotes.length === 0" class="empty-state">
+        <div v-if="filteredFolders.length === 0 && filteredNotes.length === 0" class="empty-state">
           <svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M20 30h30l10 12h40v48H20z"/>
             <path d="M20 42h80"/>
@@ -232,6 +261,13 @@
             </svg>
             <span>复制副本</span>
           </button>
+          <button class="context-menu-item" @click="execCtxAction('tags')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+              <line x1="7" y1="7" x2="7.01" y2="7"/>
+            </svg>
+            <span>设置标签</span>
+          </button>
           <div class="context-menu-divider"></div>
           <button class="context-menu-item danger" @click="execCtxAction('delete')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -254,6 +290,13 @@
               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
             </svg>
             <span>重命名</span>
+          </button>
+          <button class="context-menu-item" @click="execCtxAction('tags')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+              <line x1="7" y1="7" x2="7.01" y2="7"/>
+            </svg>
+            <span>设置标签</span>
           </button>
           <div class="context-menu-divider"></div>
           <button class="context-menu-item danger" @click="execCtxAction('delete')">
@@ -311,19 +354,68 @@
         </div>
       </div>
     </Teleport>
+
+    <Teleport to="body">
+      <div v-if="tagPickerState.show" class="modal-overlay" @click.self="closeTagPicker">
+        <div class="modal-content tag-target-modal">
+          <h3>设置标签</h3>
+          <input
+            v-model="tagPickerState.search"
+            type="text"
+            class="input"
+            placeholder="搜索或创建标签..."
+            @keyup.enter="createTagForTarget"
+          />
+          <div class="tag-target-list">
+            <div
+              v-for="t in tagPickerAvailable"
+              :key="t.id"
+              class="tag-target-item"
+              :class="{ selected: tagPickerCurrent.includes(t.id) }"
+              @click="toggleTargetTag(t.id)"
+            >
+              <span class="tag-dot" :style="{ background: t.color }"></span>
+              <span class="tag-target-name">{{ t.name }}</span>
+              <svg v-if="tagPickerCurrent.includes(t.id)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+            <div
+              v-if="tagPickerState.search.trim() && !tagStore.tags.some(t => t.name.toLowerCase() === tagPickerState.search.trim().toLowerCase())"
+              class="tag-target-create"
+              @click="createTagForTarget"
+            >
+              创建「{{ tagPickerState.search.trim() }}」
+            </div>
+            <div v-if="!tagStore.tags.length && !tagPickerState.search.trim()" class="tag-target-empty">
+              还没有标签，输入名称创建
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button class="btn btn-primary" @click="closeTagPicker">完成</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, nextTick, onMounted, onUnmounted, reactive, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useNoteStore } from '@/stores/note'
+import { useTagStore, TAG_PRESET_COLORS } from '@/stores/tag'
 import { formatDate as formatDateUtil } from '@/utils'
 import { resolveImageUrl, isImageRef } from '@/utils/imageStore'
 
 const router = useRouter()
+const route = useRoute()
 const noteStore = useNoteStore()
+const tagStore = useTagStore()
+tagStore.init()
 const searchKeyword = ref('')
+const activeTagFilter = ref(null)
+const activeFolderTagFilter = ref(null)
 const showCreateModal = ref(false)
 const newNoteTitle = ref('')
 const noteTitleInputRef = ref(null)
@@ -345,7 +437,9 @@ function countNotesInFolder(folderId) {
 
 const filteredNotes = computed(() => {
   let notes
-  if (noteStore.currentFolderId) {
+  if (activeTagFilter.value) {
+    notes = noteStore.notes.filter(n => !n.deleted && Array.isArray(n.tags) && n.tags.includes(activeTagFilter.value))
+  } else if (noteStore.currentFolderId) {
     notes = noteStore.currentFolderNotes || []
   } else {
     notes = noteStore.notes.filter(n => !n.deleted)
@@ -359,6 +453,50 @@ const filteredNotes = computed(() => {
   }
   return notes.sort((a, b) => b.updatedAt - a.updatedAt)
 })
+
+const filteredFolders = computed(() => {
+  if (!activeFolderTagFilter.value) return noteStore.sortedFolders
+  return noteStore.sortedFolders.filter(f => Array.isArray(f.tags) && f.tags.includes(activeFolderTagFilter.value))
+})
+
+function tagName(id) {
+  return tagStore.getTag(id)?.name || ''
+}
+
+function tagColor(id) {
+  return tagStore.getTag(id)?.color || '#999'
+}
+
+function tagChipStyle(id) {
+  const color = tagColor(id)
+  return { background: color + '22', color, borderColor: color + '55' }
+}
+
+function noteTagList(note) {
+  if (!Array.isArray(note.tags) || !note.tags.length) return []
+  return note.tags.slice(0, 3).map(id => ({ id, name: tagName(id), color: tagColor(id) }))
+}
+
+function clearTagFilter() {
+  activeTagFilter.value = null
+  router.replace({ path: '/notes', query: {} })
+}
+
+function clearFolderTagFilter() {
+  activeFolderTagFilter.value = null
+  router.replace({ path: '/notes', query: {} })
+}
+
+function filterByTag(tagId) {
+  activeTagFilter.value = tagId
+  activeFolderTagFilter.value = null
+  router.replace({ path: '/notes', query: { tag: tagId } })
+}
+
+watch(() => route.query, (q) => {
+  activeTagFilter.value = q.tag || null
+  activeFolderTagFilter.value = q.folderTag || null
+}, { immediate: true })
 
 function createNote() {
   newNoteTitle.value = ''
@@ -441,6 +579,22 @@ const contextMenuStyle = computed(() => ({ left: `${contextMenu.value.x}px`, top
 
 const renameState = ref({ show: false, id: '', name: '', isFolder: false })
 const deleteFolderState = ref({ show: false, target: null })
+const tagPickerState = ref({ show: false, targetId: '', isFolder: false, search: '' })
+
+const tagPickerAvailable = computed(() => {
+  const kw = tagPickerState.value.search.trim().toLowerCase()
+  return tagStore.tags
+    .filter(t => !kw || t.name.toLowerCase().includes(kw))
+    .sort((a, b) => a.name.localeCompare(b.name, 'zh'))
+})
+
+const tagPickerCurrent = computed(() => {
+  if (!tagPickerState.value.targetId) return []
+  const item = tagPickerState.value.isFolder
+    ? noteStore.folders.find(f => f.id === tagPickerState.value.targetId)
+    : noteStore.notes.find(n => n.id === tagPickerState.value.targetId)
+  return Array.isArray(item?.tags) ? item.tags : []
+})
 
 function onNoteContextMenu(e, note) {
   contextMenu.value = { show: true, type: 'note', x: e.clientX, y: e.clientY, target: note }
@@ -459,14 +613,52 @@ function execCtxAction(action) {
     if (action === 'open') openNote(target.id)
     else if (action === 'duplicate') duplicateNote(target)
     else if (action === 'delete') deleteNote(target.id)
+    else if (action === 'tags') {
+      tagPickerState.value = { show: true, targetId: target.id, isFolder: false, search: '' }
+    }
   } else if (type === 'folder') {
     if (action === 'enter') enterFolder(target.id)
     else if (action === 'rename') {
       renameState.value = { show: true, id: target.id, name: target.name, isFolder: true }
+    } else if (action === 'tags') {
+      tagPickerState.value = { show: true, targetId: target.id, isFolder: true, search: '' }
     } else if (action === 'delete') {
       deleteFolderState.value = { show: true, target }
     }
   }
+}
+
+function toggleTargetTag(tagId) {
+  const { targetId, isFolder } = tagPickerState.value
+  if (!targetId) return
+  const item = isFolder
+    ? noteStore.folders.find(f => f.id === targetId)
+    : noteStore.notes.find(n => n.id === targetId)
+  if (!item) return
+  const current = Array.isArray(item.tags) ? [...item.tags] : []
+  const idx = current.indexOf(tagId)
+  if (idx >= 0) current.splice(idx, 1)
+  else current.push(tagId)
+  if (isFolder) noteStore.setFolderTags(targetId, current)
+  else noteStore.setNoteTags(targetId, current)
+}
+
+function createTagForTarget() {
+  const name = tagPickerState.value.search.trim()
+  if (!name) return
+  let tag = tagStore.tags.find(t => t.name.toLowerCase() === name.toLowerCase())
+  if (!tag) {
+    tag = tagStore.createTag(name, TAG_PRESET_COLORS[tagStore.tags.length % TAG_PRESET_COLORS.length])
+  }
+  if (tag && !tagPickerCurrent.value.includes(tag.id)) {
+    toggleTargetTag(tag.id)
+  }
+  tagPickerState.value.search = ''
+}
+
+function closeTagPicker() {
+  tagPickerState.value.show = false
+  tagPickerState.value.search = ''
 }
 function confirmRename() {
   const name = renameState.value.name.trim()
@@ -1112,5 +1304,142 @@ onUnmounted(() => window.removeEventListener('mousedown', onGlobalClick))
   height: 1px;
   background: var(--border-light);
   margin: 4px 6px;
+}
+
+.note-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-top: 8px;
+}
+
+.note-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: transform var(--transition-fast);
+}
+
+.note-tag-chip:hover {
+  transform: translateY(-1px);
+}
+
+.tag-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 0 16px;
+}
+
+.tag-filter-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+
+.tag-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid;
+  cursor: pointer;
+  transition: filter var(--transition-fast);
+}
+
+.tag-filter-chip:hover {
+  filter: brightness(0.95);
+}
+
+.tag-target-modal {
+  width: 360px;
+  max-width: 90vw;
+  padding: 22px;
+}
+
+.tag-target-modal h3 {
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 14px;
+  color: var(--text-primary);
+}
+
+.tag-target-modal .input {
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+.tag-target-list {
+  max-height: 280px;
+  overflow-y: auto;
+  margin-bottom: 14px;
+}
+
+.tag-target-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary);
+  transition: background var(--transition-fast);
+}
+
+.tag-target-item:hover {
+  background: var(--bg-hover);
+}
+
+.tag-target-item.selected {
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+}
+
+.tag-target-item .tag-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tag-target-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-target-create {
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--primary-color);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.tag-target-create:hover {
+  background: var(--primary-soft);
+}
+
+.tag-target-empty {
+  padding: 16px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

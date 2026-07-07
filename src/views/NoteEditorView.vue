@@ -1,5 +1,5 @@
 <template>
-  <div class="note-editor-view">
+  <div class="note-editor-view" @paste="onViewPaste">
     <header class="editor-header">
       <div class="header-left">
         <button class="btn btn-ghost btn-icon" @click="goBack" title="返回">
@@ -13,22 +13,73 @@
           v-model="noteTitle"
           type="text"
           class="title-input"
+          :readonly="isReadOnly"
+          spellcheck="false"
           placeholder="笔记标题"
           @blur="updateTitle"
           @keyup.enter="$event.target.blur()"
         />
+        <div v-if="note" class="header-tags">
+          <span
+            v-for="tid in (note.tags || [])"
+            :key="tid"
+            class="tag-chip"
+            :style="tagChipStyle(tid)"
+          >
+            {{ tagName(tid) }}
+            <button v-if="!isReadOnly" class="tag-chip-remove" @click.stop="toggleNoteTag(tid)" title="移除标签">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </span>
+          <div v-if="!isReadOnly" class="tag-add-wrap">
+            <button class="tag-add-btn" @click.stop="showTagPicker = !showTagPicker" title="添加标签">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              标签
+            </button>
+            <div v-if="showTagPicker" class="tag-picker" @click.stop>
+              <div class="tag-picker-search">
+                <input ref="tagPickerInputRef" v-model="tagSearch" type="text" class="input" placeholder="搜索或创建标签..." @keyup.enter="createTagFromInput" />
+              </div>
+              <div class="tag-picker-list">
+                <div
+                  v-for="t in availableTagsForNote"
+                  :key="t.id"
+                  class="tag-picker-item"
+                  :class="{ selected: (note.tags || []).includes(t.id) }"
+                  @click="toggleNoteTag(t.id)"
+                >
+                  <span class="tag-dot" :style="{ background: t.color }"></span>
+                  <span class="tag-picker-name">{{ t.name }}</span>
+                  <svg v-if="(note.tags || []).includes(t.id)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                </div>
+                <div v-if="tagSearch.trim() && !exactTagExists" class="tag-picker-create" @click="createTagFromInput">
+                  创建「{{ tagSearch.trim() }}」
+                </div>
+                <div v-if="!tagStore.tags.length && !tagSearch.trim()" class="tag-picker-empty">还没有标签，输入名称创建</div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
       
       <div class="header-center">
         <div class="toolbar">
-          <button class="btn btn-secondary" @click="addTextBlock" title="添加文本块">
+          <button v-if="!isReadOnly" class="btn btn-secondary" draggable="true" @click="addTextBlock" @dragstart="onTextBlockDragStart" title="添加文本块（可拖入画布）">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
               <polyline points="14 2 14 8 20 8"/>
             </svg>
             文本块
           </button>
-          <button class="btn btn-secondary" @click="addImageBlock" title="添加图片块" :disabled="isImageLoading">
+          <button v-if="!isReadOnly" class="btn btn-secondary" @click="addImageBlock" title="添加图片块" :disabled="isImageLoading">
             <svg v-if="isImageLoading" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="spin">
               <circle cx="12" cy="12" r="10" stroke-dasharray="60" stroke-dashoffset="20"/>
             </svg>
@@ -39,23 +90,45 @@
             </svg>
             {{ isImageLoading ? '加载中...' : '图片块' }}
           </button>
-          <button class="btn btn-secondary" @click="showNoteLinkModal = true" title="引用笔记">
+          <button v-if="!isReadOnly" class="btn btn-secondary" @click="showNoteLinkModal = true" title="引用笔记">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
               <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
               <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
             </svg>
             引用
           </button>
-          <button class="btn btn-secondary" @click="showExportMenu = !showExportMenu" title="导出">
-           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="17 8 12 3 7 8" />
-              <line x1="12" y1="3" x2="12" y2="15" />
-            </svg>
-            导出
-          </button>
+          <div class="export-menu-wrap">
+            <button class="btn btn-secondary" @click="showExportMenu = !showExportMenu" title="导出">
+             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              导出
+            </button>
+            <div v-if="showExportMenu" class="export-dropdown" @click.stop>
+              <div class="export-item" @click="exportAsPDF">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="9" y1="15" x2="15" y2="15"/>
+                  <line x1="9" y1="11" x2="15" y2="11"/>
+                </svg>
+                导出为 PDF
+              </div>
+              <div class="export-item" @click="exportAsImage">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <circle cx="8.5" cy="8.5" r="1.5"/>
+                  <polyline points="21 15 16 10 5 21"/>
+                </svg>
+                导出为图片
+              </div>
+            </div>
+          </div>
           <button
+            v-if="!isReadOnly"
             class="btn"
             :class="connectMode ? 'btn-primary' : 'btn-secondary'"
             @click="toggleConnectMode"
@@ -72,9 +145,25 @@
       </div>
       
       <div class="header-right">
+        <button
+          class="btn"
+          :class="isReadOnly ? 'btn-secondary' : 'btn-primary'"
+          @click="toggleReadOnly"
+          :title="isReadOnly ? '当前为只读模式，点击切换到编辑模式' : '当前为编辑模式，点击切换到只读模式'"
+        >
+          <svg v-if="isReadOnly" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+          <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20h9"/>
+            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+          </svg>
+          {{ isReadOnly ? '只读' : '编辑' }}
+        </button>
       </div>
     </header>
-    
+
     <div
       ref="canvasRef"
       class="canvas-container"
@@ -86,6 +175,8 @@
       @wheel="onWheel"
       @dblclick="onCanvasDblClick"
       @contextmenu.prevent="onContextMenu"
+      @dragover.prevent="onCanvasDragOver"
+      @drop="onCanvasDrop"
     >
       <div
         class="canvas-bg"
@@ -101,6 +192,8 @@
           :selected="selectedBlockId === block.id"
           :connect-mode="connectMode"
           :connecting-from="connectingFrom"
+          :read-only="isReadOnly"
+          :highlighted="highlightBlockId === block.id"
           @select="selectBlock"
           @drag-start="onBlockDragStart"
           @drag-move="onBlockDragMove"
@@ -418,26 +511,6 @@
       @change="onImageFileSelect"
     />
     
-    <div v-if="showExportMenu" class="export-dropdown" @click.stop>
-      <div class="export-item" @click="exportAsPDF">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <line x1="9" y1="15" x2="15" y2="15"/>
-          <line x1="9" y1="11" x2="15" y2="11"/>
-        </svg>
-        导出为 PDF
-      </div>
-      <div class="export-item" @click="exportAsImage">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <rect x="3" y="3" width="18" height="18" rx="2"/>
-          <circle cx="8.5" cy="8.5" r="1.5"/>
-          <polyline points="21 15 16 10 5 21"/>
-        </svg>
-        导出为图片
-      </div>
-    </div>
-    
     <div v-if="showNoteLinkModal" class="modal-overlay" @click.self="closeNoteLinkModal">
       <div class="modal-content note-link-modal">
         <div class="modal-header">
@@ -465,21 +538,46 @@
           <div
             v-for="n in filteredNotesForLink"
             :key="n.id"
-            class="note-link-item"
-            :class="{ disabled: n.id === note?.id }"
-            @click="createNoteLinkBlock(n.id)"
+            class="note-link-item-wrap"
           >
-            <div class="note-link-item-icon">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
+            <div
+              class="note-link-item"
+              :class="{ disabled: n.id === note?.id, expanded: expandedLinkId === n.id }"
+              @click="toggleLinkExpand(n)"
+            >
+              <div class="note-link-item-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                </svg>
+              </div>
+              <div class="note-link-item-info">
+                <div class="note-link-item-title">{{ n.title || '无标题笔记' }}</div>
+                <div class="note-link-item-desc">{{ n.blocks?.length || 0 }} 个内容块</div>
+              </div>
+              <span v-if="n.id === note?.id" class="note-link-item-badge">当前笔记</span>
+              <svg v-else class="note-link-expand-arrow" :class="{ open: expandedLinkId === n.id }" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <polyline points="6 9 12 15 18 9"/>
               </svg>
             </div>
-            <div class="note-link-item-info">
-              <div class="note-link-item-title">{{ n.title || '无标题笔记' }}</div>
-              <div class="note-link-item-desc">{{ n.blocks?.length || 0 }} 个内容块</div>
+            <div v-if="expandedLinkId === n.id && n.id !== note?.id" class="note-link-blocks">
+              <div class="note-link-block-option whole" @click="createNoteLinkBlock(n.id, null)">
+                <span class="ref-dot whole"></span>
+                <span class="ref-label">引用整篇笔记</span>
+              </div>
+              <div
+                v-for="b in linkableBlocks(n)"
+                :key="b.id"
+                class="note-link-block-option"
+                @click="createNoteLinkBlock(n.id, b.id)"
+              >
+                <span class="ref-dot"></span>
+                <span class="ref-text">{{ blockPreview(b) }}</span>
+              </div>
+              <div v-if="!linkableBlocks(n).length" class="note-link-blocks-empty">
+                该笔记没有可引用的文本块
+              </div>
             </div>
-            <span v-if="n.id === note?.id" class="note-link-item-badge">当前笔记</span>
           </div>
           <div v-if="!filteredNotesForLink.length" class="empty-mini">
             没有找到笔记
@@ -579,15 +677,19 @@
       class="image-preview-overlay"
       @click="closeImagePreview"
       @wheel.prevent="onPreviewWheel"
+      @mousemove="onPreviewMouseMove"
+      @mouseup="onPreviewMouseUp"
+      @mouseleave="onPreviewMouseUp"
     >
         <div class="image-preview-container" @click.stop>
           <img
             :src="previewImageUrl"
             alt="预览图片"
             class="preview-image"
-            :class="{ fit: previewImageScale === 1 }"
+            :class="{ fit: previewImageScale === 1, draggable: true }"
             :style="previewImageStyle"
-            @click.stop="togglePreviewFit"
+            @mousedown="onPreviewMouseDown"
+            @click.stop="onPreviewImageClick"
           />
           <div class="image-preview-toolbar">
             <button class="btn btn-ghost btn-icon" @click.stop="zoomPreviewOut" title="缩小">
@@ -625,6 +727,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useNoteStore } from '@/stores/note'
+import { useTagStore, TAG_PRESET_COLORS } from '@/stores/tag'
 import { useShortcutStore } from '@/stores/shortcut'
 import NoteBlock from '@/components/NoteBlock.vue'
 import CustomSelect from '@/components/CustomSelect.vue'
@@ -637,7 +740,9 @@ const { error: toastError } = useToast()
 const route = useRoute()
 const router = useRouter()
 const noteStore = useNoteStore()
+const tagStore = useTagStore()
 const shortcutStore = useShortcutStore()
+tagStore.init()
 shortcutStore.init()
 
 const canvasRef = ref(null)
@@ -714,15 +819,81 @@ const blockSelectionRanges = ref({})
 
 const showNoteLinkModal = ref(false)
 const noteLinkSearch = ref('')
+const expandedLinkId = ref(null)
+const highlightBlockId = ref(null)
 const noteLinkSourceBlockId = ref(null)
 
 const showImagePreviewModal = ref(false)
 const previewImageUrl = ref('')
 const previewImageScale = ref(1)
+const previewImageX = ref(0)
+const previewImageY = ref(0)
+let previewDragging = false
+let previewDragStart = null
+let previewMoved = false
 
 const showExportMenu = ref(false)
 
 const newBlockOffset = ref(0)
+const draggingNewBlock = ref(false)
+const isReadOnly = ref(localStorage.getItem('note-readonly') === 'true')
+
+const showTagPicker = ref(false)
+const tagSearch = ref('')
+const tagPickerInputRef = ref(null)
+watch(showTagPicker, (v) => {
+  if (v) {
+    tagSearch.value = ''
+    nextTick(() => tagPickerInputRef.value?.focus())
+  }
+})
+
+const availableTagsForNote = computed(() => {
+  const kw = tagSearch.value.trim().toLowerCase()
+  const list = tagStore.tags.filter(t => !kw || t.name.toLowerCase().includes(kw))
+  return [...list].sort((a, b) => a.name.localeCompare(b.name, 'zh'))
+})
+
+const exactTagExists = computed(() => {
+  const kw = tagSearch.value.trim().toLowerCase()
+  return !!kw && tagStore.tags.some(t => t.name.toLowerCase() === kw)
+})
+
+function tagName(id) {
+  return tagStore.getTag(id)?.name || '未知标签'
+}
+
+function tagChipStyle(id) {
+  const tag = tagStore.getTag(id)
+  const color = tag?.color || '#999'
+  return {
+    background: color + '22',
+    color,
+    borderColor: color + '55'
+  }
+}
+
+function toggleNoteTag(tagId) {
+  if (!note.value) return
+  const current = Array.isArray(note.value.tags) ? [...note.value.tags] : []
+  const idx = current.indexOf(tagId)
+  if (idx >= 0) current.splice(idx, 1)
+  else current.push(tagId)
+  noteStore.setNoteTags(note.value.id, current)
+}
+
+function createTagFromInput() {
+  const name = tagSearch.value.trim()
+  if (!name) return
+  let tag = tagStore.tags.find(t => t.name.toLowerCase() === name.toLowerCase())
+  if (!tag) {
+    tag = tagStore.createTag(name, TAG_PRESET_COLORS[tagStore.tags.length % TAG_PRESET_COLORS.length])
+  }
+  if (tag && note.value && !(note.value.tags || []).includes(tag.id)) {
+    toggleNoteTag(tag.id)
+  }
+  tagSearch.value = ''
+}
 
 const contextMenu = ref({
   show: false,
@@ -882,7 +1053,7 @@ const canvasTransformStyle = computed(() => ({
 }))
 
 const previewImageStyle = computed(() => ({
-  transform: `scale(${previewImageScale.value})`,
+  transform: `translate(${previewImageX.value}px, ${previewImageY.value}px) scale(${previewImageScale.value})`,
   transformOrigin: 'center center'
 }))
 
@@ -964,10 +1135,29 @@ const filteredNotesForLink = computed(() => {
   const allNotes = noteStore.allSortedNotes || noteStore.notes
   if (!noteLinkSearch.value) return allNotes
   const kw = noteLinkSearch.value.toLowerCase()
-  return allNotes.filter(n => 
+  return allNotes.filter(n =>
     (n.title || '').toLowerCase().includes(kw)
   )
 })
+
+function toggleLinkExpand(n) {
+  if (n.id === note.value?.id) return
+  expandedLinkId.value = expandedLinkId.value === n.id ? null : n.id
+}
+
+function linkableBlocks(targetNote) {
+  if (!targetNote?.blocks) return []
+  return targetNote.blocks.filter(b => b.type === 'text' && b.content && stripHtml(b.content).trim())
+}
+
+function stripHtml(html) {
+  return String(html || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ')
+}
+
+function blockPreview(b) {
+  const text = stripHtml(b.content).trim()
+  return text.length > 40 ? text.slice(0, 40) + '…' : text
+}
 
 const minimapRef = ref(null)
 
@@ -1082,6 +1272,37 @@ watch(() => route.params.id, (newId) => {
     canvasConfig.value = { ...n.canvasConfig }
   }
 })
+
+watch(() => route.query.b, (blockId) => {
+  if (!blockId || !note.value) {
+    highlightBlockId.value = null
+    return
+  }
+  const exists = blocks.value.some(b => b.id === blockId)
+  if (!exists) {
+    highlightBlockId.value = null
+    return
+  }
+  highlightBlockId.value = blockId
+  nextTick(() => {
+    centerBlockInView(blockId)
+  })
+  setTimeout(() => {
+    if (highlightBlockId.value === blockId) highlightBlockId.value = null
+  }, 4500)
+}, { immediate: true })
+
+function centerBlockInView(blockId) {
+  const block = blocks.value.find(b => b.id === blockId)
+  if (!block || !canvasRef.value) return
+  const rect = canvasRef.value.getBoundingClientRect()
+  const bw = block.width || 240
+  const bh = block.minHeight || block.height || 80
+  const targetOffsetX = rect.width / 2 - (block.x + bw / 2) * canvasConfig.value.zoom
+  const targetOffsetY = rect.height / 2 - (block.y + bh / 2) * canvasConfig.value.zoom
+  canvasConfig.value.offsetX = targetOffsetX
+  canvasConfig.value.offsetY = targetOffsetY
+}
 
 function onKeyDown(e) {
   const isEditing = document.activeElement?.contentEditable === 'true' || 
@@ -1291,8 +1512,12 @@ function onWindowMouseDown(e) {
   if (contextMenu.value.show && !e.target.closest('.context-menu')) {
     contextMenu.value.show = false
   }
-  if (showExportMenu.value && !e.target.closest('.export-dropdown')) {
+  if (showExportMenu.value && !e.target.closest('.export-menu-wrap')) {
     showExportMenu.value = false
+  }
+  if (showTagPicker.value && !e.target.closest('.tag-add-wrap')) {
+    showTagPicker.value = false
+    tagSearch.value = ''
   }
 }
 
@@ -1302,6 +1527,7 @@ function onWindowBlur() {
 }
 
 function onContextMenu(e) {
+  if (isReadOnly.value) return
   const blockEl = e.target.closest('.note-block')
   
   const canvasPos = screenToCanvas(e.clientX, e.clientY)
@@ -1525,6 +1751,7 @@ function onCanvasMouseUp() {
 }
 
 function onCanvasDblClick(e) {
+  if (isReadOnly.value) return
   const rect = canvasRef.value.getBoundingClientRect()
   const x = (e.clientX - rect.left - canvasConfig.value.offsetX) / canvasConfig.value.zoom - 120
   const y = (e.clientY - rect.top - canvasConfig.value.offsetY) / canvasConfig.value.zoom - 30
@@ -1547,11 +1774,102 @@ function addTextBlock() {
   addTextBlockAt(centerX, centerY)
 }
 
-function createNoteLinkBlock(noteId) {
+function onTextBlockDragStart(e) {
+  draggingNewBlock.value = true
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'copy'
+    e.dataTransfer.setData('text/plain', 'new-text-block')
+  }
+}
+
+function toggleReadOnly() {
+  isReadOnly.value = !isReadOnly.value
+  localStorage.setItem('note-readonly', String(isReadOnly.value))
+}
+
+function onCanvasDragOver(e) {
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+}
+
+function onCanvasDrop(e) {
+  if (!draggingNewBlock.value) return
+  draggingNewBlock.value = false
+  if (isReadOnly.value) return
+  const pos = screenToCanvas(e.clientX, e.clientY)
+  addTextBlockAt(pos.x - 110, pos.y - 30)
+}
+
+function getCanvasCenter() {
+  const rect = canvasRef.value?.getBoundingClientRect()
+  const cx = rect ? rect.width / 2 : 300
+  const cy = rect ? rect.height / 2 : 200
+  return screenToCanvas(
+    (rect?.left || 0) + cx,
+    (rect?.top || 0) + cy
+  )
+}
+
+function onViewPaste(e) {
+  if (isReadOnly.value) return
+  const items = e.clipboardData?.items
+  if (!items || items.length === 0) return
+
+  for (const item of items) {
+    if (item.kind === 'file' && item.type.startsWith('image/')) {
+      const file = item.getAsFile()
+      if (!file) continue
+      e.preventDefault()
+      const reader = new FileReader()
+      reader.onload = async (ev) => {
+        const imgData = ev.target.result
+        const imgRef = await saveImage(imgData)
+        const center = getCanvasCenter()
+        if (note.value) {
+          saveHistory()
+          const block = noteStore.addBlock(note.value.id, {
+            x: center.x - 140 + newBlockOffset.value,
+            y: center.y - 100 + newBlockOffset.value,
+            type: 'image',
+            imageUrl: imgRef,
+            width: 280,
+            minHeight: 150
+          })
+          selectedBlockId.value = block.id
+          newBlockOffset.value += 30
+        }
+      }
+      reader.readAsDataURL(file)
+      return
+    }
+  }
+
+  const text = e.clipboardData?.getData('text/plain') || ''
+  if (text.trim()) {
+    const active = document.activeElement
+    if (active && active.closest && active.closest('.text-editor')) return
+    e.preventDefault()
+    const center = getCanvasCenter()
+    if (note.value) {
+      saveHistory()
+      const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      const html = `<p>${escaped.replace(/\n/g, '<br>')}</p>`
+      const block = noteStore.addBlock(note.value.id, {
+        x: center.x - 110 + newBlockOffset.value,
+        y: center.y - 30 + newBlockOffset.value,
+        type: 'text',
+        content: html
+      })
+      selectedBlockId.value = block.id
+      newBlockOffset.value += 30
+    }
+  }
+}
+
+function createNoteLinkBlock(noteId, blockId = null) {
   if (noteId === note.value?.id) return
-  
+
   let x, y
-  
+
   if (noteLinkSourceBlockId.value) {
     const sourceBlock = blocks.value.find(b => b.id === noteLinkSourceBlockId.value)
     if (sourceBlock) {
@@ -1568,7 +1886,7 @@ function createNoteLinkBlock(noteId) {
     y = -canvasConfig.value.offsetY / canvasConfig.value.zoom + 200 + newBlockOffset.value
     newBlockOffset.value += 30
   }
-  
+
   if (note.value) {
     saveHistory()
     noteStore.addBlock(note.value.id, {
@@ -1576,22 +1894,30 @@ function createNoteLinkBlock(noteId) {
       y,
       type: 'note-link',
       linkedNoteId: noteId,
+      linkedBlockId: blockId || null,
       width: 280,
       minHeight: 70
     })
   }
-  
+
   closeNoteLinkModal()
 }
 
-function openLinkedNote(noteId) {
-  router.push(`/note/${noteId}`)
+function openLinkedNote(payload) {
+  const noteId = typeof payload === 'string' ? payload : payload?.noteId
+  const blockId = typeof payload === 'object' && payload ? payload.blockId : null
+  if (blockId) {
+    router.push({ path: `/note/${noteId}`, query: { b: blockId } })
+  } else {
+    router.push(`/note/${noteId}`)
+  }
 }
 
 function closeNoteLinkModal() {
   showNoteLinkModal.value = false
   noteLinkSearch.value = ''
   noteLinkSourceBlockId.value = null
+  expandedLinkId.value = null
 }
 
 function clampPreviewScale(scale) {
@@ -1608,6 +1934,8 @@ function zoomPreviewOut() {
 
 function resetPreviewZoom() {
   previewImageScale.value = 1
+  previewImageX.value = 0
+  previewImageY.value = 0
 }
 
 function togglePreviewFit() {
@@ -1619,9 +1947,42 @@ function onPreviewWheel(e) {
   previewImageScale.value = clampPreviewScale(previewImageScale.value + delta)
 }
 
+function onPreviewMouseDown(e) {
+  if (e.button !== 0) return
+  previewDragging = true
+  previewMoved = false
+  previewDragStart = { x: e.clientX - previewImageX.value, y: e.clientY - previewImageY.value }
+  e.preventDefault()
+}
+
+function onPreviewMouseMove(e) {
+  if (!previewDragging) return
+  const nx = e.clientX - previewDragStart.x
+  const ny = e.clientY - previewDragStart.y
+  if (Math.abs(nx - previewImageX.value) > 2 || Math.abs(ny - previewImageY.value) > 2) {
+    previewMoved = true
+  }
+  previewImageX.value = nx
+  previewImageY.value = ny
+}
+
+function onPreviewMouseUp() {
+  previewDragging = false
+}
+
+function onPreviewImageClick() {
+  if (previewMoved) {
+    previewMoved = false
+    return
+  }
+  togglePreviewFit()
+}
+
 function showImagePreview(url) {
   previewImageUrl.value = url
   previewImageScale.value = 1.2
+  previewImageX.value = 0
+  previewImageY.value = 0
   showImagePreviewModal.value = true
 }
 
@@ -1629,6 +1990,9 @@ function closeImagePreview() {
   showImagePreviewModal.value = false
   previewImageUrl.value = ''
   previewImageScale.value = 1
+  previewImageX.value = 0
+  previewImageY.value = 0
+  previewDragging = false
 }
 
 function exportAsPDF() {
@@ -2523,7 +2887,17 @@ function deleteSelectedConnection() {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 200px;
+  flex-wrap: wrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.header-tags {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 2px 0;
 }
 
 .title-input {
@@ -2533,7 +2907,10 @@ function deleteSelectedConnection() {
   background: transparent;
   padding: 6px 10px;
   border-radius: var(--radius-md);
-  min-width: 150px;
+  flex: 1 1 auto;
+  min-width: 120px;
+  max-width: 360px;
+  width: auto;
   transition: background var(--transition-fast);
 }
 
@@ -2549,7 +2926,7 @@ function deleteSelectedConnection() {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex: 1;
+  flex: 0 0 auto;
 }
 
 .toolbar {
@@ -3069,10 +3446,15 @@ function deleteSelectedConnection() {
   flex-shrink: 0;
 }
 
+.export-menu-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
 .export-dropdown {
-  position: fixed;
-  top: 70px;
-  right: 200px;
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
   background: var(--bg-primary);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
@@ -3156,6 +3538,148 @@ function deleteSelectedConnection() {
   to { transform: rotate(360deg); }
 }
 
+.tag-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid;
+}
+
+.tag-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  color: inherit;
+  opacity: 0.6;
+  transition: opacity var(--transition-fast);
+}
+
+.tag-chip-remove:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.tag-add-wrap {
+  position: relative;
+}
+
+.tag-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  border: 1px dashed var(--border-color);
+  transition: all var(--transition-fast);
+}
+
+.tag-add-btn:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.tag-picker {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 1000;
+  width: 240px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.tag-picker-search {
+  padding: 8px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.tag-picker-search .input {
+  width: 100%;
+  font-size: 13px;
+  padding: 6px 8px;
+}
+
+.tag-picker-list {
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.tag-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary);
+  transition: background var(--transition-fast);
+}
+
+.tag-picker-item:hover {
+  background: var(--bg-hover);
+}
+
+.tag-picker-item.selected {
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+}
+
+.tag-picker-item .tag-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tag-picker-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-picker-create {
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--primary-color);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.tag-picker-create:hover {
+  background: var(--primary-soft);
+}
+
+.tag-picker-empty {
+  padding: 12px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+
 .image-preview-overlay {
   position: fixed;
   top: 0;
@@ -3186,9 +3710,14 @@ function deleteSelectedConnection() {
   max-height: calc(100vh - 96px);
   object-fit: contain;
   border-radius: var(--radius-md);
-  cursor: zoom-in;
+  cursor: grab;
   user-select: none;
-  transition: transform 0.15s ease;
+  -webkit-user-drag: none;
+  transition: transform 0.1s ease;
+}
+
+.preview-image.draggable:active {
+  cursor: grabbing;
 }
 
 .preview-image.fit {

@@ -24,6 +24,12 @@ const routes = [
     meta: { title: '计划' }
   },
   {
+    path: '/tags',
+    name: 'Tags',
+    component: () => import('@/views/TagsView.vue'),
+    meta: { title: '标签' }
+  },
+  {
     path: '/settings',
     name: 'Settings',
     component: () => import('@/views/SettingsView.vue'),

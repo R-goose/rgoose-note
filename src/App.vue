@@ -39,6 +39,7 @@ import ToastContainer from '@/components/ToastContainer.vue'
 import { useThemeStore } from '@/stores/theme'
 import { useNoteStore } from '@/stores/note'
 import { usePlanStore } from '@/stores/plan'
+import { useTagStore } from '@/stores/tag'
 
 const sidebarCollapsed = ref(false)
 const isMaximized = ref(false)
@@ -79,9 +80,12 @@ onMounted(() => {
 
   const noteStore = useNoteStore()
   const planStore = usePlanStore()
+  const tagStore = useTagStore()
+  tagStore.init()
   onBeforeUnload = () => {
     noteStore.flushPersist()
     planStore.flushPersist()
+    tagStore.flushPersist()
   }
   window.addEventListener('beforeunload', onBeforeUnload)
 })

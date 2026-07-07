@@ -72,15 +72,31 @@ export const useNoteStore = defineStore('note', () => {
       if (data && data.folders) {
         folders.value = data.folders
       }
+      ensureTagsFields()
       lastSyncTime.value = getLastSyncTime()
     })()
     return initPromise
   }
 
+  function ensureTagsFields() {
+    let changed = false
+    notes.value.forEach(n => {
+      if (!Array.isArray(n.tags)) { n.tags = []; changed = true }
+    })
+    folders.value.forEach(f => {
+      if (!Array.isArray(f.tags)) { f.tags = []; changed = true }
+    })
+    if (changed) persist()
+  }
+
   let persistTimer = null
   let pendingPlans = null
+  let pendingTags = null
   function setPendingPlans(plans) {
     pendingPlans = plans
+  }
+  function setPendingTags(tags) {
+    pendingTags = tags
   }
   function persist() {
     if (persistTimer) clearTimeout(persistTimer)
@@ -97,10 +113,12 @@ export const useNoteStore = defineStore('note', () => {
     }
   }
   async function doPersist() {
+    const fileData = await loadFromStore()
     const data = {
       notes: notes.value,
       folders: folders.value,
-      plans: pendingPlans || (await loadFromStore())?.plans || [],
+      plans: pendingPlans || fileData?.plans || [],
+      tags: pendingTags || fileData?.tags || [],
       updatedAt: getTimestamp()
     }
     await saveToStore(data)
@@ -120,6 +138,7 @@ export const useNoteStore = defineStore('note', () => {
       id: generateId(),
       name,
       parentId,
+      tags: [],
       createdAt: now,
       updatedAt: now
     }
@@ -254,6 +273,7 @@ export const useNoteStore = defineStore('note', () => {
       id: generateId(),
       title,
       folderId: folderId || currentFolderId.value || null,
+      tags: [],
       blocks: [],
       connections: [],
       canvasConfig: {
@@ -451,6 +471,32 @@ export const useNoteStore = defineStore('note', () => {
     }
   }
 
+  function setNoteTags(noteId, tags) {
+    const note = notes.value.find(n => n.id === noteId)
+    if (note) {
+      note.tags = Array.isArray(tags) ? [...tags] : []
+      note.updatedAt = getTimestamp()
+      persist()
+    }
+  }
+
+  function setFolderTags(folderId, tags) {
+    const folder = folders.value.find(f => f.id === folderId)
+    if (folder) {
+      folder.tags = Array.isArray(tags) ? [...tags] : []
+      folder.updatedAt = getTimestamp()
+      persist()
+    }
+  }
+
+  function notesByTag(tagId) {
+    return notes.value.filter(n => !n.deleted && Array.isArray(n.tags) && n.tags.includes(tagId))
+  }
+
+  function foldersByTag(tagId) {
+    return folders.value.filter(f => !f.deleted && Array.isArray(f.tags) && f.tags.includes(tagId))
+  }
+
   return {
     notes,
     folders,
@@ -467,6 +513,11 @@ export const useNoteStore = defineStore('note', () => {
     flushPersist,
     clearCache,
     setPendingPlans,
+    setPendingTags,
+    setNoteTags,
+    setFolderTags,
+    notesByTag,
+    foldersByTag,
     createFolder,
     isFolderNameDuplicate,
     renameFolder,

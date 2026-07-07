@@ -1,6 +1,7 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron')
 const path = require('path')
 const fs = require('fs')
+const { execSync } = require('child_process')
 
 let mainWindow
 
@@ -40,6 +41,13 @@ function createWindow() {
   const saved = config.windowBounds
   const wasMaximized = config.isMaximized !== false
 
+  const iconCandidates = [
+    path.join(__dirname, '../build/icon.ico'),
+    path.join(process.resourcesPath || '', 'build/icon.ico'),
+    path.join(__dirname, 'icon.ico')
+  ]
+  const appIcon = iconCandidates.find(p => { try { return fs.existsSync(p) } catch { return false } }) || undefined
+
   const windowOptions = {
     minWidth: 800,
     minHeight: 600,
@@ -48,7 +56,7 @@ function createWindow() {
     backgroundColor: '#fafbfa',
     hasShadow: true,
     roundedCorners: true,
-    icon: path.join(__dirname, '../build/icon.ico'),
+    icon: appIcon,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -368,6 +376,8 @@ ipcMain.handle('list-images', async () => {
 
 function getDirSize(dir) {
   if (!fs.existsSync(dir)) return 0
+  const stat = fs.statSync(dir)
+  if (stat.isFile()) return stat.size
   let total = 0
   const entries = fs.readdirSync(dir, { withFileTypes: true })
   for (const entry of entries) {
@@ -382,27 +392,114 @@ function getDirSize(dir) {
 }
 
 ipcMain.handle('get-storage-size', async () => {
+  const result = {
+    dataFileSize: 0,
+    imagesDirSize: 0,
+    dataSize: 0,
+    dataDirSize: 0,
+    backupSize: 0,
+    backupCount: 0,
+    appSize: 0,
+    totalSize: 0
+  }
   try {
     const dataDir = getDataDir()
     const imagesDir = getImagesDir()
     const userData = app.getPath('userData')
-    const backups = fs.readdirSync(userData)
-      .filter(n => n.startsWith('backup_'))
-      .map(n => {
-        const full = path.join(userData, n)
-        return { name: n, size: getDirSize(full), mtime: fs.statSync(full).mtimeMs }
-      })
-    const backupTotal = backups.reduce((s, b) => s + b.size, 0)
-    return {
-      dataDirSize: getDirSize(dataDir),
-      imagesDirSize: getDirSize(imagesDir),
-      dataSize: getDirSize(dataDir),
-      backupSize: backupTotal,
-      backupCount: backups.length,
-      appSize: getDirSize(app.getAppPath())
+
+    try {
+      if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true })
+    } catch (_) {}
+
+    try {
+      const dataFile = path.join(dataDir, 'data.json')
+      if (fs.existsSync(dataFile)) {
+        result.dataFileSize = fs.statSync(dataFile).size
+      }
+    } catch (e) {
+      console.error('measure data.json failed:', e)
     }
+
+    try {
+      result.imagesDirSize = getDirSize(imagesDir)
+    } catch (e) {
+      console.error('measure images dir failed:', e)
+    }
+
+    try {
+      const backups = fs.readdirSync(userData)
+        .filter(n => n.startsWith('backup_'))
+        .map(n => {
+          const full = path.join(userData, n)
+          return { name: n, size: getDirSize(full), mtime: fs.statSync(full).mtimeMs }
+        })
+      result.backupSize = backups.reduce((s, b) => s + b.size, 0)
+      result.backupCount = backups.length
+    } catch (e) {
+      console.error('measure backups failed:', e)
+    }
+
+    try {
+      result.appSize = getDirSize(app.getAppPath())
+    } catch (e) {
+      console.error('measure app size failed:', e)
+    }
+
+    result.dataDirSize = result.dataFileSize + result.imagesDirSize
+    result.dataSize = result.dataFileSize
+    result.totalSize = result.dataFileSize + result.imagesDirSize + result.backupSize
   } catch (e) {
-    return { dataDirSize: 0, imagesDirSize: 0, dataSize: 0, backupSize: 0, backupCount: 0, appSize: 0 }
+    console.error('get-storage-size failed:', e)
+  }
+  return result
+})
+
+ipcMain.handle('open-path', async (_event, targetPath) => {
+  try {
+    if (!targetPath || typeof targetPath !== 'string') return { ok: false, error: 'invalid path' }
+    const resolved = path.resolve(targetPath)
+    if (fs.existsSync(resolved)) {
+      const stat = fs.statSync(resolved)
+      if (stat.isDirectory()) {
+        await shell.openPath(resolved)
+      } else {
+        shell.showItemInFolder(resolved)
+      }
+      return { ok: true }
+    }
+    const parent = path.dirname(resolved)
+    if (fs.existsSync(parent)) {
+      await shell.openPath(parent)
+      return { ok: true }
+    }
+    return { ok: false, error: 'path not found' }
+  } catch (e) {
+    return { ok: false, error: e.message }
+  }
+})
+
+ipcMain.handle('open-backup', async (_event, name) => {
+  try {
+    if (!name || typeof name !== 'string' || !name.startsWith('backup_')) {
+      return { ok: false, error: 'invalid backup name' }
+    }
+    const full = path.join(app.getPath('userData'), name)
+    if (!fs.existsSync(full)) return { ok: false, error: 'backup not found' }
+    const stat = fs.statSync(full)
+    if (stat.isDirectory()) await shell.openPath(full)
+    else shell.showItemInFolder(full)
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e.message }
+  }
+})
+
+ipcMain.handle('open-backups-folder', async () => {
+  try {
+    await shell.openPath(app.getPath('userData'))
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e.message }
   }
 })
 
@@ -410,19 +507,49 @@ ipcMain.handle('create-backup', async () => {
   try {
     flushDataFile()
     const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-    const backupDir = path.join(app.getPath('userData'), `backup_${ts}`)
-    fs.mkdirSync(backupDir, { recursive: true })
+    const userData = app.getPath('userData')
+    const zipPath = path.join(userData, `backup_${ts}.zip`)
+    const stagingDir = path.join(userData, `.backup-stage-${ts}`)
+    fs.rmSync(stagingDir, { recursive: true, force: true })
+    fs.mkdirSync(stagingDir, { recursive: true })
 
     const srcData = path.join(getDataDir(), 'data.json')
     if (fs.existsSync(srcData)) {
-      fs.copyFileSync(srcData, path.join(backupDir, 'data.json'))
+      fs.copyFileSync(srcData, path.join(stagingDir, 'data.json'))
     }
     const srcImages = getImagesDir()
     if (fs.existsSync(srcImages)) {
-      fs.cpSync(srcImages, path.join(backupDir, 'images'), { recursive: true })
+      fs.cpSync(srcImages, path.join(stagingDir, 'images'), { recursive: true })
     }
 
-    const userData = app.getPath('userData')
+    let zipped = false
+    if (process.platform === 'win32') {
+      try {
+        const psStaging = stagingDir.replace(/'/g, "''")
+        const psZip = zipPath.replace(/'/g, "''")
+        execSync(
+          `powershell -NoProfile -NonInteractive -Command "Compress-Archive -LiteralPath '${psStaging}\\*' -DestinationPath '${psZip}' -Force"`,
+          { windowsHide: true, timeout: 180000 }
+        )
+        zipped = fs.existsSync(zipPath)
+      } catch (e) {
+        console.error('zip via powershell failed:', e)
+      }
+    }
+
+    fs.rmSync(stagingDir, { recursive: true, force: true })
+
+    let finalPath
+    if (zipped) {
+      finalPath = zipPath
+    } else {
+      const backupDir = path.join(userData, `backup_${ts}`)
+      fs.mkdirSync(backupDir, { recursive: true })
+      if (fs.existsSync(srcData)) fs.copyFileSync(srcData, path.join(backupDir, 'data.json'))
+      if (fs.existsSync(srcImages)) fs.cpSync(srcImages, path.join(backupDir, 'images'), { recursive: true })
+      finalPath = backupDir
+    }
+
     const backups = fs.readdirSync(userData)
       .filter(n => n.startsWith('backup_'))
       .map(n => ({ name: n, mtime: fs.statSync(path.join(userData, n)).mtimeMs }))
@@ -431,7 +558,7 @@ ipcMain.handle('create-backup', async () => {
       const old = backups.shift()
       fs.rmSync(path.join(userData, old.name), { recursive: true, force: true })
     }
-    return { ok: true, path: backupDir, timestamp: ts }
+    return { ok: true, path: finalPath, timestamp: ts }
   } catch (e) {
     console.error('create-backup failed:', e)
     return { ok: false, error: e.message }

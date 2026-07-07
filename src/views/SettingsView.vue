@@ -72,16 +72,19 @@
 
           <div v-if="storageSize" class="setting-item storage-usage-item">
             <div class="setting-info">
-              <div class="setting-name">存储占用</div>
+              <div class="setting-name">存储占用 <span class="total-usage">共 {{ formatBytes(usageTotal) }}</span></div>
               <div class="storage-usage-bar">
                 <div class="usage-segment notes" :style="{ width: notesUsagePercent + '%' }" title="笔记数据"></div>
                 <div class="usage-segment images" :style="{ width: imagesUsagePercent + '%' }" title="图片文件"></div>
                 <div class="usage-segment backups" :style="{ width: backupUsagePercent + '%' }" title="备份文件"></div>
               </div>
               <div class="storage-usage-detail">
-                <span class="usage-tag notes">笔记 {{ formatBytes(storageSize.dataSize) }}</span>
+                <span class="usage-tag notes">笔记 {{ formatBytes(storageSize.dataFileSize != null ? storageSize.dataFileSize : storageSize.dataSize) }}</span>
                 <span class="usage-tag images">图片 {{ formatBytes(storageSize.imagesDirSize) }}</span>
                 <span class="usage-tag backups">备份 {{ formatBytes(storageSize.backupSize) }}（{{ storageSize.backupCount }} 份）</span>
+              </div>
+              <div v-if="storageSize.appSize != null" class="storage-usage-detail app-usage-line">
+                <span class="usage-tag app">应用本体 {{ formatBytes(storageSize.appSize) }}</span>
               </div>
             </div>
           </div>
@@ -89,17 +92,26 @@
           <div class="setting-item">
             <div class="setting-info">
               <div class="setting-name">本地备份</div>
-              <div class="setting-desc">生成完整备份（含数据和图片），最多保留 5 份</div>
+              <div class="setting-desc">生成完整备份（含数据和图片，打包为 zip），最多保留 5 份</div>
             </div>
-            <button class="btn btn-export" @click="handleCreateBackup">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-              生成备份
-            </button>
+            <div class="storage-actions">
+              <button v-if="storageType === 'electron'" class="btn btn-secondary" @click="openBackupsFolder" title="打开备份所在目录">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                </svg>
+                打开目录
+              </button>
+              <button class="btn btn-export" @click="handleCreateBackup">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                生成备份
+              </button>
+            </div>
           </div>
 
           <div v-if="backups.length" class="backup-list">
@@ -108,6 +120,12 @@
                 <span class="backup-time">{{ formatBackupTime(b.mtime) }}</span>
                 <span class="backup-size">{{ formatBytes(b.size) }}</span>
               </div>
+              <button v-if="storageType === 'electron'" class="action-icon-btn" @click="openBackup(b.name)" title="在资源管理器中显示">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                </svg>
+              </button>
               <button class="action-icon-btn danger" @click="handleDeleteBackup(b.name)" title="删除备份">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                   stroke-linecap="round">
@@ -130,6 +148,13 @@
               </div>
             </div>
             <div class="storage-actions">
+              <button v-if="storageType === 'electron'" class="btn btn-secondary" @click="openStorageLocation" title="在文件资源管理器中打开">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                </svg>
+                打开
+              </button>
               <button class="btn btn-secondary" @click="copyStorageLocation">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                   stroke-linecap="round">
@@ -324,8 +349,10 @@
 import { computed, ref, onMounted } from 'vue'
 import { useNoteStore } from '@/stores/note'
 import { usePlanStore } from '@/stores/plan'
+import { useTagStore } from '@/stores/tag'
 import { useShortcutStore, eventToCombo, ACTION_META } from '@/stores/shortcut'
 import { exportAsJSON, importFromJSON, mergeData, loadFromStore, saveToStore } from '@/utils/storage'
+import { isAppFormatData, buildNoteFromArbitraryJSON } from '@/utils/jsonAdapter'
 import { collectImageRefsFromData, buildImageBundle, restoreImageBundle, remapImageRefsInData } from '@/utils/imageStore'
 import { formatDate, formatBytes } from '@/utils'
 import { useToast } from '@/composables/useToast'
@@ -334,6 +361,7 @@ const { error: toastError, success: toastSuccess, info: toastInfo } = useToast()
 
 const noteStore = useNoteStore()
 const planStore = usePlanStore()
+const tagStore = useTagStore()
 const shortcutStore = useShortcutStore()
 shortcutStore.init()
 const showImportConfirm = ref(false)
@@ -394,20 +422,24 @@ onMounted(async () => {
   await loadBackups()
 })
 
-const notesUsagePercent = computed(() => {
+const usageTotal = computed(() => {
   if (!storageSize.value) return 0
-  const total = (storageSize.value.dataSize || 0) + (storageSize.value.imagesDirSize || 0) + (storageSize.value.backupSize || 0)
-  return total > 0 ? ((storageSize.value.dataSize || 0) / total) * 100 : 0
+  const data = storageSize.value.dataFileSize != null ? storageSize.value.dataFileSize : storageSize.value.dataSize
+  return (data || 0) + (storageSize.value.imagesDirSize || 0) + (storageSize.value.backupSize || 0)
+})
+
+const notesUsagePercent = computed(() => {
+  if (!storageSize.value || usageTotal.value === 0) return 0
+  const data = storageSize.value.dataFileSize != null ? storageSize.value.dataFileSize : storageSize.value.dataSize
+  return ((data || 0) / usageTotal.value) * 100
 })
 const imagesUsagePercent = computed(() => {
-  if (!storageSize.value) return 0
-  const total = (storageSize.value.dataSize || 0) + (storageSize.value.imagesDirSize || 0) + (storageSize.value.backupSize || 0)
-  return total > 0 ? ((storageSize.value.imagesDirSize || 0) / total) * 100 : 0
+  if (!storageSize.value || usageTotal.value === 0) return 0
+  return ((storageSize.value.imagesDirSize || 0) / usageTotal.value) * 100
 })
 const backupUsagePercent = computed(() => {
-  if (!storageSize.value) return 0
-  const total = (storageSize.value.dataSize || 0) + (storageSize.value.imagesDirSize || 0) + (storageSize.value.backupSize || 0)
-  return total > 0 ? ((storageSize.value.backupSize || 0) / total) * 100 : 0
+  if (!storageSize.value || usageTotal.value === 0) return 0
+  return ((storageSize.value.backupSize || 0) / usageTotal.value) * 100
 })
 
 function formatBackupTime(mtime) {
@@ -434,6 +466,34 @@ async function copyStorageLocation() {
     toastSuccess('存储位置已复制到剪贴板')
   } catch {
     toastError('复制失败，请手动选择文本复制')
+  }
+}
+
+async function openStorageLocation() {
+  const target = storageLocation.value
+  if (window.electronAPI?.openPath && target) {
+    const res = await window.electronAPI.openPath(target)
+    if (!res?.ok) toastError('无法打开：' + (res?.error || '路径不存在'))
+  } else {
+    toastError('当前环境不支持打开文件夹')
+  }
+}
+
+async function openBackup(name) {
+  if (window.electronAPI?.openBackup) {
+    const res = await window.electronAPI.openBackup(name)
+    if (!res?.ok) toastError('无法打开备份：' + (res?.error || '未知错误'))
+  } else {
+    toastError('当前环境不支持打开文件夹')
+  }
+}
+
+async function openBackupsFolder() {
+  if (window.electronAPI?.openBackupsFolder) {
+    const res = await window.electronAPI.openBackupsFolder()
+    if (!res?.ok) toastError('无法打开备份目录')
+  } else {
+    toastError('当前环境不支持打开文件夹')
   }
 }
 
@@ -545,6 +605,7 @@ async function handleExport() {
     notes: noteStore.notes,
     folders: noteStore.folders,
     plans: planStore.plans,
+    tags: tagStore.tags,
     exportedAt: Date.now(),
     version: '2.0.0'
   }
@@ -605,6 +666,16 @@ async function handleImport() {
     }
 
     if (data && typeof data === 'object') {
+      if (!isAppFormatData(data)) {
+        const noteSpec = buildNoteFromArbitraryJSON(data)
+        if (noteSpec) {
+          const created = noteStore.createNote(noteSpec.title)
+          noteSpec.blocks.forEach(b => noteStore.addBlock(created.id, b))
+          noteStore.flushPersist()
+          toastSuccess(`已根据 JSON 生成新笔记「${noteSpec.title}」`)
+          return
+        }
+      }
       pendingImportData.value = data
       showImportConfirm.value = true
     } else {
@@ -635,18 +706,22 @@ async function confirmImport() {
     const currentData = {
       notes: noteStore.notes,
       folders: noteStore.folders,
-      plans: planStore.plans
+      plans: planStore.plans,
+      tags: tagStore.tags
     }
     const mergedData = mergeData(currentData, importData)
 
     if (mergedData.folders) noteStore.replaceAllFolders(mergedData.folders)
     noteStore.replaceAll(mergedData.notes || [])
     planStore.replaceAll(mergedData.plans || [])
+    tagStore.replaceAll(mergedData.tags || [])
 
     noteStore.setPendingPlans(mergedData.plans || [])
+    noteStore.setPendingTags(mergedData.tags || [])
     await saveToStore(mergedData)
     noteStore.flushPersist()
     planStore.flushPersist()
+    tagStore.flushPersist()
 
     showImportConfirm.value = false
     pendingImportData.value = null
@@ -958,6 +1033,13 @@ function resetAllShortcuts() {
   font-weight: 500;
   color: var(--text-primary);
   margin-bottom: 6px;
+}
+
+.total-usage {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary-color);
+  margin-left: 6px;
 }
 
 .brand-name {
@@ -1281,6 +1363,13 @@ function resetAllShortcuts() {
 .usage-tag.notes::before { background: var(--primary-color, #6bbd8f); }
 .usage-tag.images::before { background: var(--secondary-color, #d4b27a); }
 .usage-tag.backups::before { background: color-mix(in srgb, var(--text-tertiary, #999) 60%, transparent); }
+.usage-tag.app::before { background: var(--info-color, #6ba6d9); }
+
+.app-usage-line {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--border-light);
+}
 
 .backup-list {
   display: flex;
