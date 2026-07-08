@@ -120,19 +120,23 @@
                 <span class="backup-time">{{ formatBackupTime(b.mtime) }}</span>
                 <span class="backup-size">{{ formatBytes(b.size) }}</span>
               </div>
-              <button v-if="storageType === 'electron'" class="action-icon-btn" @click="openBackup(b.name)" title="在资源管理器中显示">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                  stroke-linecap="round">
-                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                </svg>
-              </button>
-              <button class="action-icon-btn danger" @click="handleDeleteBackup(b.name)" title="删除备份">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                  stroke-linecap="round">
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                </svg>
-              </button>
+              <div class="backup-actions">
+                  <button v-if="storageType === 'electron'" class="action-icon-btn secondary" @click="openBackup(b.name)"
+                    title="在资源管理器中显示">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round">
+                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                    </svg>
+                  </button>
+                  <button class="action-icon-btn danger" @click="handleDeleteBackup(b.name)" title="删除备份">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round">
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    </svg>
+                  </button>
+              </div>
+
             </div>
           </div>
 
@@ -242,6 +246,13 @@
               <div class="setting-desc">Web / Windows</div>
             </div>
           </div>
+            <div class="setting-item">
+              <div class="setting-info">
+                <div class="setting-name">版权归属</div>
+                <div class="setting-desc">R-Goose Note 是一个基于 Vue 3 的笔记应用，由 R-Goose 开发。</div>
+              </div>
+            </div>
+ 
         </div>
       </section>
      </div>
@@ -1405,6 +1416,15 @@ function resetAllShortcuts() {
   transition: background var(--transition-fast);
 }
 
+.backup-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: row;
+  gap: 4px;
+}
+
+
 .backup-item:hover {
   background: var(--bg-hover);
 }
@@ -1435,6 +1455,11 @@ function resetAllShortcuts() {
   color: var(--text-tertiary);
   background: transparent;
   transition: all var(--transition-fast);
+}
+
+.action-icon-btn.secondary:hover {
+  color: var(--secondary-color, #55d4f5);
+  background: var(--secondary-soft, #f5f5f5);
 }
 
 .action-icon-btn.danger:hover {
