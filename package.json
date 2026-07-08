@@ -47,7 +47,8 @@
       "electron/**/*.cjs",
       "build/icon.ico",
       "build/favicon.svg",
-      "!**/node_modules/**"
+      "!**/node_modules/**",
+      "!test/**"
     ],
     "win": {
       "target": "nsis",
