@@ -4,6 +4,8 @@ import { generateId, getTimestamp, deepClone } from '@/utils'
 import { loadFromStore, saveToStore, getLastSyncTime, migrateIfNeeded, clearStore } from '@/utils/storage'
 import { saveImage } from '@/utils/imageStore'
 
+export const SYSTEM_ROOT_FOLDER_ID = 'system-root'
+
 export const useNoteStore = defineStore('note', () => {
   const notes = ref([])
   const folders = ref([])
@@ -33,7 +35,11 @@ export const useNoteStore = defineStore('note', () => {
   })
 
   const sortedFolders = computed(() => {
-    const sorted = [...folders.value.filter(f => !f.deleted)].sort((a, b) => a.createdAt - b.createdAt)
+    const sorted = [...folders.value.filter(f => !f.deleted)].sort((a, b) => {
+      if (a.isSystem && !b.isSystem) return -1
+      if (!a.isSystem && b.isSystem) return 1
+      return a.createdAt - b.createdAt
+    })
     const rootFolders = sorted.filter(f => !f.parentId)
     const childFolders = sorted.filter(f => f.parentId)
     childFolders.sort((a, b) => {
@@ -45,7 +51,11 @@ export const useNoteStore = defineStore('note', () => {
   })
 
   const rootFolders = computed(() => {
-    return folders.value.filter(f => !f.parentId && !f.deleted).sort((a, b) => a.createdAt - b.createdAt)
+    return folders.value.filter(f => !f.parentId && !f.deleted).sort((a, b) => {
+      if (a.isSystem && !b.isSystem) return -1
+      if (!a.isSystem && b.isSystem) return 1
+      return a.createdAt - b.createdAt
+    })
   })
 
   function getChildFolders(parentId) {
@@ -73,9 +83,36 @@ export const useNoteStore = defineStore('note', () => {
         folders.value = data.folders
       }
       ensureTagsFields()
+      ensureSystemRootFolder()
       lastSyncTime.value = getLastSyncTime()
     })()
     return initPromise
+  }
+
+  function ensureSystemRootFolder() {
+    const existing = folders.value.find(f => f.id === SYSTEM_ROOT_FOLDER_ID)
+    if (existing) {
+      if (!existing.isSystem || existing.name !== '根目录') {
+        existing.isSystem = true
+        existing.name = '根目录'
+        existing.parentId = null
+      }
+      return existing
+    }
+    const now = getTimestamp()
+    const folder = {
+      id: SYSTEM_ROOT_FOLDER_ID,
+      name: '根目录',
+      parentId: null,
+      tags: [],
+      isSystem: true,
+      createdAt: now,
+      updatedAt: now
+    }
+    folders.value.push(folder)
+    persist()
+    flushPersist()
+    return folder
   }
 
   function ensureTagsFields() {
@@ -173,16 +210,17 @@ export const useNoteStore = defineStore('note', () => {
 
   function renameFolder(folderId, name) {
     const folder = folders.value.find(f => f.id === folderId)
-    if (folder) {
-      folder.name = name
-      folder.updatedAt = getTimestamp()
-      persist()
-    }
+    if (!folder) return
+    if (folder.isSystem) return
+    folder.name = name
+    folder.updatedAt = getTimestamp()
+    persist()
   }
 
   function deleteFolder(folderId) {
     const folder = folders.value.find(f => f.id === folderId)
     if (!folder) return
+    if (folder.isSystem) return
 
     const parentId = folder.parentId
     const now = getTimestamp()
@@ -459,6 +497,7 @@ export const useNoteStore = defineStore('note', () => {
 
   function replaceAllFolders(newFolders) {
     folders.value = JSON.parse(JSON.stringify(newFolders || []))
+    ensureSystemRootFolder()
     persist()
   }
 
@@ -519,6 +558,7 @@ export const useNoteStore = defineStore('note', () => {
     notesByTag,
     foldersByTag,
     createFolder,
+    ensureSystemRootFolder,
     isFolderNameDuplicate,
     renameFolder,
     deleteFolder,

@@ -440,7 +440,20 @@ ipcMain.handle('get-storage-size', async () => {
     }
 
     try {
-      result.appSize = getDirSize(app.getAppPath())
+      if (app.isPackaged) {
+        result.appSize = getDirSize(app.getAppPath())
+      } else {
+        const appPath = app.getAppPath()
+        let appTotal = 0
+        const appCodeDirs = ['dist', 'electron', 'build']
+        for (const d of appCodeDirs) {
+          try {
+            const p = path.join(appPath, d)
+            if (fs.existsSync(p)) appTotal += getDirSize(p)
+          } catch (_) {}
+        }
+        result.appSize = appTotal
+      }
     } catch (e) {
       console.error('measure app size failed:', e)
     }

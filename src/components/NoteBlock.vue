@@ -6,6 +6,10 @@
     :class="{
       selected,
       highlighted,
+      'hide-highlight-underline': hideHighlightUnderline,
+      'link-selection-mode': linkSelectionMode,
+      'link-selected': linkSelected,
+      'menu-open': showInsertMenu || showStyleMenu,
       'connect-mode': connectMode,
       connecting: connectingFrom === block.id,
       'connect-target': connectMode && connectingFrom && connectingFrom !== block.id,
@@ -134,7 +138,7 @@
       <div
         v-else-if="block.type === 'note-link' && block.linkedNoteId"
         class="note-link-block"
-        @click.stop="$emit('open-note', { noteId: block.linkedNoteId, blockId: block.linkedBlockId || null })"
+        @click.stop="$emit('open-note', { noteId: block.linkedNoteId, blockId: block.linkedBlockId || null, textRange: block.linkedTextRange || null })"
         @wheel.stop
       >
         <div class="note-link-icon">
@@ -156,8 +160,8 @@
         v-else
         ref="editorRef"
         class="text-editor"
-        :class="{ 'read-only': readOnly }"
-        :contenteditable="!readOnly"
+        :class="{ 'read-only': readOnly || linkSelectionMode }"
+        :contenteditable="!readOnly && !linkSelectionMode"
         spellcheck="false"
         :style="editorStyle"
         :data-placeholder="block.content ? '' : '点击输入内容...'"
@@ -242,6 +246,7 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useNoteStore } from '@/stores/note'
 import { useShortcutStore } from '@/stores/shortcut'
 import { resolveImageUrl, isImageRef } from '@/utils/imageStore'
+import { markdownToHtml, convertInlineMd, isLikelyMarkdown, escapeHtml, splitTableCells } from '@/utils/markdown'
 
 const shortcutStore = useShortcutStore()
 shortcutStore.init()
@@ -259,7 +264,11 @@ const props = defineProps({
   connectMode: Boolean,
   connectingFrom: String,
   readOnly: Boolean,
-  highlighted: Boolean
+  highlighted: Boolean,
+  hideHighlightUnderline: Boolean,
+  syncVersion: Number,
+  linkSelectionMode: Boolean,
+  linkSelected: Boolean
 })
 
 const resolvedImageUrl = ref('')
@@ -292,7 +301,10 @@ const emit = defineEmits([
   'open-note',
   'resize',
   'resize-block',
-  'save-selection'
+  'save-selection',
+  'save-history',
+  'link-select-block',
+  'link-select-text'
 ])
 
 const noteStore = useNoteStore()
@@ -319,6 +331,9 @@ const linkedBlockPreview = computed(() => {
   if (!targetNote) return ''
   const targetBlock = (targetNote.blocks || []).find(b => b.id === props.block.linkedBlockId)
   if (!targetBlock) return ''
+  if (props.block.linkedTextRange && props.block.linkedTextRange.text) {
+    return props.block.linkedTextRange.text
+  }
   const text = String(targetBlock.content || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim()
   return text.length > 60 ? text.slice(0, 60) + '…' : text
 })
@@ -358,6 +373,15 @@ watch(
   }
 )
 
+watch(
+  () => props.syncVersion,
+  () => {
+    if (editorRef.value) {
+      editorRef.value.innerHTML = props.block.content || ''
+    }
+  }
+)
+
 function syncEditorContent() {
   if (editorRef.value && document.activeElement !== editorRef.value) {
     editorRef.value.innerHTML = props.block.content || ''
@@ -365,10 +389,19 @@ function syncEditorContent() {
 }
 
 function onClick() {
+  if (props.linkSelectionMode) {
+    const sel = window.getSelection()
+    if (sel && !sel.isCollapsed && sel.toString().trim()) {
+      return
+    }
+    emit('link-select-block', props.block.id)
+    return
+  }
   emit('select', props.block.id)
 }
 
 function onMouseDown(e) {
+  if (props.linkSelectionMode) return
   if (e.target.closest('.action-btn') || e.target.closest('.style-menu') || e.target.closest('.connect-dot') || e.target.closest('.resize-handle') || e.target.closest('.insert-menu') || e.target.closest('.table-grid-picker')) {
     return
   }
@@ -390,9 +423,24 @@ function onBlur() {
 }
 
 function saveSelection() {
-  if (!editorRef.value || document.activeElement !== editorRef.value) return
+  if (!editorRef.value) return
   const selection = window.getSelection()
   if (!selection) return
+
+  if (props.linkSelectionMode) {
+    if (selection.rangeCount > 0 && !selection.isCollapsed) {
+      const range = selection.getRangeAt(0)
+      if (editorRef.value.contains(range.commonAncestorContainer)) {
+        const { start, end, text } = rangeToTextOffset(editorRef.value, range)
+        if (text && text.trim()) {
+          emit('link-select-text', { blockId: props.block.id, start, end, text: text.trim() })
+        }
+      }
+    }
+    return
+  }
+
+  if (document.activeElement !== editorRef.value) return
 
   if (selection.rangeCount === 0) {
     const range = document.createRange()
@@ -403,6 +451,32 @@ function saveSelection() {
   }
 
   emit('save-selection', props.block.id, selection.getRangeAt(0).cloneRange())
+}
+
+function rangeToTextOffset(root, range) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+  let pos = 0
+  let start = -1
+  let end = -1
+  let text = ''
+  let node
+  while ((node = walker.nextNode())) {
+    const len = node.textContent.length
+    const nodeStart = pos
+    const nodeEnd = pos + len
+    if (start === -1 && range.startContainer === node) {
+      start = nodeStart + range.startOffset
+    }
+    if (end === -1 && range.endContainer === node) {
+      end = nodeEnd
+      if (range.endContainer === node) end = nodeStart + range.endOffset
+    }
+    text += node.textContent
+    pos = nodeEnd
+  }
+  if (start === -1) start = 0
+  if (end === -1) end = text.length
+  return { start, end, text: text.slice(start, end) }
 }
 
 let isNormalizing = false
@@ -433,160 +507,132 @@ function onImageLoad(e) {
   imageOverflow.value = img && img.naturalHeight > 150
 }
 
-function escapeHtml(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-}
-
-function convertInlineMd(text) {
-  let html = escapeHtml(text)
-  html = html.replace(/`([^`]+)`/g, '<code>$1</code>')
-  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-  html = html.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
-  html = html.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
-  return html
-}
-
-function isLikelyMarkdown(text) {
-  return /(^|\n)\s*(#{1,6}\s|[-*+]\s|\d+\.\s|>\s|```|---)/.test(text) || /\|.*\|/.test(text)
-}
-
-function splitTableCells(line) {
-  let parts = line.split('|')
-  if (parts.length && parts[0].trim() === '') parts.shift()
-  if (parts.length && parts[parts.length - 1].trim() === '') parts.pop()
-  return parts.map(c => c.trim())
-}
-
-function markdownToHtml(md) {
-  const lines = md.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
-  let html = ''
-  let i = 0
-  let inList = null
-  const closeList = () => {
-    if (inList) {
-      html += `</${inList}>`
-      inList = null
-    }
-  }
-
-  while (i < lines.length) {
-    const line = lines[i]
-
-    if (/^```/.test(line.trim())) {
-      closeList()
-      const codeLines = []
-      i++
-      while (i < lines.length && !/^```/.test(lines[i].trim())) {
-        codeLines.push(lines[i])
-        i++
-      }
-      i++
-      html += `<pre><code>${escapeHtml(codeLines.join('\n'))}</code></pre>`
-      continue
-    }
-
-    if (/\|/.test(line) && i + 1 < lines.length && /^[\s|:-]+$/.test(lines[i + 1]) && /-/.test(lines[i + 1])) {
-      closeList()
-      const hCells = splitTableCells(line)
-      i += 2
-      const rows = []
-      while (i < lines.length && /\|/.test(lines[i])) {
-        rows.push(splitTableCells(lines[i]))
-        i++
-      }
-      let t = '<table><tr>'
-      hCells.forEach(c => { t += `<th>${convertInlineMd(c)}</th>` })
-      t += '</tr>'
-      rows.forEach(r => {
-        t += '<tr>'
-        r.forEach(c => { t += `<td>${convertInlineMd(c)}</td>` })
-        t += '</tr>'
-      })
-      t += '</table>'
-      html += t
-      continue
-    }
-
-    const hMatch = line.match(/^(#{1,6})\s+(.*)$/)
-    if (hMatch) {
-      closeList()
-      const level = hMatch[1].length
-      html += `<h${level}>${convertInlineMd(hMatch[2])}</h${level}>`
-      i++
-      continue
-    }
-
-    if (/^>\s?/.test(line)) {
-      closeList()
-      html += `<blockquote>${convertInlineMd(line.replace(/^>\s?/, ''))}</blockquote>`
-      i++
-      continue
-    }
-
-    if (/^\s*[-*+]\s+/.test(line)) {
-      if (inList !== 'ul') {
-        closeList()
-        html += '<ul>'
-        inList = 'ul'
-      }
-      html += `<li>${convertInlineMd(line.replace(/^\s*[-*+]\s+/, ''))}</li>`
-      i++
-      continue
-    }
-
-    if (/^\s*\d+\.\s+/.test(line)) {
-      if (inList !== 'ol') {
-        closeList()
-        html += '<ol>'
-        inList = 'ol'
-      }
-      html += `<li>${convertInlineMd(line.replace(/^\s*\d+\.\s+/, ''))}</li>`
-      i++
-      continue
-    }
-
-    if (/^(\*\*\*|---|___)\s*$/.test(line)) {
-      closeList()
-      html += '<hr>'
-      i++
-      continue
-    }
-
-    if (/^\s*(#{7,}\s)/.test(line)) {
-      closeList()
-      html += `<p style="color: var(--warning-color)">${escapeHtml(line)}</p>`
-      i++
-      continue
-    }
-
-    if (line.trim() === '') {
-      closeList()
-      i++
-      continue
-    }
-
-    closeList()
-    html += `<p>${convertInlineMd(line)}</p>`
-    i++
-  }
-  closeList()
-  return html
-}
-
 function onPaste(e) {
   const text = e.clipboardData?.getData('text/plain') || ''
   if (text && isLikelyMarkdown(text)) {
     e.preventDefault()
+    emit('save-history')
     const html = markdownToHtml(text)
-    document.execCommand('insertHTML', false, html)
+    insertBlocksAtCursor(html)
     emit('update', props.block.id, { content: editorRef.value.innerHTML })
     return
   }
   e.preventDefault()
   document.execCommand('insertText', false, text)
+}
+
+function insertBlocksAtCursor(html) {
+  const editor = editorRef.value
+  if (!editor) return
+  const sel = window.getSelection()
+  if (!sel || sel.rangeCount === 0) {
+    editor.innerHTML += html
+    return
+  }
+  let range = sel.getRangeAt(0)
+  if (!editor.contains(range.commonAncestorContainer)) {
+    range = document.createRange()
+    range.selectNodeContents(editor)
+    range.collapse(false)
+  }
+
+  const temp = document.createElement('div')
+  temp.innerHTML = html
+  const hasBlock = [...temp.children].some(n => ['P', 'PRE', 'UL', 'OL', 'TABLE', 'BLOCKQUOTE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'HR'].includes(n.tagName))
+
+  if (!hasBlock) {
+    range.deleteContents()
+    const frag = document.createDocumentFragment()
+    while (temp.firstChild) frag.appendChild(temp.firstChild)
+    range.insertNode(frag)
+    range.collapse(false)
+    sel.removeAllRanges()
+    sel.addRange(range)
+    return
+  }
+
+  range.deleteContents()
+
+  let blockParent = null
+  let node = range.startContainer
+  while (node && node !== editor) {
+    if (node.nodeType === 1 && ['P', 'PRE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'DIV'].includes(node.tagName)) {
+      blockParent = node
+      break
+    }
+    node = node.parentNode
+  }
+
+  if (!blockParent) {
+    const frag = document.createDocumentFragment()
+    while (temp.firstChild) frag.appendChild(temp.firstChild)
+    range.insertNode(frag)
+    return
+  }
+
+  const offsetInBlock = range.startOffset
+  const parts = splitNodeAtOffset(blockParent, range.startContainer, offsetInBlock)
+  const afterNode = parts.afterNode
+
+  const frag = document.createDocumentFragment()
+  while (temp.firstChild) frag.appendChild(temp.firstChild)
+  if (afterNode && afterNode.parentNode === blockParent.parentNode) {
+    blockParent.parentNode.insertBefore(frag, afterNode)
+  } else {
+    blockParent.parentNode.appendChild(frag)
+  }
+
+  if (afterNode && afterNode.parentNode) {
+    const newRange = document.createRange()
+    newRange.setStart(afterNode, 0)
+    newRange.collapse(true)
+    sel.removeAllRanges()
+    sel.addRange(newRange)
+  }
+
+  editor.querySelectorAll('p, h1, h2, h3, h4, h5, h6').forEach(el => {
+    if (el !== editor && el.textContent.trim() === '' && !el.querySelector('img,br')) {
+      el.remove()
+    }
+  })
+  if (editor.children.length === 0) {
+    editor.innerHTML = '<p><br></p>'
+  }
+}
+
+function splitNodeAtOffset(blockEl, startContainer, offset) {
+  if (startContainer === blockEl) {
+    const children = [...blockEl.childNodes]
+    const before = document.createDocumentFragment()
+    const afterNode = document.createElement(blockEl.tagName)
+    for (let i = 0; i < offset && children.length; i++) before.appendChild(children.shift())
+    while (children.length) afterNode.appendChild(children.shift())
+    if (afterNode.childNodes.length === 0) afterNode.appendChild(document.createElement('br'))
+    blockParentReplace(blockEl, before, afterNode)
+    return { afterNode }
+  }
+  if (startContainer.nodeType === 3) {
+    const text = startContainer.textContent
+    const beforeText = text.slice(0, offset)
+    const afterText = text.slice(offset)
+    startContainer.textContent = beforeText
+    const afterNode = blockEl.cloneNode(false)
+    if (afterText) afterNode.textContent = afterText
+    else afterNode.appendChild(document.createElement('br'))
+    if (blockEl.parentNode) {
+      blockEl.parentNode.insertBefore(afterNode, blockEl.nextSibling)
+    }
+    return { afterNode }
+  }
+  return { afterNode: blockEl }
+}
+
+function blockParentReplace(oldNode, beforeFrag, afterNode) {
+  const parent = oldNode.parentNode
+  if (!parent) return
+  parent.insertBefore(beforeFrag, oldNode)
+  parent.insertBefore(afterNode, oldNode.nextSibling)
+  parent.removeChild(oldNode)
 }
 
 function onEditorKeyDown(e) {
@@ -990,7 +1036,8 @@ onUnmounted(() => {
 }
 
 .note-block:hover .block-header,
-.note-block.selected .block-header {
+.note-block.selected .block-header,
+.note-block.menu-open .block-header {
   opacity: 1;
 }
 
@@ -1122,6 +1169,43 @@ onUnmounted(() => {
   min-height: 0;
 }
 
+.note-block.link-selection-mode {
+  cursor: pointer;
+}
+
+.note-block.link-selection-mode:hover {
+  box-shadow: 0 0 0 2px var(--primary-color);
+}
+
+.note-block.link-selected {
+  box-shadow: 0 0 0 3px var(--primary-color) !important;
+  z-index: 20;
+}
+
+.note-block.link-selection-mode .text-editor {
+  cursor: text;
+  user-select: text;
+}
+
+:deep(mark.ref-text-highlight) {
+  background: transparent;
+  color: var(--primary-color);
+  font-weight: 700;
+  padding: 0 1px;
+  border-radius: 3px;
+  display: inline-block;
+  animation: ref-text-breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes ref-text-breathe {
+  0%, 100% {
+    text-shadow: 0 0 4px var(--primary-soft, rgba(106, 167, 134, 0.35));
+  }
+  50% {
+    text-shadow: 0 0 10px var(--primary-color);
+  }
+}
+
 .text-editor {
   flex: 1;
   min-height: 0;
@@ -1174,28 +1258,28 @@ onUnmounted(() => {
 }
 
 .text-editor :deep(ol) {
-  list-style-type: decimal;
+  list-style: none;
+  padding-left: 28px;
 }
 
-.text-editor :deep(ol li::marker) {
+.text-editor :deep(ol > li) {
+  position: relative;
+}
+
+.text-editor :deep(ol > li)::before {
+  content: attr(data-ol-num) ". ";
+  position: absolute;
+  left: -22px;
   color: var(--primary-color);
   font-weight: 600;
 }
 
-.text-editor :deep(li ol) {
-  list-style-type: lower-alpha;
-}
-
-.text-editor :deep(li ol li::marker) {
+.text-editor :deep(li ol > li)::before {
   color: var(--info-color, #4a90d9);
   font-weight: 500;
 }
 
-.text-editor :deep(li ol li ol) {
-  list-style-type: lower-roman;
-}
-
-.text-editor :deep(li ol li ol li::marker) {
+.text-editor :deep(li ol li ol > li)::before {
   color: var(--text-tertiary);
   font-weight: 500;
 }
@@ -1396,31 +1480,6 @@ onUnmounted(() => {
 .note-block.highlighted .text-editor,
 .note-block.highlighted .note-link-block {
   position: relative;
-}
-
-.note-block.highlighted .text-editor::after,
-.note-block.highlighted .note-link-block::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -3px;
-  height: 3px;
-  background-image: linear-gradient(
-    90deg,
-    transparent 0%,
-    var(--primary-color) 20%,
-    var(--primary-color) 80%,
-    transparent 100%
-  );
-  background-size: 200% 100%;
-  animation: ref-underline-flow 1.5s linear infinite;
-  border-radius: 2px;
-}
-
-@keyframes ref-underline-flow {
-  0% { background-position: 100% 0; }
-  100% { background-position: -100% 0; }
 }
 
 @keyframes ref-pulse {

@@ -10,6 +10,7 @@
         </button>
         <input
           v-if="note"
+          ref="titleInputRef"
           v-model="noteTitle"
           type="text"
           class="title-input"
@@ -17,6 +18,7 @@
           spellcheck="false"
           placeholder="笔记标题"
           @blur="updateTitle"
+          @input="autoSizeTitle"
           @keyup.enter="$event.target.blur()"
         />
         <div v-if="note" class="header-tags">
@@ -97,7 +99,7 @@
             </svg>
             引用
           </button>
-          <div class="export-menu-wrap">
+          <div v-if="!isReadOnly" class="export-menu-wrap">
             <button class="btn btn-secondary" @click="showExportMenu = !showExportMenu" title="导出">
              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                 stroke-linecap="round">
@@ -164,6 +166,42 @@
       </div>
     </header>
 
+    <div v-if="showFindInNote" class="find-in-note-bar">
+      <input
+        ref="findInputRef"
+        v-model="findKeyword"
+        type="text"
+        class="find-input"
+        placeholder="在当前笔记中查找..."
+        @keydown.enter.prevent="findNext($event.shiftKey)"
+        @keydown.esc.prevent="closeFindInNote"
+      />
+      <span class="find-count">{{ findMatches.length ? (findCurrentIndex + 1) + '/' + findMatches.length : (findKeyword ? '0/0' : '') }}</span>
+      <button class="find-nav-btn" :disabled="!findMatches.length" @click="findPrev" title="上一个匹配 (Shift+Enter)">▲</button>
+      <button class="find-nav-btn" :disabled="!findMatches.length" @click="findNext(false)" title="下一个匹配 (Enter)">▼</button>
+      <button class="find-close-btn" @click="closeFindInNote" title="关闭 (Esc)">✕</button>
+    </div>
+
+    <div v-if="linkSelectionMode" class="link-selection-bar">
+      <div class="link-selection-info">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+        </svg>
+        <span class="link-selection-title">选择引用内容</span>
+        <span class="link-selection-hint">{{ linkSelectionHint }}</span>
+      </div>
+      <div class="link-selection-actions">
+        <button class="btn btn-ghost" @click="cancelLinkSelection">取消</button>
+        <button class="btn btn-primary" :disabled="!canConfirmLinkSelection" @click="confirmLinkSelection">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          完成
+        </button>
+      </div>
+    </div>
+
     <div
       ref="canvasRef"
       class="canvas-container"
@@ -194,6 +232,9 @@
           :connecting-from="connectingFrom"
           :read-only="isReadOnly"
           :highlighted="highlightBlockId === block.id"
+          :hide-highlight-underline="showFindInNote"
+          :link-selection-mode="linkSelectionMode"
+          :link-selected="linkSelectionBlockId === block.id"
           @select="selectBlock"
           @drag-start="onBlockDragStart"
           @drag-move="onBlockDragMove"
@@ -210,6 +251,10 @@
           @resize="onBlockResize"
           @resize-block="onBlockResizeBlock"
           @save-selection="saveBlockSelection"
+          @save-history="saveHistory"
+          @link-select-block="onLinkSelectBlock"
+          @link-select-text="onLinkSelectText"
+          :sync-version="syncVersion"
         />
       </div>
       
@@ -365,7 +410,7 @@
       </button>
     </div>
 
-    <div v-if="selectedConnectionId" class="connection-toolbar">
+    <div v-if="selectedConnectionId && !isReadOnly" class="connection-toolbar">
       <span>形状：</span>
       <button
         v-for="shape in lineShapes"
@@ -429,7 +474,7 @@
       </button>
     </div>
 
-    <div v-if="selectedBlock" class="connection-toolbar block-style-toolbar">
+    <div v-if="selectedBlock && !isReadOnly" class="connection-toolbar block-style-toolbar">
       <span>背景：</span>
       <button
         v-for="color in blockBgColors"
@@ -542,7 +587,7 @@
           >
             <div
               class="note-link-item"
-              :class="{ disabled: n.id === note?.id, expanded: expandedLinkId === n.id }"
+              :class="{ disabled: n.id === note?.id }"
               @click="toggleLinkExpand(n)"
             >
               <div class="note-link-item-icon">
@@ -556,27 +601,9 @@
                 <div class="note-link-item-desc">{{ n.blocks?.length || 0 }} 个内容块</div>
               </div>
               <span v-if="n.id === note?.id" class="note-link-item-badge">当前笔记</span>
-              <svg v-else class="note-link-expand-arrow" :class="{ open: expandedLinkId === n.id }" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                <polyline points="6 9 12 15 18 9"/>
+              <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <polyline points="9 18 15 12 9 6"/>
               </svg>
-            </div>
-            <div v-if="expandedLinkId === n.id && n.id !== note?.id" class="note-link-blocks">
-              <div class="note-link-block-option whole" @click="createNoteLinkBlock(n.id, null)">
-                <span class="ref-dot whole"></span>
-                <span class="ref-label">引用整篇笔记</span>
-              </div>
-              <div
-                v-for="b in linkableBlocks(n)"
-                :key="b.id"
-                class="note-link-block-option"
-                @click="createNoteLinkBlock(n.id, b.id)"
-              >
-                <span class="ref-dot"></span>
-                <span class="ref-text">{{ blockPreview(b) }}</span>
-              </div>
-              <div v-if="!linkableBlocks(n).length" class="note-link-blocks-empty">
-                该笔记没有可引用的文本块
-              </div>
             </div>
           </div>
           <div v-if="!filteredNotesForLink.length" class="empty-mini">
@@ -730,6 +757,7 @@ import { useNoteStore } from '@/stores/note'
 import { useTagStore, TAG_PRESET_COLORS } from '@/stores/tag'
 import { useShortcutStore } from '@/stores/shortcut'
 import NoteBlock from '@/components/NoteBlock.vue'
+import { markdownToHtml, isLikelyMarkdown } from '@/utils/markdown'
 import CustomSelect from '@/components/CustomSelect.vue'
 import interact, { rect } from 'interactjs'
 import { useToast } from '@/composables/useToast'
@@ -746,9 +774,53 @@ tagStore.init()
 shortcutStore.init()
 
 const canvasRef = ref(null)
+const findInputRef = ref(null)
+const showFindInNote = ref(false)
+const findKeyword = ref('')
+const findMatches = ref([])
+const findCurrentIndex = ref(0)
 const fileInputRef = ref(null)
 
 const noteTitle = ref('')
+const titleInputRef = ref(null)
+const titleMirrorEl = ref(null)
+
+function autoSizeTitle() {
+  const input = titleInputRef.value
+  if (!input) return
+  const text = input.value || input.placeholder || ''
+  if (!titleMirrorEl.value) {
+    const mirror = document.createElement('span')
+    mirror.style.position = 'absolute'
+    mirror.style.visibility = 'hidden'
+    mirror.style.whiteSpace = 'pre'
+    mirror.style.top = '-9999px'
+    mirror.style.left = '-9999px'
+    mirror.setAttribute('aria-hidden', 'true')
+    document.body.appendChild(mirror)
+    titleMirrorEl.value = mirror
+  }
+  const mirror = titleMirrorEl.value
+  const cs = getComputedStyle(input)
+  mirror.style.font = cs.font
+  mirror.style.letterSpacing = cs.letterSpacing
+  mirror.style.textTransform = cs.textTransform
+  mirror.textContent = text || ' '
+  const padL = parseFloat(cs.paddingLeft) || 0
+  const padR = parseFloat(cs.paddingRight) || 0
+  const borderL = parseFloat(cs.borderLeftWidth) || 0
+  const borderR = parseFloat(cs.borderRightWidth) || 0
+  const textWidth = mirror.getBoundingClientRect().width
+  const header = input.closest('.editor-header')
+  const headerCenter = header ? header.querySelector('.header-center') : null
+  const headerRight = header ? header.querySelector('.header-right') : null
+  const headerW = header ? header.getBoundingClientRect().width : 800
+  const centerW = headerCenter && getComputedStyle(headerCenter).display !== 'none' ? headerCenter.getBoundingClientRect().width : 0
+  const rightW = headerRight && getComputedStyle(headerRight).display !== 'none' ? headerRight.getBoundingClientRect().width : 0
+  const maxWidth = Math.max(120, headerW - centerW - rightW - 120)
+  const targetWidth = Math.min(textWidth + padL + padR + borderL + borderR + 2, maxWidth)
+  input.style.width = targetWidth + 'px'
+}
 const canvasConfig = ref({ zoom: 1, offsetX: 0, offsetY: 0 })
 
 const isPanning = ref(false)
@@ -785,6 +857,7 @@ const copiedBlock = ref(null)
 const undoStack = ref([])
 const redoStack = ref([])
 const MAX_HISTORY = 50
+const syncVersion = ref(0)
 
 function saveHistory() {
   if (!note.value) return
@@ -802,6 +875,7 @@ function undo() {
   redoStack.value.push(JSON.stringify(note.value.blocks))
   const previousState = JSON.parse(undoStack.value.pop())
   noteStore.restoreNoteBlocks(note.value.id, previousState)
+  syncVersion.value++
 }
 
 function redo() {
@@ -811,6 +885,7 @@ function redo() {
   undoStack.value.push(JSON.stringify(note.value.blocks))
   const nextState = JSON.parse(redoStack.value.pop())
   noteStore.restoreNoteBlocks(note.value.id, nextState)
+  syncVersion.value++
 }
 
 const isImageLoading = ref(false)
@@ -822,6 +897,14 @@ const noteLinkSearch = ref('')
 const expandedLinkId = ref(null)
 const highlightBlockId = ref(null)
 const noteLinkSourceBlockId = ref(null)
+
+const linkSelectionMode = ref(false)
+const linkSelectionSource = ref(null)
+const linkSelectionTargetNoteId = ref(null)
+const linkSelectionBlockId = ref(null)
+const linkSelectionTextRange = ref(null)
+const linkSelectionType = ref('block')
+const pendingTextHighlight = ref(null)
 
 const showImagePreviewModal = ref(false)
 const previewImageUrl = ref('')
@@ -1142,7 +1225,22 @@ const filteredNotesForLink = computed(() => {
 
 function toggleLinkExpand(n) {
   if (n.id === note.value?.id) return
-  expandedLinkId.value = expandedLinkId.value === n.id ? null : n.id
+  enterLinkSelectionMode(n.id)
+}
+
+function enterLinkSelectionMode(targetNoteId) {
+  linkSelectionSource.value = {
+    noteId: note.value?.id || null,
+    blockId: noteLinkSourceBlockId.value || null
+  }
+  linkSelectionTargetNoteId.value = targetNoteId
+  linkSelectionBlockId.value = null
+  linkSelectionTextRange.value = null
+  linkSelectionType.value = 'block'
+  showNoteLinkModal.value = false
+  noteLinkSearch.value = ''
+  expandedLinkId.value = null
+  router.push({ path: `/note/${targetNoteId}`, query: { selectForLink: '1' } })
 }
 
 function linkableBlocks(targetNote) {
@@ -1255,6 +1353,9 @@ onMounted(async () => {
   window.addEventListener('mousemove', onWindowMouseMove)
   window.addEventListener('mousedown', onWindowMouseDown)
   window.addEventListener('blur', onWindowBlur)
+  window.addEventListener('resize', autoSizeTitle)
+  await nextTick()
+  autoSizeTitle()
 })
 
 onUnmounted(() => {
@@ -1263,7 +1364,15 @@ onUnmounted(() => {
   window.removeEventListener('mousemove', onWindowMouseMove)
   window.removeEventListener('mousedown', onWindowMouseDown)
   window.removeEventListener('blur', onWindowBlur)
+  window.removeEventListener('resize', autoSizeTitle)
+  if (titleMirrorEl.value) {
+    titleMirrorEl.value.remove()
+    titleMirrorEl.value = null
+  }
 })
+
+watch(noteTitle, () => nextTick(autoSizeTitle))
+watch(() => note.value?.id, () => nextTick(autoSizeTitle))
 
 watch(() => route.params.id, (newId) => {
   const n = noteStore.notes.find(n => n.id === newId && !n.deleted)
@@ -1283,13 +1392,92 @@ watch(() => route.query.b, (blockId) => {
     highlightBlockId.value = null
     return
   }
-  highlightBlockId.value = blockId
+  const hasTextRange = !!(pendingTextHighlight.value && pendingTextHighlight.value.blockId === blockId)
+  if (!hasTextRange) {
+    highlightBlockId.value = blockId
+  }
   nextTick(() => {
     centerBlockInView(blockId)
   })
+  const applyText = () => {
+    if (pendingTextHighlight.value && pendingTextHighlight.value.blockId === blockId) {
+      const blockEl = document.querySelector(`.note-block[data-block-id="${blockId}"]`)
+      if (blockEl) {
+        applyTextHighlight(blockId, pendingTextHighlight.value)
+        pendingTextHighlight.value = null
+      } else {
+        setTimeout(applyText, 150)
+      }
+    }
+  }
+  setTimeout(applyText, 200)
   setTimeout(() => {
     if (highlightBlockId.value === blockId) highlightBlockId.value = null
+    clearTextHighlight()
   }, 4500)
+}, { immediate: true })
+
+function applyTextHighlight(blockId, range) {
+  const blockEl = document.querySelector(`.note-block[data-block-id="${blockId}"]`)
+  if (!blockEl) return
+  const editor = blockEl.querySelector('.text-editor')
+  if (!editor) return
+  clearTextHighlight(editor)
+  const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT)
+  let pos = 0
+  let startNode = null
+  let startOffset = 0
+  let endNode = null
+  let endOffset = 0
+  const start = range.start ?? 0
+  const end = range.end ?? 0
+  let node
+  while ((node = walker.nextNode())) {
+    const len = node.textContent.length
+    const nodeEnd = pos + len
+    if (!startNode && start < nodeEnd) {
+      startNode = node
+      startOffset = start - pos
+    }
+    if (!endNode && end <= nodeEnd) {
+      endNode = node
+      endOffset = end - pos
+    }
+    if (startNode && endNode) break
+    pos = nodeEnd
+  }
+  if (!startNode || !endNode) return
+  try {
+    const r = document.createRange()
+    r.setStart(startNode, Math.max(0, startOffset))
+    r.setEnd(endNode, Math.max(0, endOffset))
+    const mark = document.createElement('mark')
+    mark.className = 'ref-text-highlight'
+    r.surroundContents(mark)
+  } catch (e) {}
+}
+
+function clearTextHighlight(editor) {
+  const root = editor || document
+  root.querySelectorAll('mark.ref-text-highlight').forEach(m => {
+    const parent = m.parentNode
+    while (m.firstChild) parent.insertBefore(m.firstChild, m)
+    parent.removeChild(m)
+    parent.normalize()
+  })
+}
+
+watch(() => route.query.selectForLink, (val) => {
+  if (val && linkSelectionTargetNoteId.value) {
+    linkSelectionMode.value = true
+    linkSelectionBlockId.value = null
+    linkSelectionTextRange.value = null
+    linkSelectionType.value = 'block'
+  } else if (!val) {
+    if (linkSelectionMode.value) {
+      linkSelectionMode.value = false
+    }
+  }
 }, { immediate: true })
 
 function centerBlockInView(blockId) {
@@ -1304,8 +1492,174 @@ function centerBlockInView(blockId) {
   canvasConfig.value.offsetY = targetOffsetY
 }
 
+function openFindInNote() {
+  showFindInNote.value = true
+  nextTick(() => {
+    findInputRef.value?.focus()
+    findInputRef.value?.select()
+  })
+}
+
+function closeFindInNote() {
+  clearMatchHighlights()
+  showFindInNote.value = false
+  findKeyword.value = ''
+  findMatches.value = []
+  findCurrentIndex.value = 0
+  highlightBlockId.value = null
+}
+
+function collectMatchesInBlock(blockEl, blockId, kw) {
+  const matches = []
+  const walker = document.createTreeWalker(blockEl, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      if (!node.textContent || !node.textContent.trim()) return NodeFilter.FILTER_REJECT
+      return NodeFilter.FILTER_ACCEPT
+    }
+  })
+  const textNodes = []
+  let n
+  while ((n = walker.nextNode())) textNodes.push(n)
+  textNodes.forEach((node, nodeIndex) => {
+    const text = node.textContent.toLowerCase()
+    let from = 0
+    while (true) {
+      const idx = text.indexOf(kw, from)
+      if (idx === -1) break
+      matches.push({ blockId, nodeIndex, node, start: idx, len: kw.length })
+      from = idx + kw.length
+    }
+  })
+  return matches
+}
+
+function computeFindMatches() {
+  clearMatchHighlights()
+  const kw = findKeyword.value.trim().toLowerCase()
+  if (!kw) {
+    findMatches.value = []
+    findCurrentIndex.value = 0
+    highlightBlockId.value = null
+    return
+  }
+  const textBlocks = blocks.value.filter(b => b.type === 'text')
+  const all = []
+  textBlocks.forEach(block => {
+    const el = document.querySelector('[data-block-id="' + block.id + '"] .text-editor')
+    if (!el) return
+    all.push(...collectMatchesInBlock(el, block.id, kw))
+  })
+  findMatches.value = all
+  findCurrentIndex.value = 0
+  if (all.length) {
+    goToFindCurrent()
+  } else {
+    highlightBlockId.value = null
+  }
+}
+
+function clearMatchHighlights() {
+  document.querySelectorAll('mark.find-match').forEach(el => {
+    const parent = el.parentNode
+    if (!parent) return
+    while (el.firstChild) parent.insertBefore(el.firstChild, el)
+    parent.removeChild(el)
+    parent.normalize()
+  })
+}
+
+function applyMatchHighlights(targetBlockId, currentLocalIdx) {
+  clearMatchHighlights()
+  const kw = findKeyword.value.trim().toLowerCase()
+  if (!kw) return
+  blocks.value.filter(b => b.type === 'text').forEach(block => {
+    const el = document.querySelector('[data-block-id="' + block.id + '"] .text-editor')
+    if (!el) return
+    const matches = collectMatchesInBlock(el, block.id, kw)
+    if (!matches.length) return
+    matches.forEach((m, i) => { m._local = i })
+    const byNode = new Map()
+    matches.forEach(m => {
+      const arr = byNode.get(m.node) || []
+      arr.push(m)
+      byNode.set(m.node, arr)
+    })
+    byNode.forEach(arr => {
+      arr.sort((a, b) => b.start - a.start)
+      arr.forEach(item => {
+        if (!item.node.parentNode) return
+        const fullText = item.node.textContent
+        if (item.start + item.len > fullText.length) return
+        try {
+          const range = document.createRange()
+          range.setStart(item.node, item.start)
+          range.setEnd(item.node, item.start + item.len)
+          const mark = document.createElement('mark')
+          mark.className = 'find-match'
+          if (block.id === targetBlockId && item._local === currentLocalIdx) {
+            mark.classList.add('find-match-current')
+          }
+          range.surroundContents(mark)
+        } catch (e) {}
+      })
+    })
+  })
+}
+
+function goToFindCurrent() {
+  const total = findMatches.value.length
+  if (!total) return
+  const idx = ((findCurrentIndex.value % total) + total) % total
+  findCurrentIndex.value = idx
+  const target = findMatches.value[idx]
+  if (!target) return
+  highlightBlockId.value = target.blockId
+  centerBlockInView(target.blockId)
+  nextTick(() => {
+    const blockEl = document.querySelector('[data-block-id="' + target.blockId + '"] .text-editor')
+    if (!blockEl) return
+    const fresh = collectMatchesInBlock(blockEl, target.blockId, findKeyword.value.trim().toLowerCase())
+    if (!fresh.length) return
+    let localIdx = 0
+    for (let i = 0; i < idx; i++) {
+      if (findMatches.value[i]?.blockId === target.blockId) localIdx++
+    }
+    localIdx = Math.min(localIdx, fresh.length - 1)
+    applyMatchHighlights(target.blockId, localIdx)
+    const currentMark = document.querySelector('mark.find-match-current')
+    if (currentMark) {
+      const rect = currentMark.getBoundingClientRect()
+      if (rect.top < 60 || rect.bottom > window.innerHeight - 60) {
+        currentMark.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      }
+    }
+  })
+}
+
+function findNext(reverse) {
+  if (!findMatches.value.length) return
+  if (reverse) {
+    findCurrentIndex.value = (findCurrentIndex.value - 1 + findMatches.value.length) % findMatches.value.length
+  } else {
+    findCurrentIndex.value = (findCurrentIndex.value + 1) % findMatches.value.length
+  }
+  goToFindCurrent()
+}
+
+function findPrev() {
+  findNext(true)
+}
+
+watch(findKeyword, () => computeFindMatches())
+
 function onKeyDown(e) {
-  const isEditing = document.activeElement?.contentEditable === 'true' || 
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
+    e.preventDefault()
+    openFindInNote()
+    return
+  }
+
+  const isEditing = document.activeElement?.contentEditable === 'true' ||
                     document.activeElement?.tagName === 'INPUT' ||
                     document.activeElement?.tagName === 'TEXTAREA'
 
@@ -1846,13 +2200,19 @@ function onViewPaste(e) {
   const text = e.clipboardData?.getData('text/plain') || ''
   if (text.trim()) {
     const active = document.activeElement
-    if (active && active.closest && active.closest('.text-editor')) return
+    if (active && active.closest && (
+      active.closest('.text-editor') ||
+      active.tagName === 'INPUT' ||
+      active.tagName === 'TEXTAREA' ||
+      active.isContentEditable
+    )) return
     e.preventDefault()
     const center = getCanvasCenter()
     if (note.value) {
       saveHistory()
-      const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      const html = `<p>${escaped.replace(/\n/g, '<br>')}</p>`
+      const html = isLikelyMarkdown(text)
+        ? markdownToHtml(text)
+        : `<p>${text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</p>`
       const block = noteStore.addBlock(note.value.id, {
         x: center.x - 110 + newBlockOffset.value,
         y: center.y - 30 + newBlockOffset.value,
@@ -1906,6 +2266,10 @@ function createNoteLinkBlock(noteId, blockId = null) {
 function openLinkedNote(payload) {
   const noteId = typeof payload === 'string' ? payload : payload?.noteId
   const blockId = typeof payload === 'object' && payload ? payload.blockId : null
+  const textRange = typeof payload === 'object' && payload ? payload.textRange : null
+  if (textRange) {
+    pendingTextHighlight.value = textRange
+  }
   if (blockId) {
     router.push({ path: `/note/${noteId}`, query: { b: blockId } })
   } else {
@@ -1918,6 +2282,112 @@ function closeNoteLinkModal() {
   noteLinkSearch.value = ''
   noteLinkSourceBlockId.value = null
   expandedLinkId.value = null
+}
+
+const linkSelectionHint = computed(() => {
+  if (linkSelectionType.value === 'text' && linkSelectionTextRange.value) {
+    const t = linkSelectionTextRange.value.text
+    return `已选中文字："${t.length > 20 ? t.slice(0, 20) + '…' : t}"`
+  }
+  if (linkSelectionBlockId.value) {
+    return '已选中内容块（点击其他块切换，或拖选文字引用片段）'
+  }
+  return '点击要引用的块，或在块内拖选一段文字'
+})
+
+const canConfirmLinkSelection = computed(() => {
+  return linkSelectionMode.value && (
+    !!linkSelectionBlockId.value || !!linkSelectionTextRange.value
+  )
+})
+
+function onLinkSelectBlock(blockId) {
+  if (!linkSelectionMode.value) return
+  linkSelectionTextRange.value = null
+  linkSelectionType.value = 'block'
+  linkSelectionBlockId.value = blockId
+}
+
+function onLinkSelectText(payload) {
+  if (!linkSelectionMode.value) return
+  linkSelectionType.value = 'text'
+  linkSelectionBlockId.value = payload.blockId
+  linkSelectionTextRange.value = {
+    blockId: payload.blockId,
+    start: payload.start,
+    end: payload.end,
+    text: payload.text
+  }
+}
+
+function confirmLinkSelection() {
+  if (!canConfirmLinkSelection.value || !linkSelectionSource.value) return
+  const src = linkSelectionSource.value
+  const targetNoteId = linkSelectionTargetNoteId.value
+  const blockId = linkSelectionBlockId.value
+  const textRange = linkSelectionTextRange.value
+
+  linkSelectionMode.value = false
+  linkSelectionBlockId.value = null
+  linkSelectionTextRange.value = null
+  linkSelectionTargetNoteId.value = null
+
+  const buildBlock = () => {
+    if (src.noteId) {
+      const sourceBlock = blocks.value.find(b => b.id === src.blockId)
+      let x, y
+      if (sourceBlock) {
+        x = sourceBlock.x + (sourceBlock.width || 240) + 40
+        y = sourceBlock.y
+      } else {
+        x = -canvasConfig.value.offsetX / canvasConfig.value.zoom + 300 + newBlockOffset.value
+        y = -canvasConfig.value.offsetY / canvasConfig.value.zoom + 200 + newBlockOffset.value
+        newBlockOffset.value += 30
+      }
+      saveHistory()
+      const blockData = {
+        x, y,
+        type: 'note-link',
+        linkedNoteId: targetNoteId,
+        linkedBlockId: blockId || null,
+        width: 280,
+        minHeight: 70
+      }
+      if (textRange) {
+        blockData.linkedTextRange = { ...textRange }
+      }
+      noteStore.addBlock(src.noteId, blockData)
+      noteLinkSourceBlockId.value = null
+    }
+  }
+
+  if (src.noteId) {
+    router.push({ path: `/note/${src.noteId}` }).then(() => {
+      nextTick(buildBlock)
+    })
+  } else {
+    router.push('/')
+  }
+}
+
+function cancelLinkSelection() {
+  const src = linkSelectionSource.value
+  linkSelectionMode.value = false
+  linkSelectionBlockId.value = null
+  linkSelectionTextRange.value = null
+  linkSelectionTargetNoteId.value = null
+
+  if (src && src.noteId) {
+    router.push({ path: `/note/${src.noteId}` }).then(() => {
+      nextTick(() => {
+        showNoteLinkModal.value = true
+        noteLinkSourceBlockId.value = src.blockId || null
+        noteLinkSearch.value = ''
+      })
+    })
+  } else {
+    router.push('/')
+  }
 }
 
 function clampPreviewScale(scale) {
@@ -2876,7 +3346,7 @@ function deleteSelectedConnection() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px calc(16px + var(--window-controls-width)) 10px 16px;
+  padding: 10px 16px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-light);
   flex-shrink: 0;
@@ -2887,9 +3357,11 @@ function deleteSelectedConnection() {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
-  flex: 1 1 auto;
+  flex-wrap: nowrap;
+  flex: 1 1 0;
+  justify-content: flex-start;
   min-width: 0;
+  overflow: hidden;
 }
 
 .header-tags {
@@ -2898,6 +3370,8 @@ function deleteSelectedConnection() {
   gap: 6px;
   flex-wrap: wrap;
   padding: 2px 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .title-input {
@@ -2907,10 +3381,10 @@ function deleteSelectedConnection() {
   background: transparent;
   padding: 6px 10px;
   border-radius: var(--radius-md);
-  flex: 1 1 auto;
-  min-width: 120px;
-  max-width: 360px;
-  width: auto;
+  flex: 0 0 auto;
+  min-width: 80px;
+  width: 80px;
+  box-sizing: content-box;
   transition: background var(--transition-fast);
 }
 
@@ -2968,8 +3442,9 @@ function deleteSelectedConnection() {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 200px;
+  flex: 1 1 0;
   justify-content: flex-end;
+  min-width: 0;
 }
 
 .canvas-container {
@@ -3758,5 +4233,140 @@ function deleteSelectedConnection() {
 
 .image-preview-close:hover {
   background: rgba(255, 255, 255, 0.3);
+}
+
+.link-selection-bar {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--primary-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.link-selection-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--primary-color);
+}
+
+.link-selection-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.link-selection-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.link-selection-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.find-in-note-bar {
+  position: absolute;
+  top: 64px;
+  right: 20px;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+
+.find-input {
+  width: 220px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+}
+
+.find-input:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px var(--primary-soft);
+}
+
+.find-count {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  min-width: 48px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.find-nav-btn,
+.find-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 11px;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.find-nav-btn:hover:not(:disabled),
+.find-close-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.find-nav-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+</style>
+
+<style>
+mark.find-match {
+  background: transparent;
+  color: var(--text-primary);
+  font-weight: 700;
+  font-size: 1.18em;
+  padding: 0 1px;
+  border-radius: 3px;
+  display: inline-block;
+  transition: color var(--transition-fast);
+}
+
+mark.find-match-current {
+  color: var(--primary-color);
+  animation: find-text-breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes find-text-breathe {
+  0%, 100% {
+    transform: scale(1.18);
+    text-shadow: 0 0 4px var(--primary-soft);
+  }
+  50% {
+    transform: scale(1.32);
+    text-shadow: 0 0 10px var(--primary-color);
+  }
 }
 </style>

@@ -63,7 +63,6 @@
             <line x1="7" y1="7" x2="7.01" y2="7"/>
           </svg>
           <span>标签</span>
-          <span v-if="tagCount" class="badge tag-badge">{{ tagCount }}</span>
         </router-link>
         <router-link to="/settings" class="nav-item nav-settings" active-class="active">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -206,14 +205,14 @@
           </svg>
           新建笔记
         </div>
-        <div class="context-menu-item" @click="renameFromContextMenu">
+        <div v-if="!folderContextMenu.folder?.isSystem" class="context-menu-item" @click="renameFromContextMenu">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <path d="M12 20h9"/>
             <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
           </svg>
           重命名
         </div>
-        <div class="context-menu-item danger" @click="deleteFromContextMenu">
+        <div v-if="!folderContextMenu.folder?.isSystem" class="context-menu-item danger" @click="deleteFromContextMenu">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <polyline points="3 6 5 6 21 6"/>
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -246,6 +245,14 @@
             <div class="note-time">
               <span>{{ formatTime(note.updatedAt) }}</span>
               <span v-if="getFolderPath(note.folderId)" class="note-folder">{{ getFolderPath(note.folderId) }}</span>
+            </div>
+            <div v-if="noteTagList(note).length" class="note-tags">
+              <span
+                v-for="t in noteTagList(note)"
+                :key="t.id"
+                class="note-tag"
+                :style="{ background: t.color + '22', color: t.color }"
+              >{{ t.name }}</span>
             </div>
           </div>
           <button
@@ -394,14 +401,15 @@
                 </button>
               </span>
               <div class="modal-tag-add-wrap">
-                <button type="button" class="modal-tag-add-btn" @click.stop="showModalTagDropdown = !showModalTagDropdown">
+                <button ref="modalTagAddBtnRef" type="button" class="modal-tag-add-btn" @click.stop="toggleModalTagDropdown">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                     <line x1="12" y1="5" x2="12" y2="19"/>
                     <line x1="5" y1="12" x2="19" y2="12"/>
                   </svg>
                   添加标签
                 </button>
-                <div v-if="showModalTagDropdown" class="modal-tag-dropdown" @click.stop>
+                <Teleport to="body">
+                <div v-if="showModalTagDropdown" class="modal-tag-dropdown" :style="modalTagDropdownStyle" @click.stop>
                   <input
                     v-model="modalTagSearch"
                     type="text"
@@ -431,6 +439,7 @@
                     </div>
                   </div>
                 </div>
+                </Teleport>
               </div>
             </div>
           </div>
@@ -543,6 +552,8 @@ const selectedParentFolderId = ref(null)
 const selectedModalTagIds = ref([])
 const modalTagSearch = ref('')
 const showModalTagDropdown = ref(false)
+const modalTagAddBtnRef = ref(null)
+const modalTagDropdownStyle = ref({})
 
 const modalAvailableTags = computed(() => {
   const kw = modalTagSearch.value.trim().toLowerCase()
@@ -572,7 +583,11 @@ const visibleFolders = computed(() => {
   function walk(parentId, depth) {
     const children = noteStore.folders
       .filter(f => (f.parentId || null) === parentId && !f.deleted)
-      .sort((a, b) => a.createdAt - b.createdAt)
+      .sort((a, b) => {
+        if (a.isSystem && !b.isSystem) return -1
+        if (!a.isSystem && b.isSystem) return 1
+        return a.createdAt - b.createdAt
+      })
     for (const folder of children) {
       result.push({ folder, depth })
       if (expandedFolderIds.value.has(folder.id)) {
@@ -687,6 +702,7 @@ function onFolderNameInput(e) {
 }
 
 function startRenameFolder(folder) {
+  if (folder.isSystem) return
   editingFolderId.value = folder.id
   editingFolderName.value = folder.name
   folderNameError.value = false
@@ -813,6 +829,31 @@ function toggleModalFolderTag(tagId) {
   else selectedModalTagIds.value.push(tagId)
 }
 
+function toggleModalTagDropdown() {
+  if (showModalTagDropdown.value) {
+    showModalTagDropdown.value = false
+    modalTagSearch.value = ''
+  } else {
+    showModalTagDropdown.value = true
+    nextTick(() => positionModalTagDropdown())
+  }
+}
+
+function positionModalTagDropdown() {
+  const trigger = modalTagAddBtnRef.value
+  if (!trigger) return
+  const rect = trigger.getBoundingClientRect()
+  const panelW = 220
+  const panelH = 280
+  let left = rect.left
+  let top = rect.bottom + 6
+  if (left + panelW > window.innerWidth - 8) left = window.innerWidth - panelW - 8
+  if (top + panelH > window.innerHeight - 8) top = rect.top - panelH - 6
+  if (left < 8) left = 8
+  if (top < 8) top = 8
+  modalTagDropdownStyle.value = { left: left + 'px', top: top + 'px', width: panelW + 'px' }
+}
+
 function createModalFolderTag() {
   const name = modalTagSearch.value.trim()
   if (!name) return
@@ -832,6 +873,11 @@ function tagName(id) {
 
 function tagColor(id) {
   return tagStore.getTag(id)?.color || '#999'
+}
+
+function noteTagList(note) {
+  if (!Array.isArray(note.tags) || !note.tags.length) return []
+  return note.tags.slice(0, 2).map(id => ({ id, name: tagName(id), color: tagColor(id) }))
 }
 
 function toggleFolderDropdown() {
@@ -925,7 +971,7 @@ onUnmounted(() => {
 
 function closeFolderModalTagDropdown(e) {
   if (!showModalTagDropdown.value) return
-  if (e.target.closest('.modal-tag-add-wrap')) return
+  if (e.target.closest('.modal-tag-add-wrap') || e.target.closest('.modal-tag-dropdown')) return
   showModalTagDropdown.value = false
   modalTagSearch.value = ''
 }
@@ -1402,6 +1448,23 @@ function closeFolderModalTagDropdown(e) {
   text-overflow: ellipsis;
 }
 
+.note-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 3px;
+}
+
+.note-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 5px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
 .sidebar-footer {
   padding: 12px 20px;
   border-top: 1px solid var(--border-light);
@@ -1812,10 +1875,8 @@ function closeFolderModalTagDropdown(e) {
 }
 
 .modal-tag-dropdown {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 10000;
+  position: fixed;
+  z-index: 100000;
   width: 220px;
   background: var(--bg-secondary);
   border: 1px solid var(--border-light);

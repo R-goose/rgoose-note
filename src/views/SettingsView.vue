@@ -233,7 +233,7 @@
           <div class="setting-item">
             <div class="setting-info">
               <div class="setting-name brand-name">R-Goose Note</div>
-              <div class="setting-desc">版本 1.0.3</div>
+              <div class="setting-desc">版本 1.0.4</div>
             </div>
           </div>
           <div class="setting-item">
@@ -671,8 +671,10 @@ async function handleImport() {
         if (noteSpec) {
           const created = noteStore.createNote(noteSpec.title)
           noteSpec.blocks.forEach(b => noteStore.addBlock(created.id, b))
+          const rootFolder = noteStore.ensureSystemRootFolder()
+          if (rootFolder) noteStore.moveNoteToFolder(created.id, rootFolder.id)
           noteStore.flushPersist()
-          toastSuccess(`已根据 JSON 生成新笔记「${noteSpec.title}」`)
+          toastSuccess(`已根据 JSON 生成新笔记「${noteSpec.title}」，已放入「根目录」文件夹`)
           return
         }
       }
@@ -685,6 +687,17 @@ async function handleImport() {
     if (err?.message === '未选择文件') return
     toastError('导入失败：' + (err?.message || '未知错误'))
   }
+}
+
+function placeOrphanNotesIntoRoot(importedNoteIds) {
+  if (!importedNoteIds || !importedNoteIds.length) return 0
+  const folderIds = new Set(noteStore.folders.filter(f => !f.deleted).map(f => f.id))
+  const orphans = noteStore.notes.filter(n => importedNoteIds.has(n.id) && (!n.folderId || !folderIds.has(n.folderId)))
+  if (!orphans.length) return 0
+  const rootFolder = noteStore.ensureSystemRootFolder()
+  if (!rootFolder) return 0
+  orphans.forEach(n => noteStore.moveNoteToFolder(n.id, rootFolder.id))
+  return orphans.length
 }
 
 async function confirmImport() {
@@ -709,12 +722,16 @@ async function confirmImport() {
       plans: planStore.plans,
       tags: tagStore.tags
     }
+    const beforeNoteIds = new Set(noteStore.notes.map(n => n.id))
     const mergedData = mergeData(currentData, importData)
 
     if (mergedData.folders) noteStore.replaceAllFolders(mergedData.folders)
     noteStore.replaceAll(mergedData.notes || [])
     planStore.replaceAll(mergedData.plans || [])
     tagStore.replaceAll(mergedData.tags || [])
+
+    const importedNoteIds = new Set(noteStore.notes.filter(n => !beforeNoteIds.has(n.id)).map(n => n.id))
+    const orphanCount = placeOrphanNotesIntoRoot(importedNoteIds)
 
     noteStore.setPendingPlans(mergedData.plans || [])
     noteStore.setPendingTags(mergedData.tags || [])
@@ -725,7 +742,7 @@ async function confirmImport() {
 
     showImportConfirm.value = false
     pendingImportData.value = null
-    toastSuccess('数据导入完成')
+    toastSuccess(orphanCount > 0 ? `数据导入完成，${orphanCount} 篇无父级的笔记已放入「根目录」文件夹` : '数据导入完成')
   } catch (err) {
     toastError('导入失败：' + (err?.message || '未知错误'))
   }

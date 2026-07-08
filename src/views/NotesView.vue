@@ -12,10 +12,12 @@
             <line x1="21" y1="21" x2="16.65" y2="16.65"/>
           </svg>
           <input
+            ref="searchInputRef"
             v-model="searchKeyword"
             type="text"
-            placeholder="搜索笔记..."
+            placeholder="搜索笔记（Ctrl+F）..."
             class="search-input"
+            @keydown.esc="searchKeyword = ''"
           />
         </div>
         <button v-if="noteStore.currentFolderId" class="btn btn-primary" @click="createNote">
@@ -138,15 +140,6 @@
                     @click.stop="filterByTag(t.id)"
                   >{{ t.name }}</span>
                 </div>
-                <div v-if="noteTagList(note).length" class="note-card-tags">
-                  <span
-                    v-for="t in noteTagList(note)"
-                    :key="t.id"
-                    class="note-tag-chip"
-                    :style="{ background: t.color + '22', color: t.color }"
-                    @click.stop="filterByTag(t.id)"
-                  >{{ t.name }}</span>
-                </div>
               </div>
             </article>
           </div>
@@ -211,6 +204,15 @@
               </span>
               <span class="note-card-date">{{ formatDate(note.updatedAt) }}</span>
             </div>
+            <div v-if="noteTagList(note).length" class="note-card-tags">
+              <span
+                v-for="t in noteTagList(note)"
+                :key="t.id"
+                class="note-tag-chip"
+                :style="{ background: t.color + '22', color: t.color }"
+                @click.stop="filterByTag(t.id)"
+              >{{ t.name }}</span>
+            </div>
           </div>
         </article>
       </div>
@@ -268,7 +270,13 @@
             </svg>
             <span>设置标签</span>
           </button>
-          <div class="context-menu-divider"></div>
+          <button class="context-menu-item" @click="execCtxAction('move')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+            <span>移动到…</span>
+          </button>
+          <div class="context-menu-divider" v-if="!contextMenu.target?.isSystem"></div>
           <button class="context-menu-item danger" @click="execCtxAction('delete')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
               <polyline points="3 6 5 6 21 6"/>
@@ -284,7 +292,7 @@
             </svg>
             <span>打开文件夹</span>
           </button>
-          <button class="context-menu-item" @click="execCtxAction('rename')">
+          <button v-if="!contextMenu.target?.isSystem" class="context-menu-item" @click="execCtxAction('rename')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -298,8 +306,8 @@
             </svg>
             <span>设置标签</span>
           </button>
-          <div class="context-menu-divider"></div>
-          <button class="context-menu-item danger" @click="execCtxAction('delete')">
+          <div class="context-menu-divider" v-if="!contextMenu.target?.isSystem"></div>
+          <button v-if="!contextMenu.target?.isSystem" class="context-menu-item danger" @click="execCtxAction('delete')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
               <polyline points="3 6 5 6 21 6"/>
               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -397,6 +405,49 @@
         </div>
       </div>
     </Teleport>
+
+    <Teleport to="body">
+      <div v-if="moveFolderState.show" class="modal-overlay" @click.self="closeMoveFolderPicker">
+        <div class="modal-content move-folder-modal">
+          <h3>移动笔记到文件夹</h3>
+          <div class="move-folder-list">
+            <div
+              class="move-folder-item"
+              :class="{ selected: !moveTargetNote?.folderId }"
+              @click="moveNoteToTargetFolder(null)"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="19" y1="12" x2="5" y2="12"/>
+                <polyline points="12 19 5 12 12 5"/>
+              </svg>
+              <span class="move-folder-name">根目录（不放入任何文件夹）</span>
+              <svg v-if="!moveTargetNote?.folderId" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+            <div
+              v-for="f in noteStore.sortedFolders"
+              :key="f.id"
+              class="move-folder-item"
+              :class="{ selected: moveTargetNote?.folderId === f.id }"
+              @click="moveNoteToTargetFolder(f.id)"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+              </svg>
+              <span class="move-folder-name">{{ getFolderPath(f.id) }}</span>
+              <svg v-if="moveTargetNote?.folderId === f.id" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+            <div v-if="!noteStore.sortedFolders.length" class="move-folder-empty">还没有文件夹，请先在侧边栏创建</div>
+          </div>
+          <div class="modal-actions">
+            <button class="btn" @click="closeMoveFolderPicker">取消</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -414,6 +465,7 @@ const noteStore = useNoteStore()
 const tagStore = useTagStore()
 tagStore.init()
 const searchKeyword = ref('')
+const searchInputRef = ref(null)
 const activeTagFilter = ref(null)
 const activeFolderTagFilter = ref(null)
 const showCreateModal = ref(false)
@@ -446,10 +498,7 @@ const filteredNotes = computed(() => {
   }
   if (searchKeyword.value) {
     const keyword = searchKeyword.value.toLowerCase()
-    notes = notes.filter(note =>
-      (note.title || '').toLowerCase().includes(keyword) ||
-      getNotePreview(note).toLowerCase().includes(keyword)
-    )
+    notes = notes.filter(note => noteMatchesKeyword(note, keyword))
   }
   return notes.sort((a, b) => b.updatedAt - a.updatedAt)
 })
@@ -540,6 +589,20 @@ function getNotePreview(note) {
   return div.textContent?.slice(0, 80) || '空白笔记'
 }
 
+function noteMatchesKeyword(note, kw) {
+  if (!kw) return true
+  if ((note.title || '').toLowerCase().includes(kw)) return true
+  if (!note.blocks?.length) return false
+  const tmp = document.createElement('div')
+  return note.blocks.some(b => {
+    if (b.type === 'text' && b.content) {
+      tmp.innerHTML = b.content
+      return (tmp.textContent || '').toLowerCase().includes(kw)
+    }
+    return false
+  })
+}
+
 const resolvedCovers = reactive({})
 
 async function resolveCover(note) {
@@ -580,6 +643,9 @@ const contextMenuStyle = computed(() => ({ left: `${contextMenu.value.x}px`, top
 const renameState = ref({ show: false, id: '', name: '', isFolder: false })
 const deleteFolderState = ref({ show: false, target: null })
 const tagPickerState = ref({ show: false, targetId: '', isFolder: false, search: '' })
+const moveFolderState = ref({ show: false, noteId: '' })
+
+const moveTargetNote = computed(() => noteStore.notes.find(n => n.id === moveFolderState.value.noteId))
 
 const tagPickerAvailable = computed(() => {
   const kw = tagPickerState.value.search.trim().toLowerCase()
@@ -615,6 +681,9 @@ function execCtxAction(action) {
     else if (action === 'delete') deleteNote(target.id)
     else if (action === 'tags') {
       tagPickerState.value = { show: true, targetId: target.id, isFolder: false, search: '' }
+    }
+    else if (action === 'move') {
+      moveFolderState.value = { show: true, noteId: target.id }
     }
   } else if (type === 'folder') {
     if (action === 'enter') enterFolder(target.id)
@@ -660,6 +729,16 @@ function closeTagPicker() {
   tagPickerState.value.show = false
   tagPickerState.value.search = ''
 }
+
+function moveNoteToTargetFolder(folderId) {
+  if (!moveFolderState.value.noteId) return
+  noteStore.moveNoteToFolder(moveFolderState.value.noteId, folderId)
+  moveFolderState.value = { show: false, noteId: '' }
+}
+
+function closeMoveFolderPicker() {
+  moveFolderState.value = { show: false, noteId: '' }
+}
 function confirmRename() {
   const name = renameState.value.name.trim()
   if (name && renameState.value.id) {
@@ -679,8 +758,24 @@ function confirmDeleteFolder() {
 function onGlobalClick(e) {
   if (contextMenu.value.show && !e.target.closest('.context-menu')) closeContextMenu()
 }
-onMounted(() => window.addEventListener('mousedown', onGlobalClick))
-onUnmounted(() => window.removeEventListener('mousedown', onGlobalClick))
+function onSearchShortcut(e) {
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
+    e.preventDefault()
+    nextTick(() => {
+      searchInputRef.value?.focus()
+      searchInputRef.value?.select()
+    })
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onSearchShortcut)
+  window.addEventListener('mousedown', onGlobalClick)
+})
+onUnmounted(() => {
+  window.removeEventListener('keydown', onSearchShortcut)
+  window.removeEventListener('mousedown', onGlobalClick)
+})
 </script>
 
 <style scoped>
@@ -1441,5 +1536,59 @@ onUnmounted(() => window.removeEventListener('mousedown', onGlobalClick))
 .modal-actions {
   display: flex;
   justify-content: flex-end;
+}
+
+.move-folder-modal {
+  width: 340px;
+  max-width: 90vw;
+  padding: 22px;
+}
+
+.move-folder-modal h3 {
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 14px;
+  color: var(--text-primary);
+}
+
+.move-folder-list {
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.move-folder-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary);
+  transition: background var(--transition-fast);
+}
+
+.move-folder-item:hover {
+  background: var(--bg-hover);
+}
+
+.move-folder-item.selected {
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+}
+
+.move-folder-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.move-folder-empty {
+  padding: 16px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-tertiary);
 }
 </style>
