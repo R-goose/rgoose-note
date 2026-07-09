@@ -303,6 +303,7 @@ const emit = defineEmits([
   'resize-block',
   'save-selection',
   'save-history',
+  'blur',
   'link-select-block',
   'link-select-text'
 ])
@@ -319,6 +320,7 @@ const linkText = ref('')
 const linkUrl = ref('')
 const imageOverflow = ref(false)
 let resizeObserver = null
+let caretTextOffset = -1
 
 const linkedNoteTitle = computed(() => {
   const note = noteStore.notes.find(n => n.id === props.block.linkedNoteId && !n.deleted)
@@ -378,6 +380,13 @@ watch(
   () => {
     if (editorRef.value) {
       editorRef.value.innerHTML = props.block.content || ''
+      if (caretTextOffset >= 0) {
+        const newRange = offsetToRange(editorRef.value, caretTextOffset)
+        const sel = window.getSelection()
+        sel.removeAllRanges()
+        sel.addRange(newRange)
+        caretTextOffset = -1
+      }
     }
   }
 )
@@ -392,7 +401,10 @@ function onClick() {
   if (props.linkSelectionMode) {
     const sel = window.getSelection()
     if (sel && !sel.isCollapsed && sel.toString().trim()) {
-      return
+      if (editorRef.value && editorRef.value.contains(sel.anchorNode)) {
+        return
+      }
+      window.getSelection()?.removeAllRanges()
     }
     emit('link-select-block', props.block.id)
     return
@@ -419,6 +431,7 @@ function onInput(e) {
 function onBlur() {
   if (editorRef.value) {
     emit('update', props.block.id, { content: editorRef.value.innerHTML })
+    emit('blur', props.block.id)
   }
 }
 
@@ -450,7 +463,12 @@ function saveSelection() {
     selection.addRange(range)
   }
 
-  emit('save-selection', props.block.id, selection.getRangeAt(0).cloneRange())
+  const range = selection.getRangeAt(0)
+  if (range.collapsed && editorRef.value.contains(range.startContainer)) {
+    const { start } = rangeToTextOffset(editorRef.value, range)
+    caretTextOffset = start
+  }
+  emit('save-selection', props.block.id, range.cloneRange())
 }
 
 function rangeToTextOffset(root, range) {
@@ -477,6 +495,25 @@ function rangeToTextOffset(root, range) {
   if (start === -1) start = 0
   if (end === -1) end = text.length
   return { start, end, text: text.slice(start, end) }
+}
+
+function offsetToRange(root, offset) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+  const range = document.createRange()
+  let pos = 0
+  let node
+  while ((node = walker.nextNode())) {
+    const len = node.textContent.length
+    if (offset <= pos + len) {
+      range.setStart(node, Math.max(0, offset - pos))
+      range.collapse(true)
+      return range
+    }
+    pos += len
+  }
+  range.selectNodeContents(root)
+  range.collapse(false)
+  return range
 }
 
 let isNormalizing = false
@@ -911,6 +948,7 @@ let resizingInfo = null
 function onResizeStart(e, dir) {
   e.preventDefault()
   const block = props.block
+  const domHeight = blockRef.value ? blockRef.value.offsetHeight : 0
   resizingInfo = {
     dir,
     startX: e.clientX,
@@ -918,7 +956,7 @@ function onResizeStart(e, dir) {
     startLeft: block.x,
     startTop: block.y,
     startWidth: block.width || 240,
-    startHeight: block.height || block.minHeight || 80
+    startHeight: Math.max(domHeight, block.height || block.minHeight || 80)
   }
   document.addEventListener('mousemove', onResizeMove)
   document.addEventListener('mouseup', onResizeEnd)

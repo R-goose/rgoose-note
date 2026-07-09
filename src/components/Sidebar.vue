@@ -128,6 +128,15 @@
               <div v-if="folderNameError" class="folder-error-tip">文件夹名称已存在</div>
             </div>
             <span v-else class="folder-name">{{ item.folder.name }}</span>
+            <div v-if="!editingFolder || editingFolder !== item.folder.id" v-show="folderTagList(item.folder).length" class="folder-tags">
+              <span
+                v-for="t in folderTagList(item.folder)"
+                :key="t.id"
+                class="folder-tag-chip"
+                :style="{ background: t.color + '22', color: t.color }"
+                :title="t.name"
+              >{{ t.name }}</span>
+            </div>
             <span class="folder-count">{{ getFolderNoteCount(item.folder.id) }}</span>
           </div>
           <div
@@ -211,6 +220,13 @@
             <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
           </svg>
           重命名
+        </div>
+        <div class="context-menu-item" @click="tagsFromContextMenu">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+            <line x1="7" y1="7" x2="7.01" y2="7"/>
+          </svg>
+          设置标签
         </div>
         <div v-if="!folderContextMenu.folder?.isSystem" class="context-menu-item danger" @click="deleteFromContextMenu">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -499,6 +515,50 @@
         </div>
       </div>
     </Teleport>
+
+    <Teleport to="body">
+      <div v-if="folderTagPicker.show" class="modal-overlay" @click.self="closeFolderTagPicker">
+        <div class="modal-content folder-tag-picker-modal">
+          <h3>设置标签</h3>
+          <p class="folder-tag-target-name">{{ folderTagPicker.folderName }}</p>
+          <input
+            v-model="folderTagPicker.search"
+            type="text"
+            class="input"
+            placeholder="搜索或创建标签..."
+            @keyup.enter="createFolderCtxTag"
+          />
+          <div class="folder-tag-list">
+            <div
+              v-for="t in folderTagAvailable"
+              :key="t.id"
+              class="folder-tag-item"
+              :class="{ selected: folderTagCurrent.includes(t.id) }"
+              @click="toggleFolderCtxTag(t.id)"
+            >
+              <span class="folder-tag-dot" :style="{ background: t.color }"></span>
+              <span class="folder-tag-name">{{ t.name }}</span>
+              <svg v-if="folderTagCurrent.includes(t.id)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+            <div
+              v-if="folderTagPicker.search.trim() && !folderTagExactExists"
+              class="folder-tag-create"
+              @click="createFolderCtxTag"
+            >
+              创建「{{ folderTagPicker.search.trim() }}」
+            </div>
+            <div v-if="!tagStore.tags.length && !folderTagPicker.search.trim()" class="folder-tag-empty">
+              还没有标签，输入名称创建
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button class="btn btn-primary" @click="closeFolderTagPicker">完成</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </aside>
 </template>
 
@@ -623,6 +683,10 @@ function focusRef(refEl) {
   if (el && typeof el.select === 'function') el.select()
 }
 function openNote(id) {
+  const targetNote = noteStore.notes.find(n => n.id === id)
+  if (targetNote && targetNote.folderId !== noteStore.currentFolderId) {
+    noteStore.setCurrentFolder(targetNote.folderId || null)
+  }
   router.push(`/note/${id}`)
 }
 
@@ -875,6 +939,11 @@ function tagColor(id) {
   return tagStore.getTag(id)?.color || '#999'
 }
 
+function folderTagList(folder) {
+  if (!Array.isArray(folder.tags) || !folder.tags.length) return []
+  return folder.tags.slice(0, 3).map(id => ({ id, name: tagName(id), color: tagColor(id) }))
+}
+
 function noteTagList(note) {
   if (!Array.isArray(note.tags) || !note.tags.length) return []
   return note.tags.slice(0, 2).map(id => ({ id, name: tagName(id), color: tagColor(id) }))
@@ -952,6 +1021,63 @@ function confirmDeleteFolder() {
   if (!folder) return
   noteStore.deleteFolder(folder.id)
   folderToDelete.value = null
+}
+
+const folderTagPicker = ref({ show: false, folderId: '', folderName: '', search: '' })
+
+const folderTagAvailable = computed(() => {
+  const kw = folderTagPicker.value.search.trim().toLowerCase()
+  return tagStore.tags
+    .filter(t => !kw || t.name.toLowerCase().includes(kw))
+    .sort((a, b) => a.name.localeCompare(b.name, 'zh'))
+})
+
+const folderTagExactExists = computed(() => {
+  const kw = folderTagPicker.value.search.trim().toLowerCase()
+  return !!kw && tagStore.tags.some(t => t.name.toLowerCase() === kw)
+})
+
+const folderTagCurrent = computed(() => {
+  if (!folderTagPicker.value.folderId) return []
+  const folder = noteStore.folders.find(f => f.id === folderTagPicker.value.folderId)
+  return Array.isArray(folder?.tags) ? folder.tags : []
+})
+
+function tagsFromContextMenu() {
+  const folder = folderContextMenu.value.folder
+  hideFolderContextMenu()
+  if (!folder) return
+  folderTagPicker.value = { show: true, folderId: folder.id, folderName: folder.name, search: '' }
+}
+
+function toggleFolderCtxTag(tagId) {
+  const folderId = folderTagPicker.value.folderId
+  if (!folderId) return
+  const folder = noteStore.folders.find(f => f.id === folderId)
+  if (!folder) return
+  const current = Array.isArray(folder.tags) ? [...folder.tags] : []
+  const idx = current.indexOf(tagId)
+  if (idx >= 0) current.splice(idx, 1)
+  else current.push(tagId)
+  noteStore.setFolderTags(folderId, current)
+}
+
+function createFolderCtxTag() {
+  const name = folderTagPicker.value.search.trim()
+  if (!name) return
+  let tag = tagStore.tags.find(t => t.name.toLowerCase() === name.toLowerCase())
+  if (!tag) {
+    tag = tagStore.createTag(name, TAG_PRESET_COLORS[tagStore.tags.length % TAG_PRESET_COLORS.length])
+  }
+  if (tag && !folderTagCurrent.value.includes(tag.id)) {
+    toggleFolderCtxTag(tag.id)
+  }
+  folderTagPicker.value.search = ''
+}
+
+function closeFolderTagPicker() {
+  folderTagPicker.value.show = false
+  folderTagPicker.value.search = ''
 }
 
 onMounted(async () => {
@@ -1280,8 +1406,31 @@ function closeFolderModalTagDropdown(e) {
 }
 
 .folder-name {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.folder-tags {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  margin-left: 4px;
+  overflow: hidden;
+}
+
+.folder-tag-chip {
+  max-width: 60px;
+  padding: 0 5px;
+  height: 16px;
+  line-height: 16px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1328,6 +1477,7 @@ function closeFolderModalTagDropdown(e) {
   padding: 1px 6px;
   border-radius: 10px;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .folder-item.active .folder-count {
@@ -1574,6 +1724,91 @@ function closeFolderModalTagDropdown(e) {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+.folder-tag-picker-modal {
+  width: 360px;
+  max-width: 90vw;
+  padding: 22px;
+}
+
+.folder-tag-picker-modal h3 {
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--text-primary);
+}
+
+.folder-tag-target-name {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 14px;
+}
+
+.folder-tag-picker-modal .input {
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+.folder-tag-list {
+  max-height: 280px;
+  overflow-y: auto;
+  margin-bottom: 14px;
+}
+
+.folder-tag-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary);
+  transition: background var(--transition-fast);
+}
+
+.folder-tag-item:hover {
+  background: var(--bg-hover);
+}
+
+.folder-tag-item.selected {
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+}
+
+.folder-tag-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.folder-tag-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-tag-create {
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--primary-color);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.folder-tag-create:hover {
+  background: var(--primary-soft);
+}
+
+.folder-tag-empty {
+  padding: 16px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-tertiary);
 }
 
 .sidebar.collapsed {

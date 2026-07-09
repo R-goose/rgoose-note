@@ -37,37 +37,39 @@
             </button>
           </span>
           <div v-if="!isReadOnly" class="tag-add-wrap">
-            <button class="tag-add-btn" @click.stop="showTagPicker = !showTagPicker" title="添加标签">
+            <button ref="tagAddBtnRef" class="tag-add-btn" @click.stop="showTagPicker = !showTagPicker" title="添加标签">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                 <line x1="12" y1="5" x2="12" y2="19"/>
                 <line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
               标签
             </button>
-            <div v-if="showTagPicker" class="tag-picker" @click.stop>
-              <div class="tag-picker-search">
-                <input ref="tagPickerInputRef" v-model="tagSearch" type="text" class="input" placeholder="搜索或创建标签..." @keyup.enter="createTagFromInput" />
-              </div>
-              <div class="tag-picker-list">
-                <div
-                  v-for="t in availableTagsForNote"
-                  :key="t.id"
-                  class="tag-picker-item"
-                  :class="{ selected: (note.tags || []).includes(t.id) }"
-                  @click="toggleNoteTag(t.id)"
-                >
-                  <span class="tag-dot" :style="{ background: t.color }"></span>
-                  <span class="tag-picker-name">{{ t.name }}</span>
-                  <svg v-if="(note.tags || []).includes(t.id)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                    <polyline points="20 6 9 17 4 12"/>
-                  </svg>
+            <Teleport to="body">
+              <div v-if="showTagPicker" class="tag-picker tag-picker-fixed" :style="{ left: tagPickerPos.left + 'px', top: tagPickerPos.top + 'px' }" @click.stop>
+                <div class="tag-picker-search">
+                  <input ref="tagPickerInputRef" v-model="tagSearch" type="text" class="input" placeholder="搜索或创建标签..." @keyup.enter="createTagFromInput" />
                 </div>
-                <div v-if="tagSearch.trim() && !exactTagExists" class="tag-picker-create" @click="createTagFromInput">
-                  创建「{{ tagSearch.trim() }}」
+                <div class="tag-picker-list">
+                  <div
+                    v-for="t in availableTagsForNote"
+                    :key="t.id"
+                    class="tag-picker-item"
+                    :class="{ selected: (note.tags || []).includes(t.id) }"
+                    @click="toggleNoteTag(t.id)"
+                  >
+                    <span class="tag-dot" :style="{ background: t.color }"></span>
+                    <span class="tag-picker-name">{{ t.name }}</span>
+                    <svg v-if="(note.tags || []).includes(t.id)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                  </div>
+                  <div v-if="tagSearch.trim() && !exactTagExists" class="tag-picker-create" @click="createTagFromInput">
+                    创建「{{ tagSearch.trim() }}」
+                  </div>
+                  <div v-if="!tagStore.tags.length && !tagSearch.trim()" class="tag-picker-empty">还没有标签，输入名称创建</div>
                 </div>
-                <div v-if="!tagStore.tags.length && !tagSearch.trim()" class="tag-picker-empty">还没有标签，输入名称创建</div>
               </div>
-            </div>
+            </Teleport>
           </div>
         </div>
       </div>
@@ -251,6 +253,7 @@
           @resize-block="onBlockResizeBlock"
           @save-selection="saveBlockSelection"
           @save-history="saveHistory"
+          @blur="onBlockBlur"
           @link-select-block="onLinkSelectBlock"
           @link-select-text="onLinkSelectText"
           :sync-version="syncVersion"
@@ -597,7 +600,15 @@
               </div>
               <div class="note-link-item-info">
                 <div class="note-link-item-title">{{ n.title || '无标题笔记' }}</div>
-                <div class="note-link-item-desc">{{ n.blocks?.length || 0 }} 个内容块</div>
+                <div class="note-link-item-desc">
+                  <span>{{ n.blocks?.length || 0 }} 个内容块</span>
+                  <span v-if="getNoteFolderPath(n.folderId)" class="note-link-item-folder">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    {{ getNoteFolderPath(n.folderId) }}
+                  </span>
+                </div>
               </div>
               <span v-if="n.id === note?.id" class="note-link-item-badge">当前笔记</span>
               <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -859,6 +870,7 @@ const MAX_HISTORY = 50
 const syncVersion = ref(0)
 
 function saveHistory() {
+  flushContentHistory()
   if (!note.value) return
   undoStack.value.push(JSON.stringify(note.value.blocks))
   if (undoStack.value.length > MAX_HISTORY) {
@@ -867,24 +879,68 @@ function saveHistory() {
   redoStack.value = []
 }
 
+let contentHistoryTimer = null
+const CONTENT_HISTORY_DELAY = 1200
+let pendingContentSnapshot = null
+let suppressContentHistory = false
+
+function commitContentHistory() {
+  if (pendingContentSnapshot != null) {
+    undoStack.value.push(pendingContentSnapshot)
+    if (undoStack.value.length > MAX_HISTORY) undoStack.value.shift()
+    redoStack.value = []
+    pendingContentSnapshot = null
+  }
+}
+
+function scheduleContentHistory() {
+  if (suppressContentHistory) return
+  if (pendingContentSnapshot == null) {
+    pendingContentSnapshot = JSON.stringify(note.value.blocks)
+  }
+  if (contentHistoryTimer) clearTimeout(contentHistoryTimer)
+  contentHistoryTimer = setTimeout(() => {
+    contentHistoryTimer = null
+    commitContentHistory()
+  }, CONTENT_HISTORY_DELAY)
+}
+
+function flushContentHistory() {
+  if (contentHistoryTimer) {
+    clearTimeout(contentHistoryTimer)
+    contentHistoryTimer = null
+  }
+  commitContentHistory()
+}
+
+function onBlockBlur() {
+  flushContentHistory()
+}
+
 function undo() {
+  flushContentHistory()
   if (undoStack.value.length === 0) return
   if (!note.value) return
   
   redoStack.value.push(JSON.stringify(note.value.blocks))
   const previousState = JSON.parse(undoStack.value.pop())
+  suppressContentHistory = true
   noteStore.restoreNoteBlocks(note.value.id, previousState)
   syncVersion.value++
+  nextTick(() => { suppressContentHistory = false })
 }
 
 function redo() {
+  flushContentHistory()
   if (redoStack.value.length === 0) return
   if (!note.value) return
   
   undoStack.value.push(JSON.stringify(note.value.blocks))
   const nextState = JSON.parse(redoStack.value.pop())
+  suppressContentHistory = true
   noteStore.restoreNoteBlocks(note.value.id, nextState)
   syncVersion.value++
+  nextTick(() => { suppressContentHistory = false })
 }
 
 const isImageLoading = ref(false)
@@ -923,9 +979,15 @@ const isReadOnly = ref(localStorage.getItem('note-readonly') === 'true')
 const showTagPicker = ref(false)
 const tagSearch = ref('')
 const tagPickerInputRef = ref(null)
+const tagAddBtnRef = ref(null)
+const tagPickerPos = ref({ left: 0, top: 0 })
 watch(showTagPicker, (v) => {
   if (v) {
     tagSearch.value = ''
+    if (tagAddBtnRef.value) {
+      const rect = tagAddBtnRef.value.getBoundingClientRect()
+      tagPickerPos.value = { left: rect.left, top: rect.bottom + 6 }
+    }
     nextTick(() => tagPickerInputRef.value?.focus())
   }
 })
@@ -1227,6 +1289,11 @@ function toggleLinkExpand(n) {
   enterLinkSelectionMode(n.id)
 }
 
+function getNoteFolderPath(folderId) {
+  if (!folderId) return ''
+  return noteStore.getFolderPathString(folderId)
+}
+
 function enterLinkSelectionMode(targetNoteId) {
   linkSelectionSource.value = {
     noteId: note.value?.id || null,
@@ -1364,6 +1431,7 @@ onUnmounted(() => {
   window.removeEventListener('mousedown', onWindowMouseDown, true)
   window.removeEventListener('blur', onWindowBlur)
   window.removeEventListener('resize', autoSizeTitle)
+  flushContentHistory()
   if (titleMirrorEl.value) {
     titleMirrorEl.value.remove()
     titleMirrorEl.value = null
@@ -1376,6 +1444,14 @@ watch(() => note.value?.id, () => nextTick(autoSizeTitle))
 watch(() => route.params.id, (newId) => {
   const n = noteStore.notes.find(n => n.id === newId && !n.deleted)
   if (n) {
+    flushContentHistory()
+    pendingContentSnapshot = null
+    if (contentHistoryTimer) {
+      clearTimeout(contentHistoryTimer)
+      contentHistoryTimer = null
+    }
+    undoStack.value = []
+    redoStack.value = []
     noteTitle.value = n.title
     canvasConfig.value = { ...n.canvasConfig }
   }
@@ -1472,6 +1548,7 @@ watch(() => route.query.selectForLink, (val) => {
     linkSelectionBlockId.value = null
     linkSelectionTextRange.value = null
     linkSelectionType.value = 'block'
+    window.getSelection()?.removeAllRanges()
   } else if (!val) {
     if (linkSelectionMode.value) {
       linkSelectionMode.value = false
@@ -1868,7 +1945,7 @@ function onWindowMouseDown(e) {
   if (showExportMenu.value && !e.target.closest('.export-menu-wrap')) {
     showExportMenu.value = false
   }
-  if (showTagPicker.value && !e.target.closest('.tag-add-wrap')) {
+  if (showTagPicker.value && !e.target.closest('.tag-add-wrap') && !e.target.closest('.tag-picker')) {
     showTagPicker.value = false
     tagSearch.value = ''
   }
@@ -2346,8 +2423,11 @@ function confirmLinkSelection() {
       if (textRange) {
         blockData.linkedTextRange = { ...textRange }
       }
-      noteStore.addBlock(src.noteId, blockData)
+      const createdBlock = noteStore.addBlock(src.noteId, blockData)
       noteLinkSourceBlockId.value = null
+      if (createdBlock && src.blockId && src.blockId !== createdBlock.id) {
+        noteStore.addConnection(src.noteId, src.blockId, createdBlock.id, 'straight', { dash: 'dashed', color: '#9aa4b2', width: '1.5', dir: 'none' })
+      }
     }
   }
 
@@ -2759,6 +2839,8 @@ function updateBlockContent(blockId, updates) {
     // 样式修改时保存历史
     if (updates.color || updates.borderStyle || updates.fontSize || updates.fontWeight || updates.textColor || updates.borderColor) {
       saveHistory()
+    } else if (updates.content !== undefined) {
+      scheduleContentHistory()
     }
     noteStore.updateBlock(note.value.id, blockId, updates)
   }
@@ -3900,6 +3982,31 @@ function deleteSelectedConnection() {
 .note-link-item-desc {
   font-size: 12px;
   color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.note-link-item-folder {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--primary-dark);
+  background: var(--primary-soft);
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 500;
+  max-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.note-link-item-folder svg {
+  flex-shrink: 0;
+  opacity: 0.75;
 }
 
 .note-link-item-badge {
@@ -4070,6 +4177,13 @@ function deleteSelectedConnection() {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
+}
+
+.tag-picker-fixed {
+  position: fixed;
+  top: auto;
+  left: auto;
+  z-index: 99999;
 }
 
 .tag-picker-search {
