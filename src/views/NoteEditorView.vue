@@ -211,7 +211,6 @@
       @mouseup="onCanvasMouseUp"
       @mouseleave="onCanvasMouseUp"
       @wheel="onWheel"
-      @dblclick="onCanvasDblClick"
       @contextmenu.prevent="onContextMenu"
       @dragover.prevent="onCanvasDragOver"
       @drop="onCanvasDrop"
@@ -1351,7 +1350,7 @@ onMounted(async () => {
   window.addEventListener('keydown', onKeyDown)
   window.addEventListener('mouseup', onWindowMouseUp)
   window.addEventListener('mousemove', onWindowMouseMove)
-  window.addEventListener('mousedown', onWindowMouseDown)
+  window.addEventListener('mousedown', onWindowMouseDown, true)
   window.addEventListener('blur', onWindowBlur)
   window.addEventListener('resize', autoSizeTitle)
   await nextTick()
@@ -1362,7 +1361,7 @@ onUnmounted(() => {
   window.removeEventListener('keydown', onKeyDown)
   window.removeEventListener('mouseup', onWindowMouseUp)
   window.removeEventListener('mousemove', onWindowMouseMove)
-  window.removeEventListener('mousedown', onWindowMouseDown)
+  window.removeEventListener('mousedown', onWindowMouseDown, true)
   window.removeEventListener('blur', onWindowBlur)
   window.removeEventListener('resize', autoSizeTitle)
   if (titleMirrorEl.value) {
@@ -2102,15 +2101,6 @@ function onCanvasMouseMove() {
 }
 
 function onCanvasMouseUp() {
-}
-
-function onCanvasDblClick(e) {
-  if (isReadOnly.value) return
-  const rect = canvasRef.value.getBoundingClientRect()
-  const x = (e.clientX - rect.left - canvasConfig.value.offsetX) / canvasConfig.value.zoom - 120
-  const y = (e.clientY - rect.top - canvasConfig.value.offsetY) / canvasConfig.value.zoom - 30
-  
-  addTextBlockAt(x, y)
 }
 
 function screenToCanvas(clientX, clientY) {

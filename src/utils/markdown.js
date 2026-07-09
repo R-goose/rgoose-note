@@ -49,7 +49,6 @@ export function markdownToHtml(md) {
       paraBuf = []
     }
   }
-  let olCounter = 0
 
   while (i < lines.length) {
     const line = lines[i]
@@ -123,18 +122,15 @@ export function markdownToHtml(md) {
 
     if (/^\s*\d+\.\s+/.test(line)) {
       flushPara()
+      const numMatch = line.match(/^\s*(\d+)\.\s+/)
+      const explicitNum = numMatch ? parseInt(numMatch[1], 10) : 1
       if (inList !== 'ol') {
         closeList()
-        html += '<ol>'
+        html += `<ol start="${explicitNum}">`
         inList = 'ol'
-        olCounter = 0
       }
-      olCounter++
-      const numMatch = line.match(/^\s*(\d+)\.\s+/)
-      const explicitNum = numMatch ? parseInt(numMatch[1], 10) : olCounter
-      if (explicitNum > olCounter) olCounter = explicitNum
       const text = convertInlineMd(line.replace(/^\s*\d+\.\s+/, ''))
-      html += `<li value="${olCounter}" data-ol-num="${olCounter}">${text}</li>`
+      html += `<li>${text}</li>`
       i++
       continue
     }

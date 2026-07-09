@@ -968,14 +968,13 @@ function onResizeEnd() {
 }
 
 function closeInsertMenu(e) {
-  if (!blockRef.value?.contains(e.target)) {
-    showInsertMenu.value = false
-    showTablePicker.value = false
-  }
+  if (e.target.closest('.insert-menu-wrap') || e.target.closest('.table-grid-picker')) return
+  showInsertMenu.value = false
+  showTablePicker.value = false
 }
 
 onMounted(() => {
-  document.addEventListener('click', closeInsertMenu)
+  document.addEventListener('click', closeInsertMenu, true)
   document.addEventListener('selectionchange', onSelectionChange)
   nextTick(() => {
     syncEditorContent()
@@ -990,7 +989,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  document.removeEventListener('click', closeInsertMenu)
+  document.removeEventListener('click', closeInsertMenu, true)
   document.removeEventListener('selectionchange', onSelectionChange)
   if (resizeObserver) {
     resizeObserver.disconnect()
@@ -1242,6 +1241,21 @@ onUnmounted(() => {
   color: var(--primary-color);
 }
 
+.text-editor :deep(ol > li::marker) {
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.text-editor :deep(li ol > li::marker) {
+  color: var(--info-color, #4a90d9);
+  font-weight: 500;
+}
+
+.text-editor :deep(li ol li ol > li::marker) {
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
 .text-editor :deep(li ul),
 .text-editor :deep(li ol) {
   margin: 2px 0 4px;
@@ -1255,33 +1269,6 @@ onUnmounted(() => {
 .text-editor :deep(li ul li ul li::marker) {
   content: '▪';
   color: var(--text-tertiary);
-}
-
-.text-editor :deep(ol) {
-  list-style: none;
-  padding-left: 28px;
-}
-
-.text-editor :deep(ol > li) {
-  position: relative;
-}
-
-.text-editor :deep(ol > li)::before {
-  content: attr(data-ol-num) ". ";
-  position: absolute;
-  left: -22px;
-  color: var(--primary-color);
-  font-weight: 600;
-}
-
-.text-editor :deep(li ol > li)::before {
-  color: var(--info-color, #4a90d9);
-  font-weight: 500;
-}
-
-.text-editor :deep(li ol li ol > li)::before {
-  color: var(--text-tertiary);
-  font-weight: 500;
 }
 
 .text-editor :deep(table) {
@@ -1308,11 +1295,11 @@ onUnmounted(() => {
 
 .text-editor :deep(pre) {
   position: relative;
-  margin: 10px 0;
-  padding: 12px 14px 12px 18px;
-  background: #1e2228;
-  border: 1px solid #2d333b;
-  border-left: 4px solid #6bbd8f;
+  margin: 8px 0;
+  padding: 10px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-light);
+  border-left: 3px solid var(--primary-color);
   border-radius: var(--radius-sm);
   overflow-x: auto;
 }
@@ -1321,9 +1308,11 @@ onUnmounted(() => {
   display: block;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 13px;
-  color: #e6e6e6;
+  color: var(--text-primary);
   white-space: pre;
   line-height: 1.5;
+  background: none;
+  padding: 0;
 }
 
 .text-editor :deep(h1),
