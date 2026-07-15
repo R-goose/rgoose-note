@@ -772,6 +772,18 @@
           </svg>
           新建任务块
         </div>
+        <div class="context-menu-item" @click="addProgressBlockAtContext">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+          </svg>
+          新建进度条
+        </div>
+        <div class="context-menu-item" @click="addMilestoneBlockAtContext">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M4 22V4l5 3 5-3 6 3v14l-6-3-5 3z"/>
+          </svg>
+          新建里程碑
+        </div>
         <div class="context-menu-item" @click="pasteBlockHere">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
@@ -871,10 +883,44 @@
               </button>
             </div>
           </div>
-          <div v-if="todoBlocks.length === 0" class="kanban-empty">
-            本笔记还没有任务块。点击右上角「新建任务」按钮，或关闭看板后右键画布选择「新建任务块」即可添加。
+          <div v-if="progressBlocks.length > 0" class="kanban-overview">
+            <div class="kanban-overview-label">进度概览</div>
+            <div class="kanban-progress-list">
+              <div
+                v-for="pb in progressBlocks"
+                :key="pb.id"
+                class="kanban-progress-item"
+                @click="focusTodoOnCanvas(pb.id)"
+              >
+                <span class="kanban-progress-name">{{ pb.label || '未命名进度' }}</span>
+                <div class="kanban-progress-bar">
+                  <div class="kanban-progress-fill" :style="{ width: progressDisplayValue(pb) + '%' }"></div>
+                </div>
+                <span class="kanban-progress-pct">{{ progressDisplayValue(pb) }}%</span>
+              </div>
+            </div>
           </div>
-          <div v-else class="kanban-columns">
+          <div v-if="milestoneBlocks.length > 0" class="kanban-overview">
+            <div class="kanban-overview-label">里程碑</div>
+            <div class="kanban-milestone-list">
+              <div
+                v-for="ms in milestoneBlocks"
+                :key="ms.id"
+                class="kanban-milestone-item"
+                :class="{ done: ms.done }"
+                @click="focusTodoOnCanvas(ms.id)"
+              >
+                <svg v-if="ms.done" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 22V4l5 3 5-3 6 3v14l-6-3-5 3z"/></svg>
+                <span class="kanban-milestone-title">{{ ms.title || '未命名里程碑' }}</span>
+                <span v-if="ms.date" class="kanban-milestone-date">{{ ms.date }}</span>
+              </div>
+            </div>
+          </div>
+          <div v-if="todoBlocks.length === 0 && progressBlocks.length === 0 && milestoneBlocks.length === 0" class="kanban-empty">
+            本笔记还没有任务/进度/里程碑块。点击右上角「新建任务」按钮，或关闭看板后右键画布选择对应块类型即可添加。
+          </div>
+          <div v-if="todoBlocks.length > 0" class="kanban-columns">
             <div
               v-for="col in KANBAN_COLUMNS"
               :key="col.key"
@@ -1337,6 +1383,27 @@ const todoBlocks = computed(() => {
   if (!note.value) return []
   return blocks.value.filter(b => b.type === 'todo')
 })
+
+const progressBlocks = computed(() => {
+  if (!note.value) return []
+  return blocks.value.filter(b => b.type === 'progress')
+})
+
+const milestoneBlocks = computed(() => {
+  if (!note.value) return []
+  return blocks.value.filter(b => b.type === 'milestone')
+})
+
+function progressDisplayValue(block) {
+  if (block.mode === 'auto') {
+    if (!note.value) return 0
+    const todos = note.value.blocks.filter(b => b.type === 'todo')
+    if (todos.length === 0) return 0
+    const done = todos.filter(b => b.status === 'done').length
+    return Math.round((done / todos.length) * 100)
+  }
+  return Math.max(0, Math.min(100, block.value ?? 0))
+}
 
 function kanbanColumnItems(status) {
   return todoBlocks.value.filter(b => (b.status || 'todo') === status)
@@ -3202,6 +3269,49 @@ function addTodoBlockAt(x, y) {
     })
     focusBlock(block.id)
   }
+}
+
+function addProgressBlockAt(x, y) {
+  if (note.value) {
+    saveHistory()
+    const block = noteStore.addBlock(note.value.id, {
+      x, y,
+      type: 'progress',
+      label: '',
+      value: 0,
+      mode: 'manual',
+      width: 280,
+      minHeight: 90
+    })
+    focusBlock(block.id)
+  }
+}
+
+function addProgressBlockAtContext() {
+  addProgressBlockAt(contextMenu.value.canvasX - 140, contextMenu.value.canvasY - 45)
+  contextMenu.value.show = false
+}
+
+function addMilestoneBlockAt(x, y) {
+  if (note.value) {
+    saveHistory()
+    const block = noteStore.addBlock(note.value.id, {
+      x, y,
+      type: 'milestone',
+      title: '',
+      date: null,
+      done: false,
+      desc: '',
+      width: 300,
+      minHeight: 100
+    })
+    focusBlock(block.id)
+  }
+}
+
+function addMilestoneBlockAtContext() {
+  addMilestoneBlockAt(contextMenu.value.canvasX - 150, contextMenu.value.canvasY - 50)
+  contextMenu.value.show = false
 }
 
 function addTodoBlock() {
@@ -5368,6 +5478,88 @@ function deleteSelectedConnection() {
   color: var(--text-tertiary);
   font-size: 14px;
 }
+.kanban-overview {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+.kanban-overview-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-tertiary);
+  margin-bottom: 8px;
+}
+.kanban-progress-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.kanban-progress-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.kanban-progress-item:hover { background: var(--bg-tertiary); }
+.kanban-progress-name {
+  flex-shrink: 0;
+  width: 110px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kanban-progress-bar {
+  flex: 1;
+  height: 8px;
+  background: var(--bg-tertiary, #e8e8e8);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.kanban-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary-color), var(--primary-dark, #3a8fc4));
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+.kanban-progress-pct {
+  flex-shrink: 0;
+  width: 40px;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary-color);
+  font-variant-numeric: tabular-nums;
+}
+.kanban-milestone-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.kanban-milestone-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 14px;
+  background: var(--bg-tertiary);
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.kanban-milestone-item:hover { background: var(--primary-soft, rgba(74,144,217,0.12)); }
+.kanban-milestone-item.done { color: #4a8a64; }
+.kanban-milestone-item.done .kanban-milestone-title { text-decoration: line-through; }
+.kanban-milestone-title { font-weight: 600; }
+.kanban-milestone-date { font-size: 11px; color: var(--text-tertiary); }
 .kanban-columns {
   display: flex;
   gap: 12px;

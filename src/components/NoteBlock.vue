@@ -218,6 +218,105 @@
         ></textarea>
       </div>
 
+      <!-- 进度条块 -->
+      <div
+        v-else-if="block.type === 'progress'"
+        class="progress-block"
+        @wheel.stop
+      >
+        <div class="progress-header">
+          <svg class="progress-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          <input
+            type="text"
+            class="progress-label-input"
+            :value="block.label || ''"
+            placeholder="进度标签（如：战斗系统）"
+            :readonly="readOnly"
+            @input="onProgressField('label', $event.target.value)"
+            @mousedown.stop
+            @click.stop
+          />
+          <div class="progress-value-display" :class="{ 'is-done': progressValue >= 100 }">{{ progressValue }}%</div>
+        </div>
+        <div class="progress-track-wrap">
+          <div class="progress-track" @click.stop="onProgressTrackClick" ref="progressTrackRef">
+            <div class="progress-fill" :style="{ width: progressValue + '%' }"></div>
+            <div class="progress-thumb" :style="{ left: progressValue + '%' }"></div>
+          </div>
+          <div class="progress-controls" v-if="!readOnly">
+            <button class="progress-step-btn" @mousedown.prevent @click.stop="progressStep(-5)" title="-5%">−</button>
+            <button class="progress-step-btn" @mousedown.prevent @click.stop="progressStep(5)" title="+5%">+</button>
+          </div>
+        </div>
+        <div class="progress-mode-row" v-if="!readOnly">
+          <button
+            class="progress-mode-toggle"
+            :class="{ active: block.mode === 'auto' }"
+            @mousedown.prevent
+            @click.stop="toggleProgressMode"
+            :title="block.mode === 'auto' ? '自动模式：按关联任务块计算完成率' : '手动模式：手动调整百分比'"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-9-9"/><path d="M21 3v6h-6"/></svg>
+            {{ block.mode === 'auto' ? '自动（按任务）' : '手动' }}
+          </button>
+          <span v-if="block.mode === 'auto'" class="progress-auto-hint">{{ progressAutoText }}</span>
+        </div>
+      </div>
+
+      <!-- 里程碑块 -->
+      <div
+        v-else-if="block.type === 'milestone'"
+        class="milestone-block"
+        :class="{ 'is-done': block.done }"
+        @wheel.stop
+      >
+        <div class="milestone-row">
+          <button
+            class="milestone-icon-btn"
+            :class="{ done: block.done }"
+            @click.stop="toggleMilestoneDone"
+            @mousedown.prevent
+            :title="block.done ? '标记为未完成' : '标记为已完成'"
+          >
+            <svg v-if="block.done" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 22V4l5 3 5-3 6 3v14l-6-3-5 3z"/></svg>
+            <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 22V4l5 3 5-3 6 3v14l-6-3-5 3z"/></svg>
+          </button>
+          <input
+            type="text"
+            class="milestone-title-input"
+            :value="block.title || ''"
+            placeholder="里程碑名称（如：v0.3 Demo）"
+            :readonly="readOnly"
+            @input="onMilestoneField('title', $event.target.value)"
+            @mousedown.stop
+            @click.stop
+          />
+        </div>
+        <div class="milestone-meta-row">
+          <label class="milestone-date-wrap" @mousedown.stop @click.stop>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <input
+              type="date"
+              class="milestone-date-input"
+              :value="block.date || ''"
+              :disabled="readOnly"
+              @change="onMilestoneField('date', $event.target.value || null)"
+            />
+          </label>
+          <div v-if="block.date" class="milestone-relative" :class="{ overdue: milestoneOverdue }">{{ milestoneRelative }}</div>
+        </div>
+        <textarea
+          class="milestone-desc-input"
+          :value="block.desc || ''"
+          placeholder="版本目标 / 交付内容..."
+          :readonly="readOnly"
+          rows="2"
+          @input="onMilestoneField('desc', $event.target.value)"
+          @mousedown.stop
+          @click.stop
+        ></textarea>
+      </div>
+
       <div
         v-else
         ref="editorRef"
@@ -518,6 +617,109 @@ function onTodoField(field, value) {
     emit('save-history', props.block.id)
     todoFieldHistorySaved = true
     setTimeout(() => { todoFieldHistorySaved = false }, 800)
+  }
+  emit('update', props.block.id, { [field]: value })
+}
+
+// ===== 进度条块 =====
+const progressTrackRef = ref(null)
+
+const progressValue = computed(() => {
+  if (props.block?.mode === 'auto') {
+    return progressAutoValue.value
+  }
+  return Math.max(0, Math.min(100, props.block?.value ?? 0))
+})
+
+const progressAutoValue = computed(() => {
+  if (!noteStore.currentNote) return 0
+  const todos = noteStore.currentNote.blocks.filter(b => b.type === 'todo')
+  if (todos.length === 0) return 0
+  const done = todos.filter(b => b.status === 'done').length
+  return Math.round((done / todos.length) * 100)
+})
+
+const progressAutoText = computed(() => {
+  if (!noteStore.currentNote) return '无关联任务'
+  const todos = noteStore.currentNote.blocks.filter(b => b.type === 'todo')
+  if (todos.length === 0) return '本笔记暂无任务块'
+  const done = todos.filter(b => b.status === 'done').length
+  return `${done}/${todos.length} 任务完成`
+})
+
+let progressFieldHistorySaved = false
+function onProgressField(field, value) {
+  if (props.readOnly) return
+  if (!progressFieldHistorySaved) {
+    emit('save-history', props.block.id)
+    progressFieldHistorySaved = true
+    setTimeout(() => { progressFieldHistorySaved = false }, 800)
+  }
+  emit('update', props.block.id, { [field]: value })
+}
+
+function progressStep(delta) {
+  if (props.readOnly) return
+  const cur = props.block?.value ?? 0
+  const next = Math.max(0, Math.min(100, cur + delta))
+  emit('save-history', props.block.id)
+  emit('update', props.block.id, { value: next })
+}
+
+function onProgressTrackClick(e) {
+  if (props.readOnly || props.block?.mode === 'auto') return
+  const track = progressTrackRef.value
+  if (!track) return
+  const rect = track.getBoundingClientRect()
+  const pct = Math.round(((e.clientX - rect.left) / rect.width) * 100)
+  emit('save-history', props.block.id)
+  emit('update', props.block.id, { value: Math.max(0, Math.min(100, pct)) })
+}
+
+function toggleProgressMode() {
+  if (props.readOnly) return
+  const next = props.block?.mode === 'auto' ? 'manual' : 'auto'
+  emit('save-history', props.block.id)
+  emit('update', props.block.id, { mode: next })
+}
+
+// ===== 里程碑块 =====
+const milestoneRelative = computed(() => {
+  const date = props.block?.date
+  if (!date) return ''
+  const target = new Date(date + 'T00:00:00')
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  const diff = Math.round((target - now) / 86400000)
+  if (props.block?.done) return '已完成'
+  if (diff === 0) return '今天'
+  if (diff > 0) return `还有 ${diff} 天`
+  return `逾期 ${-diff} 天`
+})
+
+const milestoneOverdue = computed(() => {
+  if (props.block?.done) return false
+  const date = props.block?.date
+  if (!date) return false
+  const target = new Date(date + 'T00:00:00')
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  return target < now
+})
+
+function toggleMilestoneDone() {
+  if (props.readOnly) return
+  emit('save-history', props.block.id)
+  emit('update', props.block.id, { done: !props.block?.done })
+}
+
+let milestoneFieldHistorySaved = false
+function onMilestoneField(field, value) {
+  if (props.readOnly) return
+  if (!milestoneFieldHistorySaved) {
+    emit('save-history', props.block.id)
+    milestoneFieldHistorySaved = true
+    setTimeout(() => { milestoneFieldHistorySaved = false }, 800)
   }
   emit('update', props.block.id, { [field]: value })
 }
@@ -1719,6 +1921,220 @@ onUnmounted(() => {
   min-height: 0;
 }
 .todo-notes-input::placeholder { color: var(--text-tertiary, #bbb); }
+
+/* ===== 进度条块 ===== */
+.progress-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 6px 2px;
+}
+.progress-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.progress-icon {
+  flex-shrink: 0;
+  color: var(--primary-color);
+}
+.progress-label-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  padding: 2px 0;
+}
+.progress-label-input::placeholder { color: var(--text-tertiary, #bbb); font-weight: 400; }
+.progress-value-display {
+  flex-shrink: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--primary-color);
+  font-variant-numeric: tabular-nums;
+  min-width: 48px;
+  text-align: right;
+}
+.progress-value-display.is-done { color: #4a8a64; }
+.progress-track-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.progress-track {
+  flex: 1;
+  height: 10px;
+  background: var(--bg-tertiary, #e8e8e8);
+  border-radius: 5px;
+  position: relative;
+  cursor: pointer;
+  overflow: visible;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary-color), var(--primary-dark, #3a8fc4));
+  border-radius: 5px;
+  transition: width 0.2s ease;
+  position: relative;
+}
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+  border-radius: 5px;
+}
+.progress-thumb {
+  position: absolute;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  background: var(--bg-secondary, #fff);
+  border: 2.5px solid var(--primary-color);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  transition: left 0.2s ease;
+  pointer-events: none;
+}
+.progress-controls {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.progress-step-btn {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border-light, #e0e0e0);
+  border-radius: 6px;
+  background: var(--bg-secondary, #fff);
+  color: var(--text-secondary);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.progress-step-btn:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: var(--primary-soft, rgba(74,144,217,0.08));
+}
+.progress-mode-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.progress-mode-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--border-light, #e0e0e0);
+  border-radius: 12px;
+  background: var(--bg-secondary, #fff);
+  color: var(--text-tertiary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.progress-mode-toggle.active {
+  background: var(--primary-soft, rgba(74,144,217,0.12));
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+.progress-auto-hint {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+/* ===== 里程碑块 ===== */
+.milestone-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px 2px;
+}
+.milestone-block.is-done { opacity: 0.65; }
+.milestone-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.milestone-icon-btn {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, transform 0.15s;
+}
+.milestone-icon-btn:hover { transform: scale(1.15); }
+.milestone-icon-btn.done { color: #4a8a64; }
+.milestone-title-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  padding: 2px 0;
+}
+.milestone-block.is-done .milestone-title-input { text-decoration: line-through; }
+.milestone-title-input::placeholder { color: var(--text-tertiary, #bbb); font-weight: 600; }
+.milestone-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 38px;
+}
+.milestone-date-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-tertiary);
+}
+.milestone-date-input {
+  border: 1px solid var(--border-light, #e0e0e0);
+  border-radius: 5px;
+  padding: 2px 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg-secondary, #fff);
+}
+.milestone-relative {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+.milestone-relative.overdue { color: #d96b6e; }
+.milestone-desc-input {
+  width: 100%;
+  border: 1px solid var(--border-light, #e0e0e0);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary, #f9f9f9);
+  resize: vertical;
+  outline: none;
+  font-family: inherit;
+  line-height: 1.5;
+  min-height: 0;
+}
+.milestone-desc-input:focus { border-color: var(--primary-color); }
+.milestone-desc-input::placeholder { color: var(--text-tertiary, #bbb); }
 
 .connect-dot {
   position: absolute;
