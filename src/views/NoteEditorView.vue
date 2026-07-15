@@ -145,6 +145,19 @@
             </svg>
             连线
           </button>
+          <button
+            class="btn"
+            :class="showKanban ? 'btn-primary' : 'btn-secondary'"
+            @click="showKanban = !showKanban"
+            title="任务看板（聚合本笔记所有任务，按状态分栏）"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <rect x="3" y="3" width="6" height="18" rx="1"/>
+              <rect x="10" y="3" width="6" height="12" rx="1"/>
+              <rect x="17" y="3" width="4" height="8" rx="1"/>
+            </svg>
+            看板
+          </button>
         </div>
       </div>
       
@@ -207,7 +220,7 @@
     <div
       ref="canvasRef"
       class="canvas-container"
-      :class="{ 'connect-mode': connectMode, 'panning': isPanning }"
+      :class="{ 'connect-mode': connectMode, 'panning': isPanning, 'space-held': spaceHeld }"
       @mousedown="onCanvasMouseDown"
       @mousemove="onCanvasMouseMove"
       @mouseup="onCanvasMouseUp"
@@ -228,7 +241,8 @@
           :key="block.id"
           :ref="el => { if (el) blockRefs[block.id] = el }"
           :block="block"
-          :selected="selectedBlockId === block.id"
+          :selected="selectedBlockIds.includes(block.id)"
+          :group-color="blockGroupColor(block.id)"
           :connect-mode="connectMode"
           :connecting-from="connectingFrom"
           :read-only="isReadOnly"
@@ -258,6 +272,11 @@
           @link-select-text="onLinkSelectText"
           :sync-version="syncVersion"
         />
+        <div
+          v-if="marqueeRect"
+          class="marquee-rect"
+          :style="{ left: marqueeRect.left + 'px', top: marqueeRect.top + 'px', width: marqueeRect.width + 'px', height: marqueeRect.height + 'px' }"
+        ></div>
       </div>
       
       <svg class="connections-layer" :style="canvasTransformStyle">
@@ -342,6 +361,43 @@
           class="temp-connection"
         />
       </svg>
+
+      <div
+        v-if="selectedBlockIds.length >= 2"
+        class="multi-select-toolbar"
+        :style="multiToolbarStyle"
+        @mousedown.stop
+        @click.stop
+      >
+        <span class="ms-count">{{ selectedBlockIds.length }}</span>
+        <div class="ms-divider"></div>
+        <button class="ms-btn" @click="applyAlign('left')" title="左对齐（自动避免重叠）">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="3" x2="3" y2="21"/><rect x="6" y="5" width="12" height="5" rx="1"/><rect x="6" y="14" width="8" height="5" rx="1"/></svg>
+        </button>
+        <button class="ms-btn" @click="applyAlign('centerH')" title="水平居中（自动避免重叠）">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="3" x2="12" y2="21"/><rect x="5" y="5" width="14" height="5" rx="1"/><rect x="7" y="14" width="10" height="5" rx="1"/></svg>
+        </button>
+        <button class="ms-btn" @click="applyAlign('right')" title="右对齐（自动避免重叠）">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="21" y1="3" x2="21" y2="21"/><rect x="6" y="5" width="12" height="5" rx="1"/><rect x="10" y="14" width="8" height="5" rx="1"/></svg>
+        </button>
+        <div class="ms-divider"></div>
+        <button class="ms-btn" @click="applyAlign('top')" title="顶对齐（自动避免重叠）">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="3" x2="21" y2="3"/><rect x="5" y="6" width="5" height="12" rx="1"/><rect x="14" y="6" width="5" height="8" rx="1"/></svg>
+        </button>
+        <button class="ms-btn" @click="applyAlign('centerV')" title="垂直居中（自动避免重叠）">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="12" x2="21" y2="12"/><rect x="5" y="5" width="5" height="14" rx="1"/><rect x="14" y="7" width="5" height="10" rx="1"/></svg>
+        </button>
+        <button class="ms-btn" @click="applyAlign('bottom')" title="底对齐（自动避免重叠）">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="21" x2="21" y2="21"/><rect x="5" y="6" width="5" height="12" rx="1"/><rect x="14" y="10" width="5" height="8" rx="1"/></svg>
+        </button>
+        <div class="ms-divider"></div>
+        <button class="ms-btn" :disabled="selectedBlockIds.length < 3" @click="applyDistribute('h')" title="水平等距分布（至少 3 个）">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="8" width="4" height="8" rx="1"/><rect x="10" y="8" width="4" height="8" rx="1"/><rect x="17" y="8" width="4" height="8" rx="1"/></svg>
+        </button>
+        <button class="ms-btn" :disabled="selectedBlockIds.length < 3" @click="applyDistribute('v')" title="垂直等距分布（至少 3 个）">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="8" y="3" width="8" height="4" rx="1"/><rect x="8" y="10" width="8" height="4" rx="1"/><rect x="8" y="17" width="8" height="4" rx="1"/></svg>
+        </button>
+      </div>
     </div>
     
     <div class="right-panel">
@@ -388,6 +444,29 @@
             class="minimap-viewport" 
             :style="minimapViewportStyle"
           ></div>
+        </div>
+
+        <div class="backlinks-panel">
+          <div class="backlinks-header" @click="showBacklinks = !showBacklinks">
+            <span class="backlinks-title">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="14" y2="17"/></svg>
+              反向链接
+              <span class="backlinks-count">{{ backlinks.length }}</span>
+            </span>
+            <svg class="backlinks-chevron" :class="{ collapsed: !showBacklinks }" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+          <div v-if="showBacklinks" class="backlinks-list">
+            <div
+              v-for="bl in backlinks"
+              :key="bl.sourceNoteId + ':' + bl.blockId"
+              class="backlink-item"
+              @click="openLinkedNote({ noteId: bl.sourceNoteId, blockId: bl.linkedBlockId || bl.blockId })"
+            >
+              <div class="backlink-source">{{ bl.sourceNoteTitle }}</div>
+              <div class="backlink-snippet">{{ bl.snippet }}</div>
+            </div>
+            <div v-if="backlinks.length === 0" class="backlinks-empty">暂无其他笔记引用本笔记</div>
+          </div>
         </div>
       </div>
     
@@ -649,6 +728,14 @@
           粘贴
           <span class="shortcut">{{ sc('paste') }}</span>
         </div>
+        <div v-if="selectedBlockIds.length >= 2" class="context-menu-item" @click="groupSelection">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          编为一组
+        </div>
+        <div v-if="anySelectionGrouped" class="context-menu-item" @click="ungroupSelection">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg>
+          取消分组
+        </div>
         <div class="context-menu-divider"></div>
         <div class="context-menu-item danger" @click="deleteSelectedBlock">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -677,6 +764,13 @@
             <polyline points="21 15 16 10 5 21"/>
           </svg>
           新建图片块
+        </div>
+        <div class="context-menu-item" @click="addTodoBlockAtContext">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <polyline points="9 11 12 14 22 4"/>
+            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+          </svg>
+          新建任务块
         </div>
         <div class="context-menu-item" @click="pasteBlockHere">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -757,6 +851,73 @@
         </div>
       </div>
     </Teleport>
+
+    <Teleport to="body">
+      <div v-if="showKanban" class="kanban-overlay" @click.self="showKanban = false">
+        <div class="kanban-panel">
+          <div class="kanban-header">
+            <div class="kanban-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="6" height="18" rx="1"/><rect x="10" y="3" width="6" height="12" rx="1"/><rect x="17" y="3" width="4" height="8" rx="1"/></svg>
+              任务看板
+              <span class="kanban-total">{{ todoBlocks.length }} 项</span>
+            </div>
+            <div class="kanban-header-actions">
+              <button class="btn btn-secondary btn-sm" @click="addTodoBlockFromKanban" title="新建任务块并加入看板">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                新建任务
+              </button>
+              <button class="btn btn-ghost btn-icon" @click="showKanban = false" title="关闭">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+          </div>
+          <div v-if="todoBlocks.length === 0" class="kanban-empty">
+            本笔记还没有任务块。点击右上角「新建任务」按钮，或关闭看板后右键画布选择「新建任务块」即可添加。
+          </div>
+          <div v-else class="kanban-columns">
+            <div
+              v-for="col in KANBAN_COLUMNS"
+              :key="col.key"
+              class="kanban-col"
+              :style="{ '--col-color': col.color }"
+              @dragover.prevent
+              @drop="onKanbanDrop($event, col.key)"
+            >
+              <div class="kanban-col-header">
+                <span class="kanban-col-dot"></span>
+                <span class="kanban-col-label">{{ col.label }}</span>
+                <span class="kanban-col-count">{{ kanbanColumnItems(col.key).length }}</span>
+              </div>
+              <div class="kanban-col-body">
+                <div
+                  v-for="item in kanbanColumnItems(col.key)"
+                  :key="item.id"
+                  class="kanban-card"
+                  :class="{ 'is-high': item.priority === 'high' }"
+                  draggable="true"
+                  @dragstart="onKanbanDragStart($event, item.id)"
+                  @dragend="onKanbanDragEnd"
+                  @click="focusTodoOnCanvas(item.id)"
+                >
+                  <div class="kanban-card-title">{{ item.title || '（未命名任务）' }}</div>
+                  <div class="kanban-card-meta">
+                    <span v-if="item.priority" class="kanban-priority" :class="'priority-' + item.priority">
+                      {{ item.priority === 'high' ? '高' : item.priority === 'low' ? '低' : '中' }}
+                    </span>
+                    <span v-if="item.dueDate" class="kanban-due">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                      {{ item.dueDate }}
+                    </span>
+                  </div>
+                  <div v-if="item.content" class="kanban-card-notes">{{ item.content }}</div>
+                </div>
+                <div v-if="kanbanColumnItems(col.key).length === 0" class="kanban-col-placeholder">拖拽任务到此处</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -834,14 +995,60 @@ function autoSizeTitle() {
 const canvasConfig = ref({ zoom: 1, offsetX: 0, offsetY: 0 })
 
 const isPanning = ref(false)
+// 空格键按下状态（独立于 isPanning，避免语义混淆）
+const spaceHeld = ref(false)
 const panStart = ref({ x: 0, y: 0, offsetX: 0, offsetY: 0 })
 
 const selectedBlockId = ref(null)
+const selectedBlockIds = ref([])
 const selectedConnectionId = ref(null)
 const connectMode = ref(false)
 const connectingFrom = ref(null)
 const connectingPosition = ref(null)
 const tempMousePos = ref({ x: 0, y: 0 })
+
+// 框选（marquee）状态
+const marquee = ref(null)
+const isMarqueeing = ref(false)
+const marqueeAdditive = ref(false)
+// 本次手势是否发生了真正的拖拽（用于区分 click 与 drag，避免拖拽后再触发选择收窄）
+const dragOccurredThisGesture = ref(false)
+// 组拖拽起始位置快照
+const groupDragStart = ref(null)
+
+function isBlockSelected(id) {
+  return selectedBlockIds.value.includes(id)
+}
+
+function clearBlockSelection() {
+  selectedBlockId.value = null
+  selectedBlockIds.value = []
+  selectedConnectionId.value = null
+}
+
+function setSingleSelection(id) {
+  selectedBlockId.value = id || null
+  selectedBlockIds.value = id ? [id] : []
+  selectedConnectionId.value = null
+}
+
+// 选中单个块（用于新建/粘贴/插入后聚焦），同步主块与多选集合
+function focusBlock(id) {
+  selectedBlockId.value = id || null
+  selectedBlockIds.value = id ? [id] : []
+  selectedConnectionId.value = null
+}
+
+function toggleBlockInSelection(id) {
+  const idx = selectedBlockIds.value.indexOf(id)
+  if (idx >= 0) {
+    selectedBlockIds.value = selectedBlockIds.value.filter(x => x !== id)
+  } else {
+    selectedBlockIds.value = [...selectedBlockIds.value, id]
+  }
+  selectedBlockId.value = selectedBlockIds.value[selectedBlockIds.value.length - 1] || null
+  selectedConnectionId.value = null
+}
 
 // 块真实尺寸缓存（由 NoteBlock 的 ResizeObserver 上报，响应式驱动连线和碰撞检测）
 const blockSizes = ref({})
@@ -862,6 +1069,8 @@ const dragStartMousePos = ref({ x: 0, y: 0 })
 const connectionTick = ref(0)
 
 const copiedBlock = ref(null)
+// 多块复制快照：保存选中的多个块（深拷贝）
+const copiedBlocks = ref([])
 
 // 撤销/重做历史
 const undoStack = ref([])
@@ -1028,7 +1237,10 @@ function toggleNoteTag(tagId) {
 
 function createTagFromInput() {
   const name = tagSearch.value.trim()
-  if (!name) return
+  if (!name) {
+    toastError('请输入标签名称')
+    return
+  }
   let tag = tagStore.tags.find(t => t.name.toLowerCase() === name.toLowerCase())
   if (!tag) {
     tag = tagStore.createTag(name, TAG_PRESET_COLORS[tagStore.tags.length % TAG_PRESET_COLORS.length])
@@ -1109,6 +1321,93 @@ const selectedBlock = computed(() => {
   return blocks.value.find(b => b.id === selectedBlockId.value) || null
 })
 
+const showBacklinks = ref(true)
+
+// 任务看板
+const showKanban = ref(false)
+const KANBAN_COLUMNS = [
+  { key: 'todo', label: '待办', color: '#b0b6bf' },
+  { key: 'doing', label: '进行中', color: '#4a90d9' },
+  { key: 'done', label: '已完成', color: '#6bbd8f' },
+  { key: 'paused', label: '已搁置', color: '#e8a44a' }
+]
+const kanbanDragId = ref(null)
+
+const todoBlocks = computed(() => {
+  if (!note.value) return []
+  return blocks.value.filter(b => b.type === 'todo')
+})
+
+function kanbanColumnItems(status) {
+  return todoBlocks.value.filter(b => (b.status || 'todo') === status)
+}
+
+function setTodoStatus(blockId, status) {
+  if (!note.value) return
+  saveHistory()
+  noteStore.updateBlock(note.value.id, blockId, { status })
+  nextTick(() => { connectionTick.value++ })
+}
+
+function focusTodoOnCanvas(blockId) {
+  focusBlock(blockId)
+  showKanban.value = false
+  const b = blocks.value.find(x => x.id === blockId)
+  if (b) {
+    const { width, height } = getBlockSize(blockId, b)
+    const cx = b.x + width / 2
+    const cy = b.y + height / 2
+    const rect = canvasRef.value?.getBoundingClientRect()
+    if (rect) {
+      canvasConfig.value.offsetX = rect.width / 2 - cx * canvasConfig.value.zoom
+      canvasConfig.value.offsetY = rect.height / 2 - cy * canvasConfig.value.zoom + 40
+      saveCanvasConfig()
+    }
+  }
+}
+
+function onKanbanDragStart(e, blockId) {
+  kanbanDragId.value = blockId
+  e.dataTransfer.effectAllowed = 'move'
+}
+function onKanbanDragEnd() {
+  kanbanDragId.value = null
+}
+function onKanbanDrop(e, status) {
+  e.preventDefault()
+  const id = kanbanDragId.value
+  if (id) setTodoStatus(id, status)
+  kanbanDragId.value = null
+}
+
+// 反向链接：扫描所有笔记中引用了当前笔记的 note-link 块
+const backlinks = computed(() => {
+  const curId = note.value?.id
+  if (!curId) return []
+  const result = []
+  for (const n of noteStore.notes) {
+    if (!n || n.deleted || n.id === curId) continue
+    for (const b of (n.blocks || [])) {
+      if (b.type === 'note-link' && b.linkedNoteId === curId) {
+        let snippet = '引用了整篇笔记'
+        if (b.linkedTextRange?.text) {
+          snippet = '"' + b.linkedTextRange.text.slice(0, 40) + (b.linkedTextRange.text.length > 40 ? '…' : '') + '"'
+        } else if (b.linkedBlockId) {
+          snippet = '引用了其中某个块'
+        }
+        result.push({
+          sourceNoteId: n.id,
+          sourceNoteTitle: n.title || '未命名笔记',
+          blockId: b.id,
+          linkedBlockId: b.linkedBlockId || null,
+          snippet
+        })
+      }
+    }
+  }
+  return result
+})
+
 function formatSelection(command, value = null) {
   if (!selectedBlockId.value) return
   const inst = blockRefs[selectedBlockId.value]
@@ -1124,7 +1423,14 @@ function formatSelection(command, value = null) {
   if ((command === 'fontSize' || command === 'fontWeight') && !hasRealSelection) {
     const patch = command === 'fontSize' ? { fontSize: Number(value) } : { fontWeight: Number(value) }
     saveHistory()
-    noteStore.updateBlock(note.value.id, selectedBlockId.value, patch)
+    // 多选时同步应用到全部选中块
+    const ids = selectedBlockIds.value.length ? [...selectedBlockIds.value] : [selectedBlockId.value]
+    for (const id of ids) {
+      const b = blocks.value.find(x => x.id === id)
+      if (b && b.type !== 'image') {
+        noteStore.updateBlock(note.value.id, id, patch)
+      }
+    }
     inst.clearInlineStyle(command)
     return
   }
@@ -1136,7 +1442,14 @@ function formatSelection(command, value = null) {
 function setBlockStyle(patch) {
   if (!note.value || !selectedBlockId.value) return
   saveHistory()
-  noteStore.updateBlock(note.value.id, selectedBlockId.value, patch)
+  // 多选时同步应用到全部选中块
+  const ids = selectedBlockIds.value.length ? [...selectedBlockIds.value] : [selectedBlockId.value]
+  for (const id of ids) {
+    const b = blocks.value.find(x => x.id === id)
+    if (b && b.type !== 'image') {
+      noteStore.updateBlock(note.value.id, id, patch)
+    }
+  }
 }
 
 // 兼容旧数据：从混杂的 style 字段解析出 shape 和 dash
@@ -1415,6 +1728,7 @@ onMounted(async () => {
     canvasConfig.value = { ...note.value.canvasConfig }
   }
   window.addEventListener('keydown', onKeyDown)
+  window.addEventListener('keyup', onKeyUp)
   window.addEventListener('mouseup', onWindowMouseUp)
   window.addEventListener('mousemove', onWindowMouseMove)
   window.addEventListener('mousedown', onWindowMouseDown, true)
@@ -1426,6 +1740,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeyDown)
+  window.removeEventListener('keyup', onKeyUp)
   window.removeEventListener('mouseup', onWindowMouseUp)
   window.removeEventListener('mousemove', onWindowMouseMove)
   window.removeEventListener('mousedown', onWindowMouseDown, true)
@@ -1739,52 +2054,65 @@ function onKeyDown(e) {
                     document.activeElement?.tagName === 'INPUT' ||
                     document.activeElement?.tagName === 'TEXTAREA'
 
-  if (shortcutStore.matches(e, 'copy') && selectedBlockId.value && !isEditing) {
-    const block = blocks.value.find(b => b.id === selectedBlockId.value)
-    if (block) {
-      copiedBlock.value = JSON.parse(JSON.stringify(block))
-    }
+  if (shortcutStore.matches(e, 'copy') && (selectedBlockIds.value.length || selectedBlockId.value) && !isEditing) {
+    const ids = selectedBlockIds.value.length ? [...selectedBlockIds.value] : (selectedBlockId.value ? [selectedBlockId.value] : [])
+    copiedBlocks.value = ids
+      .map(id => blocks.value.find(b => b.id === id))
+      .filter(Boolean)
+      .map(b => JSON.parse(JSON.stringify(b)))
+    copiedBlock.value = copiedBlocks.value[copiedBlocks.value.length - 1] || null
     return
   }
 
-  if (shortcutStore.matches(e, 'paste') && copiedBlock.value && !isEditing) {
+  if (shortcutStore.matches(e, 'paste') && copiedBlocks.value.length && !isEditing) {
     const rect = canvasRef.value.getBoundingClientRect()
     const centerX = (rect.width / 2 - canvasConfig.value.offsetX) / canvasConfig.value.zoom - 120
     const centerY = (rect.height / 2 - canvasConfig.value.offsetY) / canvasConfig.value.zoom - 30
-    
-    const newBlockData = {
-      ...copiedBlock.value,
-      x: centerX + Math.random() * 40 - 20,
-      y: centerY + Math.random() * 40 - 20
-    }
-    delete newBlockData.id
-    
+
     if (note.value) {
       saveHistory()
-      const newBlock = noteStore.addBlock(note.value.id, newBlockData)
-      selectedBlockId.value = newBlock.id
+      const newIds = []
+      for (let i = 0; i < copiedBlocks.value.length; i++) {
+        const newBlockData = JSON.parse(JSON.stringify(copiedBlocks.value[i]))
+        newBlockData.x = centerX + (newBlockData.x || 0) - (copiedBlocks.value[0].x || 0) + Math.random() * 40 - 20
+        newBlockData.y = centerY + (newBlockData.y || 0) - (copiedBlocks.value[0].y || 0) + Math.random() * 40 - 20
+        delete newBlockData.id
+        delete newBlockData.groupId
+        const nb = noteStore.addBlock(note.value.id, newBlockData)
+        if (nb) newIds.push(nb.id)
+      }
+      if (newIds.length) {
+        selectedBlockIds.value = newIds
+        selectedBlockId.value = newIds[newIds.length - 1]
+      }
     }
     e.preventDefault()
     return
   }
 
-  if (shortcutStore.matches(e, 'duplicate') && selectedBlockId.value && !isEditing) {
-    const block = blocks.value.find(b => b.id === selectedBlockId.value)
-    if (block && note.value) {
+  if (shortcutStore.matches(e, 'duplicate') && (selectedBlockIds.value.length || selectedBlockId.value) && !isEditing) {
+    if (note.value) {
       saveHistory()
-      const newBlockData = JSON.parse(JSON.stringify(block))
-      newBlockData.x += 30
-      newBlockData.y += 30
-      delete newBlockData.id
-      const newBlock = noteStore.addBlock(note.value.id, newBlockData)
-      selectedBlockId.value = newBlock.id
+      const ids = selectedBlockIds.value.length ? [...selectedBlockIds.value] : (selectedBlockId.value ? [selectedBlockId.value] : [])
+      const newPrimaryId = ids.map(id => {
+        const b = blocks.value.find(x => x.id === id)
+        if (!b) return null
+        const newBlockData = JSON.parse(JSON.stringify(b))
+        newBlockData.x += 30
+        newBlockData.y += 30
+        delete newBlockData.id
+        const nb = noteStore.addBlock(note.value.id, newBlockData)
+        return nb ? nb.id : null
+      }).filter(Boolean)
+      selectedBlockIds.value = newPrimaryId
+      selectedBlockId.value = newPrimaryId[newPrimaryId.length - 1] || null
     }
     e.preventDefault()
     return
   }
 
-  if (shortcutStore.matches(e, 'delete') && selectedBlockId.value && !isEditing) {
-    deleteBlock(selectedBlockId.value)
+  if (shortcutStore.matches(e, 'delete') && (selectedBlockIds.value.length || selectedBlockId.value) && !isEditing) {
+    deleteSelectedBlocks()
     e.preventDefault()
     return
   }
@@ -1794,11 +2122,19 @@ function onKeyDown(e) {
       contextMenu.value.show = false
       return
     }
-    selectedBlockId.value = null
-    selectedConnectionId.value = null
+    if (selectedBlockIds.value.length > 1) {
+      if (selectedBlockId.value) {
+        selectedBlockIds.value = [selectedBlockId.value]
+      } else {
+        selectedBlockIds.value = []
+      }
+      return
+    }
+    clearBlockSelection()
     connectMode.value = false
     connectingFrom.value = null
     copiedBlock.value = null
+    copiedBlocks.value = []
     return
   }
 
@@ -1846,34 +2182,54 @@ function onKeyDown(e) {
 
   const moveActions = ['moveUp', 'moveDown', 'moveLeft', 'moveRight']
   const moveKey = moveActions.find(a => shortcutStore.matches(e, a))
-  if (moveKey && selectedBlockId.value && !isEditing) {
-    const block = blocks.value.find(b => b.id === selectedBlockId.value)
-    if (block && note.value) {
+  const hasMoveSelection = selectedBlockIds.value.length || selectedBlockId.value
+  if (moveKey && hasMoveSelection && !isEditing) {
+    const ids = selectedBlockIds.value.length ? [...selectedBlockIds.value] : (selectedBlockId.value ? [selectedBlockId.value] : [])
+    if (note.value && ids.length) {
       const step = e.shiftKey ? 20 : 5
-      let { x, y } = block
-      if (moveKey === 'moveUp') y -= step
-      if (moveKey === 'moveDown') y += step
-      if (moveKey === 'moveLeft') x -= step
-      if (moveKey === 'moveRight') x += step
-      const { x: finalX, y: finalY } = resolveCollision(selectedBlockId.value, x, y)
-      noteStore.updateBlock(note.value.id, selectedBlockId.value, { x: finalX, y: finalY })
+      saveHistory()
+      if (ids.length === 1) {
+        const block = blocks.value.find(b => b.id === ids[0])
+        if (block) {
+          let { x, y } = block
+          if (moveKey === 'moveUp') y -= step
+          if (moveKey === 'moveDown') y += step
+          if (moveKey === 'moveLeft') x -= step
+          if (moveKey === 'moveRight') x += step
+          const { x: finalX, y: finalY } = resolveCollision(ids[0], x, y)
+          noteStore.updateBlock(note.value.id, ids[0], { x: finalX, y: finalY })
+        }
+      } else {
+        for (const id of ids) {
+          const block = blocks.value.find(b => b.id === id)
+          if (!block) continue
+          let { x, y } = block
+          if (moveKey === 'moveUp') y -= step
+          if (moveKey === 'moveDown') y += step
+          if (moveKey === 'moveLeft') x -= step
+          if (moveKey === 'moveRight') x += step
+          noteStore.updateBlock(note.value.id, id, { x, y })
+        }
+      }
     }
     e.preventDefault()
     return
   }
 
   if (shortcutStore.matches(e, 'panCanvas') && !isEditing) {
-    if (!isPanning.value) {
-      isPanning.value = true
-      panStart.value = {
-        x: e.clientX,
-        y: e.clientY,
-        offsetX: canvasConfig.value.offsetX,
-        offsetY: canvasConfig.value.offsetY
-      }
-    }
+    spaceHeld.value = true
     e.preventDefault()
     return
+  }
+}
+
+function onKeyUp(e) {
+  if (e.code === 'Space' || e.key === ' ' || shortcutStore.matches(e, 'panCanvas')) {
+    spaceHeld.value = false
+    if (isPanning.value) {
+      isPanning.value = false
+      saveCanvasConfig()
+    }
   }
 }
 
@@ -1934,6 +2290,12 @@ function onWindowMouseUp() {
   if (draggingBlock.value) {
     hasDragged.value = false
     draggingBlock.value = null
+    groupDragStart.value = null
+  }
+  if (isMarqueeing.value) {
+    finishMarquee()
+    isMarqueeing.value = false
+    marquee.value = null
   }
 }
 
@@ -1954,6 +2316,11 @@ function onWindowMouseDown(e) {
 function onWindowBlur() {
   if (contextMenu.value.show) contextMenu.value.show = false
   if (showExportMenu.value) showExportMenu.value = false
+  spaceHeld.value = false
+  if (isPanning.value) {
+    isPanning.value = false
+    saveCanvasConfig()
+  }
 }
 
 function onContextMenu(e) {
@@ -1971,10 +2338,14 @@ function onContextMenu(e) {
     canvasY: canvasPos.y
   }
   
-  if (blockEl && selectedBlockId.value) {
-  } else if (!blockEl) {
-    selectedBlockId.value = null
-    selectedConnectionId.value = null
+  if (blockEl) {
+    const bid = blockEl.getAttribute('data-block-id')
+    // 右键命中的块若已在多选中，则保持多选（便于对整组操作）；否则单选该块
+    if (!bid || !selectedBlockIds.value.includes(bid)) {
+      setSingleSelection(bid)
+    }
+  } else {
+    clearBlockSelection()
   }
 }
 
@@ -2118,7 +2489,12 @@ function onWindowMouseMove(e) {
     canvasConfig.value.offsetX = panStart.value.offsetX + (e.clientX - panStart.value.x)
     canvasConfig.value.offsetY = panStart.value.offsetY + (e.clientY - panStart.value.y)
   }
-  
+
+  if (isMarqueeing.value && marquee.value) {
+    const p = screenToCanvas(e.clientX, e.clientY)
+    marquee.value = { ...marquee.value, curX: p.x, curY: p.y }
+  }
+
   if (connectingFrom.value) {
     const rect = canvasRef.value.getBoundingClientRect()
     tempMousePos.value = {
@@ -2140,36 +2516,58 @@ function onWindowMouseMove(e) {
       // 第一次真正移动时保存历史
       saveHistory()
       hasDragged.value = true
+      dragOccurredThisGesture.value = true
     }
     
     const newX = canvasX - dragOffset.value.x
     const newY = canvasY - dragOffset.value.y
     
-    // 获取当前块
     const currentBlock = blocks.value.find(b => b.id === draggingBlock.value)
     if (!currentBlock) return
 
-    const { x: finalX, y: finalY } = resolveCollision(draggingBlock.value, newX, newY)
-
-    noteStore.updateBlock(note.value.id, draggingBlock.value, { x: finalX, y: finalY })
+    const isGroupDrag = selectedBlockIds.value.length > 1 && groupDragStart.value
+    if (isGroupDrag) {
+      const start = groupDragStart.value[draggingBlock.value] || { x: currentBlock.x, y: currentBlock.y }
+      const deltaX = newX - start.x
+      const deltaY = newY - start.y
+      for (const id of selectedBlockIds.value) {
+        const s = groupDragStart.value[id]
+        if (!s) continue
+        noteStore.updateBlock(note.value.id, id, { x: s.x + deltaX, y: s.y + deltaY })
+      }
+    } else {
+      const { x: finalX, y: finalY } = resolveCollision(draggingBlock.value, newX, newY)
+      noteStore.updateBlock(note.value.id, draggingBlock.value, { x: finalX, y: finalY })
+    }
     nextTick(() => { connectionTick.value++ })
   }
 }
 
 function onCanvasMouseDown(e) {
-  if (e.target === canvasRef.value || e.target.classList.contains('canvas-bg') || e.target.closest('.blocks-layer') === null && e.target.tagName !== 'svg' && !e.target.closest('svg')) {
-    if (e.button === 0) {
-      selectedBlockId.value = null
-      selectedConnectionId.value = null
-      if (!connectMode.value) {
-        isPanning.value = true
-        panStart.value = {
-          x: e.clientX,
-          y: e.clientY,
-          offsetX: canvasConfig.value.offsetX,
-          offsetY: canvasConfig.value.offsetY
-        }
+  if (e.target === canvasRef.value || e.target.classList.contains('canvas-bg') || (e.target.closest('.blocks-layer') === null && e.target.tagName !== 'svg' && !e.target.closest('svg'))) {
+    dragOccurredThisGesture.value = false
+    // 中键拖拽 或 空格已按下 → 平移画布
+    if (e.button === 1 || (e.button === 0 && spaceHeld.value)) {
+      isPanning.value = true
+      panStart.value = {
+        x: e.clientX,
+        y: e.clientY,
+        offsetX: canvasConfig.value.offsetX,
+        offsetY: canvasConfig.value.offsetY
       }
+      return
+    }
+    if (e.button === 0) {
+      if (connectMode.value) {
+        clearBlockSelection()
+        return
+      }
+      // 框选
+      marqueeAdditive.value = e.shiftKey || e.ctrlKey || e.metaKey
+      if (!marqueeAdditive.value) clearBlockSelection()
+      const p = screenToCanvas(e.clientX, e.clientY)
+      marquee.value = { startX: p.x, startY: p.y, curX: p.x, curY: p.y }
+      isMarqueeing.value = true
     }
   }
 }
@@ -2187,6 +2585,73 @@ function screenToCanvas(clientX, clientY) {
     y: (clientY - rect.top - canvasConfig.value.offsetY) / canvasConfig.value.zoom
   }
 }
+
+function finishMarquee() {
+  if (!marquee.value) return
+  const { startX, startY, curX, curY } = marquee.value
+  const x1 = Math.min(startX, curX)
+  const y1 = Math.min(startY, curY)
+  const x2 = Math.max(startX, curX)
+  const y2 = Math.max(startY, curY)
+  // 微小矩形（纯点击）：不改变选择（onCanvasMouseDown 已处理清空）
+  if (Math.abs(x2 - x1) < 3 && Math.abs(y2 - y1) < 3) return
+
+  const baseSet = marqueeAdditive.value ? [...selectedBlockIds.value] : []
+  const hitIds = []
+  for (const b of blocks.value) {
+    const { width, height } = getBlockSize(b.id, b)
+    const bx2 = b.x + width
+    const by2 = b.y + height
+    // 矩形相交判定
+    if (x1 < bx2 && x2 > b.x && y1 < by2 && y2 > b.y) {
+      hitIds.push(b.id)
+    }
+  }
+  const merged = [...new Set([...baseSet, ...hitIds])]
+  selectedBlockIds.value = merged
+  selectedBlockId.value = merged[merged.length - 1] || null
+  selectedConnectionId.value = null
+}
+
+const marqueeRect = computed(() => {
+  if (!marquee.value || !isMarqueeing.value) return null
+  const { startX, startY, curX, curY } = marquee.value
+  return {
+    left: Math.min(startX, curX),
+    top: Math.min(startY, curY),
+    width: Math.abs(curX - startX),
+    height: Math.abs(curY - startY)
+  }
+})
+
+const selectionBoundsCanvas = computed(() => {
+  if (selectedBlockIds.value.length < 2 || !note.value) return null
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (const id of selectedBlockIds.value) {
+    const b = blocks.value.find(x => x.id === id)
+    if (!b) continue
+    const { width, height } = getBlockSize(id, b)
+    minX = Math.min(minX, b.x)
+    minY = Math.min(minY, b.y)
+    maxX = Math.max(maxX, b.x + width)
+    maxY = Math.max(maxY, b.y + height)
+  }
+  if (minX === Infinity) return null
+  return { minX, minY, maxX, maxY }
+})
+
+const multiToolbarStyle = computed(() => {
+  const b = selectionBoundsCanvas.value
+  if (!b) return { display: 'none' }
+  const z = canvasConfig.value.zoom
+  const cx = (b.minX + b.maxX) / 2
+  const screenX = cx * z + canvasConfig.value.offsetX
+  const screenY = b.minY * z + canvasConfig.value.offsetY
+  return {
+    left: screenX + 'px',
+    top: Math.max(8, screenY - 48) + 'px'
+  }
+})
 
 function addTextBlock() {
   const centerX = -canvasConfig.value.offsetX / canvasConfig.value.zoom + 300 + newBlockOffset.value
@@ -2255,7 +2720,7 @@ function onViewPaste(e) {
             width: 280,
             minHeight: 150
           })
-          selectedBlockId.value = block.id
+          focusBlock(block.id)
           newBlockOffset.value += 30
         }
       }
@@ -2286,7 +2751,7 @@ function onViewPaste(e) {
         type: 'text',
         content: html
       })
-      selectedBlockId.value = block.id
+      focusBlock(block.id)
       newBlockOffset.value += 30
     }
   }
@@ -2717,8 +3182,53 @@ function addTextBlockAt(x, y) {
   if (note.value) {
     saveHistory()
     const block = noteStore.addBlock(note.value.id, { x, y, type: 'text' })
-    selectedBlockId.value = block.id
+    focusBlock(block.id)
   }
+}
+
+function addTodoBlockAt(x, y) {
+  if (note.value) {
+    saveHistory()
+    const block = noteStore.addBlock(note.value.id, {
+      x, y,
+      type: 'todo',
+      title: '',
+      status: 'todo',
+      priority: 'normal',
+      dueDate: null,
+      content: '',
+      width: 280,
+      minHeight: 90
+    })
+    focusBlock(block.id)
+  }
+}
+
+function addTodoBlock() {
+  const centerX = -canvasConfig.value.offsetX / canvasConfig.value.zoom + 300 + newBlockOffset.value
+  const centerY = -canvasConfig.value.offsetY / canvasConfig.value.zoom + 200 + newBlockOffset.value
+  newBlockOffset.value += 30
+  addTodoBlockAt(centerX, centerY)
+}
+
+function addTodoBlockAtContext() {
+  addTodoBlockAt(contextMenu.value.canvasX - 140, contextMenu.value.canvasY - 45)
+  contextMenu.value.show = false
+}
+
+function addTodoBlockFromKanban() {
+  // 在画布可见区域中心创建任务块，保持看板打开
+  const rect = canvasRef.value?.getBoundingClientRect()
+  let centerX, centerY
+  if (rect) {
+    centerX = (rect.width / 2 - canvasConfig.value.offsetX) / canvasConfig.value.zoom - 140
+    centerY = (rect.height / 2 - canvasConfig.value.offsetY) / canvasConfig.value.zoom - 45
+  } else {
+    centerX = 100 + newBlockOffset.value
+    centerY = 100 + newBlockOffset.value
+  }
+  newBlockOffset.value += 30
+  addTodoBlockAt(centerX, centerY)
 }
 
 function addImageBlock() {
@@ -2757,7 +3267,7 @@ function onImageFileSelect(e) {
           noteStore.updateBlock(note.value.id, currentImageBlockId.value, {
             imageUrl: imgRef
           })
-          selectedBlockId.value = currentImageBlockId.value
+          focusBlock(currentImageBlockId.value)
         } else if (block) {
           const imgX = block.x + (block.width || 240) + 60
           const imgY = block.y
@@ -2776,7 +3286,7 @@ function onImageFileSelect(e) {
             'bezier',
             { dash: 'dashed', color: '#9aa0a6', width: '2' }
           )
-          selectedBlockId.value = newImageBlock.id
+          focusBlock(newImageBlock.id)
         }
         currentImageBlockId.value = null
       } else {
@@ -2788,7 +3298,7 @@ function onImageFileSelect(e) {
           width: 280,
           minHeight: 200
         })
-        selectedBlockId.value = block.id
+        focusBlock(block.id)
       }
     }
     isImageLoading.value = false
@@ -2809,13 +3319,13 @@ function saveBlockSelection(blockId, range) {
 }
 
 function handleAddImageToBlock(blockId) {
-  selectedBlockId.value = blockId
+  focusBlock(blockId)
   currentImageBlockId.value = blockId
   fileInputRef.value?.click()
 }
 
 function handleAddLinkToBlock(blockId) {
-  selectedBlockId.value = blockId
+  focusBlock(blockId)
 }
 
 function handleAddNoteLinkFromBlock(blockId) {
@@ -2824,14 +3334,21 @@ function handleAddNoteLinkFromBlock(blockId) {
   noteLinkSearch.value = ''
 }
 
-function selectBlock(id) {
-  selectedBlockId.value = id
-  selectedConnectionId.value = null
+function selectBlock(id, e) {
+  // 来自 NoteBlock 的 click（含文本区内点击）
+  if (dragOccurredThisGesture.value) return
+  const additive = e && (e.shiftKey || e.ctrlKey || e.metaKey)
+  if (additive) {
+    toggleBlockInSelection(id)
+  } else {
+    setSingleSelection(id)
+  }
 }
 
 function selectConnection(id) {
   selectedConnectionId.value = id
   selectedBlockId.value = null
+  selectedBlockIds.value = []
 }
 
 function updateBlockContent(blockId, updates) {
@@ -2853,51 +3370,228 @@ function deleteBlock(blockId) {
     if (selectedBlockId.value === blockId) {
       selectedBlockId.value = null
     }
+    selectedBlockIds.value = selectedBlockIds.value.filter(x => x !== blockId)
   }
 }
 
+function deleteSelectedBlocks() {
+  if (!note.value) return
+  const ids = selectedBlockIds.value.length ? [...selectedBlockIds.value] : (selectedBlockId.value ? [selectedBlockId.value] : [])
+  if (!ids.length) return
+  saveHistory()
+  for (const id of ids) {
+    noteStore.deleteBlock(note.value.id, id)
+  }
+  selectedBlockId.value = null
+  selectedBlockIds.value = []
+  contextMenu.value.show = false
+}
+
 function deleteSelectedBlock() {
-  if (selectedBlockId.value) {
-    deleteBlock(selectedBlockId.value)
+  deleteSelectedBlocks()
+}
+
+// ===== 对齐与分布（多选操作）=====
+function getSelectedBlocksWithBounds() {
+  return selectedBlockIds.value
+    .map(id => blocks.value.find(b => b.id === id))
+    .filter(Boolean)
+    .map(b => {
+      const { width, height } = getBlockSize(b.id, b)
+      return { id: b.id, x: b.x, y: b.y, width, height }
+    })
+}
+
+function applyAlign(type) {
+  const items = getSelectedBlocksWithBounds()
+  if (items.length < 2 || !note.value) return
+  saveHistory()
+  const minX = Math.min(...items.map(i => i.x))
+  const maxX = Math.max(...items.map(i => i.x + i.width))
+  const minY = Math.min(...items.map(i => i.y))
+  const maxY = Math.max(...items.map(i => i.y + i.height))
+  const cx = (minX + maxX) / 2
+  const cy = (minY + maxY) / 2
+
+  // 水平类对齐（左/右/水平居中）只改 X；垂直类对齐（顶/底/垂直居中）只改 Y
+  const horizontal = type === 'left' || type === 'right' || type === 'centerH'
+
+  // 第一步：应用对齐坐标
+  for (const it of items) {
+    if (type === 'left') it.x = minX
+    else if (type === 'right') it.x = maxX - it.width
+    else if (type === 'centerH') it.x = cx - it.width / 2
+    else if (type === 'top') it.y = minY
+    else if (type === 'bottom') it.y = maxY - it.height
+    else if (type === 'centerV') it.y = cy - it.height / 2
+  }
+
+  // 第二步：沿垂直于对齐方向的轴消除重叠（保持对齐边整齐，仅推开交叠块）
+  const minGap = 12
+  if (horizontal) {
+    items.sort((a, b) => a.y - b.y)
+    for (let i = 1; i < items.length; i++) {
+      const prevBottom = items[i - 1].y + items[i - 1].height
+      if (items[i].y < prevBottom + minGap) items[i].y = prevBottom + minGap
+    }
+  } else {
+    items.sort((a, b) => a.x - b.x)
+    for (let i = 1; i < items.length; i++) {
+      const prevRight = items[i - 1].x + items[i - 1].width
+      if (items[i].x < prevRight + minGap) items[i].x = prevRight + minGap
+    }
+  }
+
+  // 第三步：写回 store
+  for (const it of items) {
+    noteStore.updateBlock(note.value.id, it.id, { x: it.x, y: it.y })
+  }
+  nextTick(() => { connectionTick.value++ })
+  contextMenu.value.show = false
+}
+
+function applyDistribute(axis) {
+  const items = getSelectedBlocksWithBounds()
+  if (items.length < 3 || !note.value) return
+  saveHistory()
+  const MIN_GAP = 20
+  if (axis === 'h') {
+    items.sort((a, b) => a.x - b.x)
+    const first = items[0]
+    const last = items[items.length - 1]
+    const totalSpan = (last.x + last.width) - first.x
+    const sumWidth = items.reduce((s, i) => s + i.width, 0)
+    let gap = (totalSpan - sumWidth) / (items.length - 1)
+    // 间距为负（块重叠/堆叠）时，强制最小间距，从首块位置开始依次排列
+    let cursor = first.x
+    if (gap < MIN_GAP) {
+      gap = MIN_GAP
+      cursor = first.x
+    }
+    for (let i = 0; i < items.length; i++) {
+      noteStore.updateBlock(note.value.id, items[i].id, { x: cursor })
+      cursor += items[i].width + gap
+    }
+  } else {
+    items.sort((a, b) => a.y - b.y)
+    const first = items[0]
+    const last = items[items.length - 1]
+    const totalSpan = (last.y + last.height) - first.y
+    const sumHeight = items.reduce((s, i) => s + i.height, 0)
+    let gap = (totalSpan - sumHeight) / (items.length - 1)
+    let cursor = first.y
+    if (gap < MIN_GAP) {
+      gap = MIN_GAP
+      cursor = first.y
+    }
+    for (let i = 0; i < items.length; i++) {
+      noteStore.updateBlock(note.value.id, items[i].id, { y: cursor })
+      cursor += items[i].height + gap
+    }
+  }
+  nextTick(() => { connectionTick.value++ })
+  contextMenu.value.show = false
+}
+
+// ===== 分组（持久化逻辑分组，拖拽时整组移动）=====
+const GROUP_COLORS = ['#6bbd8f', '#4a90d9', '#9b7bd6', '#e8a44a', '#d96b8e', '#7a8ca6']
+
+function groupColorOf(groupId) {
+  if (!groupId) return '#9aa4b2'
+  let h = 0
+  for (let i = 0; i < groupId.length; i++) h = (h * 31 + groupId.charCodeAt(i)) >>> 0
+  return GROUP_COLORS[h % GROUP_COLORS.length]
+}
+
+function groupSelection() {
+  if (!note.value) return
+  const ids = selectedBlockIds.value.length >= 2 ? [...selectedBlockIds.value] : []
+  if (ids.length < 2) return
+  saveHistory()
+  const gid = 'grp_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
+  for (const id of ids) {
+    noteStore.updateBlock(note.value.id, id, { groupId: gid })
   }
   contextMenu.value.show = false
 }
 
+function ungroupSelection() {
+  if (!note.value) return
+  const ids = selectedBlockIds.value.length ? [...selectedBlockIds.value] : []
+  if (!ids.length) return
+  saveHistory()
+  for (const id of ids) {
+    noteStore.updateBlock(note.value.id, id, { groupId: null })
+  }
+  contextMenu.value.show = false
+}
+
+function blockGroupColor(blockId) {
+  const b = blocks.value.find(x => x.id === blockId)
+  return b?.groupId ? groupColorOf(b.groupId) : null
+}
+
+const anySelectionGrouped = computed(() => {
+  if (!note.value) return false
+  return selectedBlockIds.value.some(id => {
+    const b = blocks.value.find(x => x.id === id)
+    return b?.groupId
+  })
+})
+
 function copySelectedBlock() {
-  if (selectedBlockId.value) {
-    const block = blocks.value.find(b => b.id === selectedBlockId.value)
-    if (block) {
-      copiedBlock.value = JSON.parse(JSON.stringify(block))
-    }
+  const ids = selectedBlockIds.value.length ? [...selectedBlockIds.value] : (selectedBlockId.value ? [selectedBlockId.value] : [])
+  if (ids.length) {
+    copiedBlocks.value = ids
+      .map(id => blocks.value.find(b => b.id === id))
+      .filter(Boolean)
+      .map(b => JSON.parse(JSON.stringify(b)))
+    copiedBlock.value = copiedBlocks.value[copiedBlocks.value.length - 1] || null
   }
   contextMenu.value.show = false
 }
 
 function duplicateSelectedBlock() {
-  if (selectedBlockId.value && note.value) {
-    const block = blocks.value.find(b => b.id === selectedBlockId.value)
-    if (block) {
-      saveHistory()
-      const newBlockData = JSON.parse(JSON.stringify(block))
-      newBlockData.x += 30
-      newBlockData.y += 30
-      delete newBlockData.id
-      const newBlock = noteStore.addBlock(note.value.id, newBlockData)
-      selectedBlockId.value = newBlock.id
-    }
-  }
+  if (!note.value) { contextMenu.value.show = false; return }
+  const ids = selectedBlockIds.value.length ? [...selectedBlockIds.value] : (selectedBlockId.value ? [selectedBlockId.value] : [])
+  if (!ids.length) { contextMenu.value.show = false; return }
+  saveHistory()
+  const newIds = ids.map(id => {
+    const b = blocks.value.find(x => x.id === id)
+    if (!b) return null
+    const newBlockData = JSON.parse(JSON.stringify(b))
+    newBlockData.x += 30
+    newBlockData.y += 30
+    delete newBlockData.id
+    const nb = noteStore.addBlock(note.value.id, newBlockData)
+    return nb ? nb.id : null
+  }).filter(Boolean)
+  selectedBlockIds.value = newIds
+  selectedBlockId.value = newIds[newIds.length - 1] || null
   contextMenu.value.show = false
 }
 
 function pasteBlockHere() {
-  if (copiedBlock.value && note.value) {
-    saveHistory()
-    const newBlockData = JSON.parse(JSON.stringify(copiedBlock.value))
-    newBlockData.x = contextMenu.value.canvasX - 120
-    newBlockData.y = contextMenu.value.canvasY - 30
+  if (!copiedBlocks.value.length || !note.value) {
+    contextMenu.value.show = false
+    return
+  }
+  saveHistory()
+  const baseX = copiedBlocks.value[0].x || 0
+  const baseY = copiedBlocks.value[0].y || 0
+  const newIds = []
+  for (const src of copiedBlocks.value) {
+    const newBlockData = JSON.parse(JSON.stringify(src))
+    newBlockData.x = contextMenu.value.canvasX - 120 + (newBlockData.x || 0) - baseX
+    newBlockData.y = contextMenu.value.canvasY - 30 + (newBlockData.y || 0) - baseY
     delete newBlockData.id
-    const newBlock = noteStore.addBlock(note.value.id, newBlockData)
-    selectedBlockId.value = newBlock.id
+    delete newBlockData.groupId
+    const nb = noteStore.addBlock(note.value.id, newBlockData)
+    if (nb) newIds.push(nb.id)
+  }
+  if (newIds.length) {
+    selectedBlockIds.value = newIds
+    selectedBlockId.value = newIds[newIds.length - 1]
   }
   contextMenu.value.show = false
 }
@@ -2915,28 +3609,59 @@ function addImageBlockAtContext() {
   fileInputRef.value?.click()
 }
 
-function onBlockDragStart(blockId, clientX, clientY) {
-  // 保存状态
+function onBlockDragStart(blockId, clientX, clientY, e) {
+  dragOccurredThisGesture.value = false
+  const additive = e && (e.shiftKey || e.ctrlKey || e.metaKey)
+
+  if (additive) {
+    if (selectedBlockIds.value.includes(blockId)) {
+      // 已选中 + 修饰键 = 移出选择，且不启动拖拽
+      toggleBlockInSelection(blockId)
+      return
+    }
+    // 加入选择，并作为主块，随组拖拽
+    selectedBlockIds.value = [...selectedBlockIds.value, blockId]
+    selectedBlockId.value = blockId
+    selectedConnectionId.value = null
+  } else {
+    if (!selectedBlockIds.value.includes(blockId)) {
+      // 若点击的块属于某个分组，则整组联动（拖拽时一起移动）
+      const blk = blocks.value.find(b => b.id === blockId)
+      if (blk?.groupId) {
+        const groupIds = blocks.value.filter(b => b.groupId === blk.groupId).map(b => b.id)
+        selectedBlockIds.value = groupIds
+        selectedBlockId.value = blockId
+        selectedConnectionId.value = null
+      } else {
+        setSingleSelection(blockId)
+      }
+    }
+    // 若块已在多选中，保持多选以便整组拖拽
+  }
+
   draggingBlock.value = blockId
   hasDragged.value = false
-  selectedBlockId.value = blockId
-  selectedConnectionId.value = null
-  connectingFrom.value = null // 清除连线状态，避免干扰
-  
-  // 记录鼠标按下时的位置，用于判断是否真正开始拖拽
+  connectingFrom.value = null
+
   const rect = canvasRef.value.getBoundingClientRect()
   const canvasX = (clientX - rect.left - canvasConfig.value.offsetX) / canvasConfig.value.zoom
   const canvasY = (clientY - rect.top - canvasConfig.value.offsetY) / canvasConfig.value.zoom
-  
+
   dragStartMousePos.value = { x: canvasX, y: canvasY }
-  
-  // 计算鼠标相对于块左上角的偏移
+
   const block = blocks.value.find(b => b.id === blockId)
   if (block) {
     dragOffset.value = {
       x: canvasX - block.x,
       y: canvasY - block.y
     }
+  }
+
+  // 快照组内所有块起始位置，供整组按偏移移动
+  groupDragStart.value = {}
+  for (const id of selectedBlockIds.value) {
+    const b = blocks.value.find(x => x.id === id)
+    if (b) groupDragStart.value[id] = { x: b.x, y: b.y }
   }
 }
 
@@ -3523,11 +4248,15 @@ function deleteSelectedConnection() {
   flex: 1;
   position: relative;
   overflow: hidden;
-  cursor: grab;
+  cursor: default;
 }
 
 .canvas-container.panning {
   cursor: grabbing;
+}
+
+.canvas-container.space-held {
+  cursor: grab;
 }
 
 .canvas-container.connect-mode {
@@ -3616,6 +4345,69 @@ function deleteSelectedConnection() {
 
 .blocks-layer > * {
   pointer-events: auto;
+}
+
+.marquee-rect {
+  position: absolute;
+  pointer-events: none;
+  border: 1.5px solid var(--accent-color, #4a90d9);
+  background: rgba(74, 144, 217, 0.12);
+  border-radius: 2px;
+  z-index: 9999;
+}
+
+.multi-select-toolbar {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--border-light, #e0e0e0);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg, 0 4px 12px rgba(0,0,0,0.12));
+  z-index: 10001;
+  transform: translateX(-50%);
+  user-select: none;
+}
+
+.multi-select-toolbar .ms-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary, #888);
+  padding: 0 4px;
+  min-width: 18px;
+  text-align: center;
+}
+
+.multi-select-toolbar .ms-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border-light, #e8e8e8);
+  margin: 0 2px;
+}
+
+.multi-select-toolbar .ms-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: 5px;
+  color: var(--text-primary, #333);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.multi-select-toolbar .ms-btn:hover:not(:disabled) {
+  background: var(--bg-hover, rgba(0,0,0,0.06));
+}
+
+.multi-select-toolbar .ms-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .connection-toolbar {
@@ -3791,22 +4583,22 @@ function deleteSelectedConnection() {
   position: absolute;
   right: 16px;
   top: 68px;
-  width: 150px;
-  height: 150px;
+  width: 200px;
+  max-height: calc(100vh - 100px);
   z-index: 300;
   background: var(--bg-secondary);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .minimap {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  position: relative;
+  height: 150px;
+  flex-shrink: 0;
   overflow: hidden;
   cursor: pointer;
   opacity: 0.85;
@@ -3815,6 +4607,81 @@ function deleteSelectedConnection() {
 
 .minimap:hover {
   opacity: 1;
+}
+
+/* ===== 反向链接面板 ===== */
+.backlinks-panel {
+  border-top: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 260px;
+}
+
+.backlinks-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.backlinks-header:hover { background: var(--bg-hover); }
+
+.backlinks-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.backlinks-count {
+  background: var(--bg-tertiary, #eef0f2);
+  color: var(--text-secondary);
+  border-radius: 8px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 16px;
+  text-align: center;
+}
+.backlinks-chevron { transition: transform 0.2s; }
+.backlinks-chevron.collapsed { transform: rotate(-90deg); }
+
+.backlinks-list {
+  overflow-y: auto;
+  padding: 2px 6px 6px;
+  min-height: 0;
+}
+.backlink-item {
+  padding: 6px 8px;
+  border-radius: var(--radius-sm, 6px);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.backlink-item:hover { background: var(--bg-hover); }
+.backlink-source {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.backlink-snippet {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.backlinks-empty {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  padding: 8px;
+  text-align: center;
 }
 
 .zoom-controls-bottom {
@@ -4443,6 +5310,177 @@ function deleteSelectedConnection() {
 .find-nav-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
+}
+
+/* ===== 任务看板 ===== */
+.kanban-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 31, 28, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+}
+.kanban-panel {
+  width: 92vw;
+  max-width: 1100px;
+  max-height: 86vh;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.kanban-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+.kanban-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.kanban-total {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  background: var(--bg-tertiary);
+  border-radius: 10px;
+  padding: 1px 8px;
+}
+.kanban-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.kanban-empty {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 14px;
+}
+.kanban-columns {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  overflow-x: auto;
+  flex: 1;
+  min-height: 0;
+}
+.kanban-col {
+  flex: 1;
+  min-width: 220px;
+  max-width: 280px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  border-top: 3px solid var(--col-color);
+}
+.kanban-col-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.kanban-col-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--col-color);
+}
+.kanban-col-count {
+  margin-left: auto;
+  background: var(--bg-secondary);
+  color: var(--text-tertiary);
+  border-radius: 8px;
+  padding: 0 6px;
+  font-size: 11px;
+  min-width: 18px;
+  text-align: center;
+}
+.kanban-col-body {
+  flex: 1;
+  padding: 4px 8px 8px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 60px;
+}
+.kanban-col-placeholder {
+  border: 1.5px dashed var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.kanban-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  cursor: pointer;
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+.kanban-card:hover {
+  box-shadow: var(--shadow-sm);
+  border-color: var(--primary-color);
+}
+.kanban-card.is-high {
+  border-left: 3px solid #d96b6e;
+}
+.kanban-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.4;
+  word-break: break-word;
+}
+.kanban-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.kanban-priority {
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 8px;
+  padding: 1px 6px;
+}
+.kanban-priority.priority-low { background: rgba(150,160,170,0.18); color: #7a8ca6; }
+.kanban-priority.priority-normal { background: rgba(74,144,217,0.16); color: #4a90d9; }
+.kanban-priority.priority-high { background: rgba(217,107,110,0.18); color: #d96b6e; }
+.kanban-due {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.kanban-card-notes {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 </style>
 

@@ -119,7 +119,7 @@
           <div v-if="createError" class="error-tip">标签名称已存在</div>
           <div class="modal-actions">
             <button class="btn btn-secondary" @click="cancelCreate">取消</button>
-            <button class="btn btn-primary" :disabled="!newTagName.trim()" @click="confirmCreate">创建</button>
+            <button class="btn btn-primary" @click="confirmCreate">创建</button>
           </div>
         </div>
       </div>
@@ -156,9 +156,11 @@ import { ref, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTagStore, TAG_PRESET_COLORS } from '@/stores/tag'
 import { useNoteStore } from '@/stores/note'
+import { useToast } from '@/composables/useToast'
 
 const router = useRouter()
 const tagStore = useTagStore()
+const { error: toastError } = useToast()
 const noteStore = useNoteStore()
 
 const presetColors = TAG_PRESET_COLORS
@@ -186,7 +188,10 @@ function startCreate() {
 
 function confirmCreate() {
   const name = newTagName.value.trim()
-  if (!name) return
+  if (!name) {
+    toastError('请输入标签名称')
+    return
+  }
   const tag = tagStore.createTag(name, newTagColor.value)
   if (!tag) {
     createError.value = true

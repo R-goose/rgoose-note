@@ -323,7 +323,7 @@
           />
           <div class="modal-actions">
             <button class="btn btn-secondary" @click="cancelCreateNote">取消</button>
-            <button class="btn btn-primary" :disabled="!newNoteTitle.trim()" @click="confirmCreateNote">创建</button>
+            <button class="btn btn-primary" @click="confirmCreateNote">创建</button>
           </div>
         </div>
       </div>
@@ -462,7 +462,7 @@
           <div v-if="folderNameError" class="folder-error-tip">文件夹名称已存在</div>
           <div class="modal-actions">
             <button class="btn btn-secondary" @click="cancelCreateFolderModal">取消</button>
-            <button class="btn btn-primary" :disabled="!newFolderModalName.trim()" @click="confirmCreateFolderModal">创建</button>
+            <button class="btn btn-primary" @click="confirmCreateFolderModal">创建</button>
           </div>
         </div>
       </div>
@@ -569,6 +569,7 @@ import { useNoteStore } from '@/stores/note'
 import { usePlanStore } from '@/stores/plan'
 import { useTagStore, TAG_PRESET_COLORS } from '@/stores/tag'
 import { useThemeStore } from '@/stores/theme'
+import { useToast } from '@/composables/useToast'
 import { formatRelativeTime } from '@/utils'
 
 defineProps({
@@ -583,6 +584,7 @@ const noteStore = useNoteStore()
 const planStore = usePlanStore()
 const tagStore = useTagStore()
 const themeStore = useThemeStore()
+const { error: toastError } = useToast()
 
 const editingFolderId = ref(null)
 const editingFolderName = ref('')
@@ -848,7 +850,10 @@ function createNoteInFolder() {
 
 function confirmCreateNote() {
   const title = newNoteTitle.value.trim()
-  if (!title) return
+  if (!title) {
+    toastError('请输入笔记名称')
+    return
+  }
   const note = noteStore.createNote(title)
   showCreateNoteModal.value = false
   newNoteTitle.value = ''
@@ -862,7 +867,10 @@ function cancelCreateNote() {
 
 function confirmCreateFolderModal() {
   const name = newFolderModalName.value.trim()
-  if (!name) return
+  if (!name) {
+    toastError('请输入文件夹名称')
+    return
+  }
   if (!validateFolderName(name, null, selectedParentFolderId.value)) return
   const folder = noteStore.createFolder(name, selectedParentFolderId.value)
   if (folder && selectedModalTagIds.value.length) {
@@ -920,7 +928,10 @@ function positionModalTagDropdown() {
 
 function createModalFolderTag() {
   const name = modalTagSearch.value.trim()
-  if (!name) return
+  if (!name) {
+    toastError('请输入标签名称')
+    return
+  }
   let tag = tagStore.tags.find(t => t.name.toLowerCase() === name.toLowerCase())
   if (!tag) {
     tag = tagStore.createTag(name, TAG_PRESET_COLORS[tagStore.tags.length % TAG_PRESET_COLORS.length])

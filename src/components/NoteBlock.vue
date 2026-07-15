@@ -31,6 +31,7 @@
           <circle cx="15" cy="18" r="1" fill="currentColor"/>
         </svg>
       </div>
+      <div v-if="groupColor" class="block-group-badge" :style="{ background: groupColor }" :title="'同组成员将一起移动'"></div>
       <div v-if="!readOnly" class="block-actions">
         <button v-if="block.type !== 'image'" class="action-btn" @click.stop="$emit('add-image', block.id)" :title="`插入图片 ${sc('insertImage')}`.trim()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -157,6 +158,67 @@
       </div>
 
       <div
+        v-else-if="block.type === 'todo'"
+        class="todo-block"
+        :class="{ 'is-done': block.status === 'done' }"
+        @wheel.stop
+      >
+        <div class="todo-row">
+          <button
+            class="todo-status-btn"
+            :class="'status-' + (block.status || 'todo')"
+            @click.stop="cycleTodoStatus"
+            @mousedown.prevent
+            :title="todoStatusLabel"
+          >
+            <svg v-if="(block.status || 'todo') === 'done'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <svg v-else-if="(block.status || 'todo') === 'doing'" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0 0 20 10 10 0 0 0 0-20zm0 4a6 6 0 0 1 6 6h-6V6z"/></svg>
+            <svg v-else-if="(block.status || 'todo') === 'paused'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+            <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="9"/></svg>
+          </button>
+          <input
+            type="text"
+            class="todo-title-input"
+            :value="block.title || ''"
+            placeholder="任务标题..."
+            :readonly="readOnly"
+            @input="onTodoField('title', $event.target.value)"
+            @mousedown.stop
+            @click.stop
+          />
+        </div>
+        <div class="todo-meta-row">
+          <button
+            class="todo-priority-pill"
+            :class="'priority-' + (block.priority || 'normal')"
+            @click.stop="cycleTodoPriority"
+            @mousedown.prevent
+            title="优先级"
+          >{{ todoPriorityLabel }}</button>
+          <label class="todo-due-wrap" @mousedown.stop @click.stop>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <input
+              type="date"
+              class="todo-due-input"
+              :value="block.dueDate || ''"
+              :disabled="readOnly"
+              @change="onTodoField('dueDate', $event.target.value || null)"
+            />
+          </label>
+        </div>
+        <textarea
+          class="todo-notes-input"
+          :value="block.content || ''"
+          placeholder="备注（可选）..."
+          :readonly="readOnly"
+          rows="2"
+          @input="onTodoField('content', $event.target.value)"
+          @mousedown.stop
+          @click.stop
+        ></textarea>
+      </div>
+
+      <div
         v-else
         ref="editorRef"
         class="text-editor"
@@ -268,7 +330,8 @@ const props = defineProps({
   hideHighlightUnderline: Boolean,
   syncVersion: Number,
   linkSelectionMode: Boolean,
-  linkSelected: Boolean
+  linkSelected: Boolean,
+  groupColor: String
 })
 
 const resolvedImageUrl = ref('')
@@ -397,7 +460,7 @@ function syncEditorContent() {
   }
 }
 
-function onClick() {
+function onClick(e) {
   if (props.linkSelectionMode) {
     const sel = window.getSelection()
     if (sel && !sel.isCollapsed && sel.toString().trim()) {
@@ -409,7 +472,7 @@ function onClick() {
     emit('link-select-block', props.block.id)
     return
   }
-  emit('select', props.block.id)
+  emit('select', props.block.id, e)
 }
 
 function onMouseDown(e) {
@@ -420,7 +483,43 @@ function onMouseDown(e) {
   if (e.target.closest('.text-editor')) {
     return
   }
-  emit('drag-start', props.block.id, e.clientX, e.clientY)
+  emit('drag-start', props.block.id, e.clientX, e.clientY, e)
+}
+
+// ===== Todo 块 =====
+const TODO_STATUSES = ['todo', 'doing', 'done', 'paused']
+const TODO_STATUS_LABELS = { todo: '待办', doing: '进行中', done: '已完成', paused: '已搁置' }
+const TODO_PRIORITIES = ['low', 'normal', 'high']
+const TODO_PRIORITY_LABELS = { low: '低', normal: '中', high: '高' }
+
+const todoStatusLabel = computed(() => TODO_STATUS_LABELS[props.block?.status || 'todo'])
+const todoPriorityLabel = computed(() => '优先级：' + TODO_PRIORITY_LABELS[props.block?.priority || 'normal'])
+
+function cycleTodoStatus() {
+  if (props.readOnly) return
+  const cur = props.block?.status || 'todo'
+  const next = TODO_STATUSES[(TODO_STATUSES.indexOf(cur) + 1) % TODO_STATUSES.length]
+  emit('save-history', props.block.id)
+  emit('update', props.block.id, { status: next })
+}
+
+function cycleTodoPriority() {
+  if (props.readOnly) return
+  const cur = props.block?.priority || 'normal'
+  const next = TODO_PRIORITIES[(TODO_PRIORITIES.indexOf(cur) + 1) % TODO_PRIORITIES.length]
+  emit('save-history', props.block.id)
+  emit('update', props.block.id, { priority: next })
+}
+
+let todoFieldHistorySaved = false
+function onTodoField(field, value) {
+  if (props.readOnly) return
+  if (!todoFieldHistorySaved) {
+    emit('save-history', props.block.id)
+    todoFieldHistorySaved = true
+    setTimeout(() => { todoFieldHistorySaved = false }, 800)
+  }
+  emit('update', props.block.id, { [field]: value })
 }
 
 function onInput(e) {
@@ -1083,6 +1182,15 @@ onUnmounted(() => {
   cursor: move;
 }
 
+.block-group-badge {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px var(--bg-primary, #fff);
+  margin-left: -2px;
+}
+
 .block-actions {
   display: flex;
   align-items: center;
@@ -1514,6 +1622,103 @@ onUnmounted(() => {
   60% { box-shadow: 0 0 0 12px rgba(106, 167, 134, 0); }
   100% { box-shadow: 0 0 0 2px var(--primary-color), var(--shadow-lg); }
 }
+
+/* ===== Todo 块 ===== */
+.todo-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 2px;
+}
+.todo-block.is-done {
+  opacity: 0.62;
+}
+.todo-block.is-done .todo-title-input {
+  text-decoration: line-through;
+}
+.todo-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.todo-status-btn {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.todo-status-btn.status-todo { color: #b0b6bf; }
+.todo-status-btn.status-doing { color: #4a90d9; background: rgba(74,144,217,0.12); }
+.todo-status-btn.status-done { color: #fff; background: #6bbd8f; }
+.todo-status-btn.status-paused { color: #e8a44a; background: rgba(232,164,74,0.14); }
+.todo-status-btn:hover { filter: brightness(1.08); }
+.todo-title-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary, #222);
+  padding: 2px 0;
+}
+.todo-title-input::placeholder { color: var(--text-tertiary, #bbb); font-weight: 500; }
+.todo-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 32px;
+}
+.todo-priority-pill {
+  border: none;
+  border-radius: 10px;
+  padding: 2px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.6;
+}
+.todo-priority-pill.priority-low { background: rgba(150,160,170,0.18); color: #7a8ca6; }
+.todo-priority-pill.priority-normal { background: rgba(74,144,217,0.16); color: #4a90d9; }
+.todo-priority-pill.priority-high { background: rgba(217,107,110,0.18); color: #d96b6e; }
+.todo-due-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-tertiary, #999);
+}
+.todo-due-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 12px;
+  color: var(--text-secondary, #666);
+  cursor: pointer;
+  font-family: inherit;
+}
+.todo-notes-input {
+  width: 100%;
+  margin-left: 32px;
+  width: calc(100% - 32px);
+  border: none;
+  outline: none;
+  background: transparent;
+  resize: vertical;
+  font-size: 13px;
+  color: var(--text-secondary, #555);
+  font-family: inherit;
+  line-height: 1.5;
+  min-height: 0;
+}
+.todo-notes-input::placeholder { color: var(--text-tertiary, #bbb); }
 
 .connect-dot {
   position: absolute;

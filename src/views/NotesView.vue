@@ -20,7 +20,7 @@
             @keydown.esc="searchKeyword = ''"
           />
         </div>
-        <button v-if="noteStore.currentFolderId" class="btn btn-primary" @click="createNote">
+        <button class="btn btn-primary" @click="createNote">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <line x1="12" y1="5" x2="12" y2="19"/>
             <line x1="5" y1="12" x2="19" y2="12"/>
@@ -228,14 +228,33 @@
             v-model="newNoteTitle"
             type="text"
             class="input"
+            :class="{ 'input-error': createError }"
             placeholder="请输入笔记名称"
             maxlength="100"
             @keyup.enter="confirmCreateNote"
             @keyup.esc="cancelCreateNote"
+            @input="createError = ''"
           />
+          <div v-if="createError" class="field-error-tip">{{ createError }}</div>
+          <div class="template-section">
+            <div class="template-section-label">选择模板（可选）</div>
+            <div class="template-grid">
+              <div
+                v-for="tpl in NOTE_TEMPLATES"
+                :key="tpl.key"
+                class="template-card"
+                :class="{ active: selectedTemplate === tpl.key }"
+                @click="selectedTemplate = selectedTemplate === tpl.key ? null : tpl.key"
+              >
+                <div class="template-card-icon" v-html="tpl.icon"></div>
+                <div class="template-card-name">{{ tpl.name }}</div>
+                <div class="template-card-desc">{{ tpl.desc }}</div>
+              </div>
+            </div>
+          </div>
           <div class="modal-actions">
             <button class="btn btn-secondary" @click="cancelCreateNote">取消</button>
-            <button class="btn btn-primary" :disabled="!newNoteTitle.trim()" @click="confirmCreateNote">创建</button>
+            <button class="btn btn-primary" @click="confirmCreateNote">创建</button>
           </div>
         </div>
       </div>
@@ -333,7 +352,7 @@
           />
           <div class="modal-actions">
             <button class="btn btn-secondary" @click="cancelRename">取消</button>
-            <button class="btn btn-primary" :disabled="!renameState.name.trim()" @click="confirmRename">确定</button>
+            <button class="btn btn-primary" @click="confirmRename">确定</button>
           </div>
         </div>
       </div>
@@ -456,6 +475,7 @@ import { ref, computed, nextTick, onMounted, onUnmounted, reactive, watch } from
 import { useRouter, useRoute } from 'vue-router'
 import { useNoteStore } from '@/stores/note'
 import { useTagStore, TAG_PRESET_COLORS } from '@/stores/tag'
+import { useToast } from '@/composables/useToast'
 import { formatDate as formatDateUtil } from '@/utils'
 import { resolveImageUrl, isImageRef } from '@/utils/imageStore'
 
@@ -463,6 +483,7 @@ const router = useRouter()
 const route = useRoute()
 const noteStore = useNoteStore()
 const tagStore = useTagStore()
+const { error: toastError } = useToast()
 tagStore.init()
 const searchKeyword = ref('')
 const searchInputRef = ref(null)
@@ -470,7 +491,120 @@ const activeTagFilter = ref(null)
 const activeFolderTagFilter = ref(null)
 const showCreateModal = ref(false)
 const newNoteTitle = ref('')
+const createError = ref('')
+const selectedTemplate = ref(null)
 const noteTitleInputRef = ref(null)
+
+// 笔记模板库
+const NOTE_TEMPLATES = [
+  {
+    key: 'blank',
+    name: '空白',
+    desc: '从零开始',
+    icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="2"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="16" y2="13"/></svg>'
+  },
+  {
+    key: 'character',
+    name: '角色卡',
+    desc: '游戏角色设定',
+    icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0 1 16 0v1"/></svg>'
+  },
+  {
+    key: 'level',
+    name: '关卡设计',
+    desc: '关卡/地图规划',
+    icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>'
+  },
+  {
+    key: 'system',
+    name: '系统设计',
+    desc: '玩法/系统文档',
+    icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg>'
+  },
+  {
+    key: 'story',
+    name: '剧情大纲',
+    desc: '故事/剧本结构',
+    icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>'
+  },
+  {
+    key: 'tasks',
+    name: '任务清单',
+    desc: '开发待办管理',
+    icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>'
+  }
+]
+
+function buildTemplateBlocks(tplKey) {
+  const PAD_X = 60
+  const GAP = 24
+  const blocks = []
+  let cursorY = 60
+  // 估算块渲染高度（文本块含标题/列表实际更高），用于推算下一块 y，避免重叠
+  const estHeight = (data) => {
+    if (data.type === 'todo') return 110
+    // 文本块：根据内容粗略估算
+    const html = data.content || ''
+    const lines = (html.match(/<li/g) || []).length + (html.match(/<p/g) || []).length
+    const hasH2 = /<h2/.test(html)
+    const hasH3 = /<h3/.test(html)
+    let h = 70 + lines * 26
+    if (hasH2) h += 20
+    if (hasH3) h += 16
+    return Math.max(data.minHeight || 80, h)
+  }
+  // 单列块
+  const mk = (data) => {
+    const y = cursorY
+    const b = { ...data, x: data.x != null ? data.x : PAD_X, y }
+    blocks.push(b)
+    cursorY = y + estHeight(b) + GAP
+    return b
+  }
+  // 并排两块（同一行）
+  const mkRow = (left, right) => {
+    const y = cursorY
+    const lb = { ...left, y }
+    const rb = { ...right, y }
+    blocks.push(lb, rb)
+    cursorY = y + Math.max(estHeight(lb), estHeight(rb)) + GAP
+  }
+
+  if (tplKey === 'character') {
+    mkRow(
+      { x: PAD_X, width: 320, minHeight: 90, type: 'text', content: '<h2>角色名</h2><p>填写角色基本信息、背景设定</p>' },
+      { x: PAD_X + 320 + GAP, width: 260, minHeight: 90, type: 'todo', title: '完成角色立绘', status: 'todo', priority: 'normal', dueDate: null, content: '' }
+    )
+    mk({ width: 600, minHeight: 130, type: 'text', content: '<h3>属性面板</h3><ul><li>生命值 / 攻击力 / 防御力</li><li>特殊技能</li><li>弱点与抗性</li></ul>' })
+    mk({ width: 600, minHeight: 130, type: 'text', content: '<h3>背景故事</h3><p>角色的身世、动机、关键事件...</p>' })
+  } else if (tplKey === 'level') {
+    mk({ width: 340, minHeight: 90, type: 'text', content: '<h2>关卡名称</h2><p>主题 / 难度 / 时长</p>' })
+    mk({ width: 600, minHeight: 100, type: 'text', content: '<h3>关卡目标</h3><p>玩家需要完成什么...</p>' })
+    mk({ width: 600, minHeight: 150, type: 'text', content: '<h3>地图结构</h3><ul><li>起点 → 中段 → Boss</li><li>隐藏区域 / 收集品</li></ul>' })
+    mk({ width: 300, minHeight: 100, type: 'todo', title: '设计敌人配置', status: 'todo', priority: 'high', dueDate: null, content: '' })
+  } else if (tplKey === 'system') {
+    mk({ width: 340, minHeight: 90, type: 'text', content: '<h2>系统名称</h2><p>一句话描述这个系统</p>' })
+    mk({ width: 600, minHeight: 150, type: 'text', content: '<h3>核心机制</h3><p>这个系统如何运作？输入 → 处理 → 输出...</p>' })
+    mk({ width: 600, minHeight: 130, type: 'text', content: '<h3>数值平衡</h3><ul><li>成长曲线</li><li>消耗与收益</li></ul>' })
+    mk({ width: 300, minHeight: 100, type: 'todo', title: '原型验证', status: 'todo', priority: 'normal', dueDate: null, content: '' })
+  } else if (tplKey === 'story') {
+    mk({ width: 340, minHeight: 90, type: 'text', content: '<h2>故事标题</h2><p>题材 / 基调</p>' })
+    mk({ width: 600, minHeight: 100, type: 'text', content: '<h3>第一幕：开端</h3><p>引入、设定、激励事件...</p>' })
+    mk({ width: 600, minHeight: 100, type: 'text', content: '<h3>第二幕：发展</h3><p>冲突升级、转折点...</p>' })
+    mk({ width: 600, minHeight: 100, type: 'text', content: '<h3>第三幕：结局</h3><p>高潮、解决、余韵...</p>' })
+  } else if (tplKey === 'tasks') {
+    mk({ width: 340, minHeight: 90, type: 'text', content: '<h2>项目待办</h2><p>按优先级跟踪开发进度</p>' })
+    mkRow(
+      { x: PAD_X, width: 290, minHeight: 100, type: 'todo', title: '核心玩法原型', status: 'doing', priority: 'high', dueDate: null, content: '' },
+      { x: PAD_X + 290 + GAP, width: 290, minHeight: 100, type: 'todo', title: '美术资源整理', status: 'todo', priority: 'normal', dueDate: null, content: '' }
+    )
+    mkRow(
+      { x: PAD_X, width: 290, minHeight: 100, type: 'todo', title: '音效接入', status: 'todo', priority: 'low', dueDate: null, content: '' },
+      { x: PAD_X + 290 + GAP, width: 290, minHeight: 100, type: 'todo', title: 'Bug 修复', status: 'paused', priority: 'normal', dueDate: null, content: '' }
+    )
+  }
+  return blocks
+}
 
 const currentFolderName = computed(() => {
   if (!noteStore.currentFolderId) return '笔记'
@@ -549,22 +683,39 @@ watch(() => route.query, (q) => {
 
 function createNote() {
   newNoteTitle.value = ''
+  createError.value = ''
+  selectedTemplate.value = null
   showCreateModal.value = true
   nextTick(() => noteTitleInputRef.value?.focus())
 }
 
 function confirmCreateNote() {
   const title = newNoteTitle.value.trim()
-  if (!title) return
+  if (!title) {
+    createError.value = '请输入笔记名称'
+    toastError('请输入笔记名称')
+    noteTitleInputRef.value?.focus()
+    return
+  }
   const note = noteStore.createNote(title)
+  // 应用模板：向新笔记追加预设块
+  if (selectedTemplate.value && selectedTemplate.value !== 'blank') {
+    const tplBlocks = buildTemplateBlocks(selectedTemplate.value)
+    for (const b of tplBlocks) {
+      noteStore.addBlock(note.id, b)
+    }
+  }
   showCreateModal.value = false
   newNoteTitle.value = ''
+  createError.value = ''
+  selectedTemplate.value = null
   router.push(`/note/${note.id}`)
 }
 
 function cancelCreateNote() {
   showCreateModal.value = false
   newNoteTitle.value = ''
+  selectedTemplate.value = null
 }
 
 function openNote(id) {
@@ -714,7 +865,10 @@ function toggleTargetTag(tagId) {
 
 function createTagForTarget() {
   const name = tagPickerState.value.search.trim()
-  if (!name) return
+  if (!name) {
+    toastError('请输入标签名称')
+    return
+  }
   let tag = tagStore.tags.find(t => t.name.toLowerCase() === name.toLowerCase())
   if (!tag) {
     tag = tagStore.createTag(name, TAG_PRESET_COLORS[tagStore.tags.length % TAG_PRESET_COLORS.length])
@@ -741,7 +895,11 @@ function closeMoveFolderPicker() {
 }
 function confirmRename() {
   const name = renameState.value.name.trim()
-  if (name && renameState.value.id) {
+  if (!name) {
+    toastError('请输入文件夹名称')
+    return
+  }
+  if (renameState.value.id) {
     noteStore.renameFolder(renameState.value.id, name)
   }
   renameState.value.show = false
@@ -1292,8 +1450,8 @@ onUnmounted(() => {
 }
 
 .create-note-modal {
-  width: 380px;
-  max-width: 90vw;
+  width: 620px;
+  max-width: 92vw;
   padding: 24px;
 }
 
@@ -1305,8 +1463,80 @@ onUnmounted(() => {
 }
 
 .create-note-modal .input {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   font-size: 15px;
+}
+
+.create-note-modal .input.input-error {
+  border-color: #d96b6e;
+}
+
+.field-error-tip {
+  color: #d96b6e;
+  font-size: 12px;
+  margin-top: -10px;
+  margin-bottom: 14px;
+}
+
+.template-section {
+  margin-bottom: 20px;
+}
+
+.template-section-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.template-card {
+  border: 1.5px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 14px 10px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+  background: var(--bg-secondary);
+}
+
+.template-card:hover {
+  border-color: var(--primary-color);
+  background: var(--bg-tertiary);
+}
+
+.template-card.active {
+  border-color: var(--primary-color);
+  background: var(--primary-soft);
+  box-shadow: 0 0 0 2px var(--primary-color);
+}
+
+.template-card-icon {
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: center;
+}
+
+.template-card.active .template-card-icon {
+  color: var(--primary-color);
+}
+
+.template-card-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.template-card-desc {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
 }
 
 .create-note-modal .modal-actions {

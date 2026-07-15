@@ -194,10 +194,12 @@
 <script setup>
 import { ref, computed, reactive } from 'vue'
 import { usePlanStore } from '@/stores/plan'
+import { useToast } from '@/composables/useToast'
 import PlanItem from '@/components/PlanItem.vue'
 import DateTimePicker from '@/components/DateTimePicker.vue'
 
 const planStore = usePlanStore()
+const { error: toastError } = useToast()
 const showAddModal = ref(false)
 const editingPlan = ref(null)
 const showCompleted = ref(false)
@@ -254,7 +256,10 @@ function closeModal() {
 }
 
 function savePlan() {
-  if (!form.title.trim()) return
+  if (!form.title.trim()) {
+    toastError('请输入计划标题')
+    return
+  }
 
   const data = {
     description: form.description.trim(),
