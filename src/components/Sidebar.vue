@@ -57,6 +57,15 @@
           <span>计划</span>
           <span v-if="todayPlanCount" class="badge">{{ todayPlanCount }}</span>
         </router-link>
+        <router-link to="/dashboard" class="nav-item nav-dashboard" active-class="active">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="9"/>
+            <rect x="14" y="3" width="7" height="5"/>
+            <rect x="14" y="12" width="7" height="9"/>
+            <rect x="3" y="16" width="7" height="5"/>
+          </svg>
+          <span>仪表盘</span>
+        </router-link>
         <router-link to="/tags" class="nav-item nav-tags" active-class="active">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
@@ -1263,11 +1272,13 @@ function closeFolderModalTagDropdown(e) {
 
 .nav-notes svg { color: var(--primary-color); }
 .nav-plans svg { color: var(--secondary-dark); }
+.nav-dashboard svg { color: #4a9e9e; }
 .nav-tags svg { color: #9b7bd6; }
 .nav-settings svg { color: var(--info-color); }
 
 .nav-notes:hover svg { color: var(--primary-dark); }
 .nav-plans:hover svg { color: var(--secondary-dark); }
+.nav-dashboard:hover svg { color: #3a8585; }
 .nav-tags:hover svg { color: #9b7bd6; }
 .nav-settings:hover svg { color: var(--info-dark); }
 
@@ -1278,11 +1289,13 @@ function closeFolderModalTagDropdown(e) {
 
 .nav-notes.active { background: var(--primary-soft); color: var(--primary-dark); }
 .nav-plans.active { background: var(--secondary-soft); color: var(--secondary-dark); }
+.nav-dashboard.active { background: rgba(74, 158, 158, 0.16); color: #4a9e9e; }
 .nav-tags.active { background: rgba(155, 123, 214, 0.16); color: #9b7bd6; }
 .nav-settings.active { background: var(--info-soft); color: var(--info-dark); }
 
 .nav-notes.active svg { color: var(--primary-color); }
 .nav-plans.active svg { color: var(--secondary-color); }
+.nav-dashboard.active svg { color: #4a9e9e; }
 .nav-tags.active svg { color: #9b7bd6; }
 .nav-settings.active svg { color: var(--info-color); }
 

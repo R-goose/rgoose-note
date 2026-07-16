@@ -24,6 +24,12 @@ const routes = [
     meta: { title: '计划' }
   },
   {
+    path: '/dashboard',
+    name: 'Dashboard',
+    component: () => import('@/views/DashboardView.vue'),
+    meta: { title: '仪表盘' }
+  },
+  {
     path: '/tags',
     name: 'Tags',
     component: () => import('@/views/TagsView.vue'),
