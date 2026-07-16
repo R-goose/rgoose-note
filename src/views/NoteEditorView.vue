@@ -1397,7 +1397,11 @@ const milestoneBlocks = computed(() => {
 function progressDisplayValue(block) {
   if (block.mode === 'auto') {
     if (!note.value) return 0
-    const todos = note.value.blocks.filter(b => b.type === 'todo')
+    const linked = block.linkedTodoIds
+    let todos = note.value.blocks.filter(b => b.type === 'todo')
+    if (linked && linked.length > 0) {
+      todos = todos.filter(t => linked.includes(t.id))
+    }
     if (todos.length === 0) return 0
     const done = todos.filter(b => b.status === 'done').length
     return Math.round((done / todos.length) * 100)

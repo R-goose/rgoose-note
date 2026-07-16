@@ -239,7 +239,12 @@
           <div class="progress-value-display" :class="{ 'is-done': progressValue >= 100 }">{{ progressValue }}%</div>
         </div>
         <div class="progress-track-wrap">
-          <div class="progress-track" @click.stop="onProgressTrackClick" ref="progressTrackRef">
+          <div
+            class="progress-track"
+            :class="{ 'is-auto': block.mode === 'auto', 'is-dragging': progressDragging }"
+            ref="progressTrackRef"
+            @mousedown.stop.prevent="onProgressDragStart"
+          >
             <div class="progress-fill" :style="{ width: progressValue + '%' }"></div>
             <div class="progress-thumb" :style="{ left: progressValue + '%' }"></div>
           </div>
@@ -260,6 +265,39 @@
             {{ block.mode === 'auto' ? '自动（按任务）' : '手动' }}
           </button>
           <span v-if="block.mode === 'auto'" class="progress-auto-hint">{{ progressAutoText }}</span>
+          <button
+            v-if="block.mode === 'auto' && progressLinkedTodos.length > 0"
+            class="progress-link-toggle"
+            @mousedown.prevent
+            @click.stop="progressShowLinks = !progressShowLinks"
+            :class="{ active: progressShowLinks }"
+          >
+            {{ progressShowLinks ? '收起' : '关联任务' }}
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+        </div>
+        <div v-if="block.mode === 'auto' && progressShowLinks && progressLinkedTodos.length > 0" class="progress-link-list">
+          <div class="progress-link-header">
+            <span>选择要计入的任务（不选则全部计入）</span>
+            <button v-if="(block.linkedTodoIds || []).length > 0" class="progress-link-clear" @mousedown.prevent @click.stop="clearProgressLinks">清除选择</button>
+          </div>
+          <label
+            v-for="t in progressLinkedTodos"
+            :key="t.id"
+            class="progress-link-item"
+            :class="{ checked: (block.linkedTodoIds || []).includes(t.id) }"
+            @mousedown.stop
+            @click.stop="toggleProgressLink(t.id)"
+          >
+            <span class="progress-link-check">
+              <svg v-if="(block.linkedTodoIds || []).includes(t.id)" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </span>
+            <span class="progress-link-status" :class="'status-' + (t.status || 'todo')"></span>
+            <span class="progress-link-title">{{ t.title || '未命名任务' }}</span>
+          </label>
+        </div>
+        <div v-else-if="block.mode === 'auto' && progressLinkedTodos.length === 0 && progressShowLinks" class="progress-link-empty">
+          本笔记还没有任务块，右键画布创建任务块后再来关联
         </div>
       </div>
 
@@ -623,6 +661,8 @@ function onTodoField(field, value) {
 
 // ===== 进度条块 =====
 const progressTrackRef = ref(null)
+const progressDragging = ref(false)
+const progressShowLinks = ref(false)
 
 const progressValue = computed(() => {
   if (props.block?.mode === 'auto') {
@@ -631,20 +671,32 @@ const progressValue = computed(() => {
   return Math.max(0, Math.min(100, props.block?.value ?? 0))
 })
 
+const progressLinkedTodos = computed(() => {
+  if (!noteStore.currentNote) return []
+  return noteStore.currentNote.blocks.filter(b => b.type === 'todo')
+})
+
 const progressAutoValue = computed(() => {
-  if (!noteStore.currentNote) return 0
-  const todos = noteStore.currentNote.blocks.filter(b => b.type === 'todo')
+  const linked = props.block?.linkedTodoIds
+  const todos = (linked && linked.length > 0)
+    ? progressLinkedTodos.value.filter(t => linked.includes(t.id))
+    : progressLinkedTodos.value
   if (todos.length === 0) return 0
   const done = todos.filter(b => b.status === 'done').length
   return Math.round((done / todos.length) * 100)
 })
 
 const progressAutoText = computed(() => {
-  if (!noteStore.currentNote) return '无关联任务'
-  const todos = noteStore.currentNote.blocks.filter(b => b.type === 'todo')
-  if (todos.length === 0) return '本笔记暂无任务块'
+  const linked = props.block?.linkedTodoIds
+  const todos = (linked && linked.length > 0)
+    ? progressLinkedTodos.value.filter(t => linked.includes(t.id))
+    : progressLinkedTodos.value
+  if (todos.length === 0) {
+    return linked && linked.length > 0 ? '关联任务已被删除' : '本笔记暂无任务块'
+  }
   const done = todos.filter(b => b.status === 'done').length
-  return `${done}/${todos.length} 任务完成`
+  const scope = linked && linked.length > 0 ? `关联 ${todos.length} 项` : `全部 ${todos.length} 项`
+  return `${done}/${todos.length} 完成 · ${scope}`
 })
 
 let progressFieldHistorySaved = false
@@ -658,6 +710,22 @@ function onProgressField(field, value) {
   emit('update', props.block.id, { [field]: value })
 }
 
+function toggleProgressLink(todoId) {
+  if (props.readOnly) return
+  const linked = [...(props.block?.linkedTodoIds || [])]
+  const idx = linked.indexOf(todoId)
+  if (idx >= 0) linked.splice(idx, 1)
+  else linked.push(todoId)
+  emit('save-history', props.block.id)
+  emit('update', props.block.id, { linkedTodoIds: linked })
+}
+
+function clearProgressLinks() {
+  if (props.readOnly) return
+  emit('save-history', props.block.id)
+  emit('update', props.block.id, { linkedTodoIds: [] })
+}
+
 function progressStep(delta) {
   if (props.readOnly) return
   const cur = props.block?.value ?? 0
@@ -666,14 +734,28 @@ function progressStep(delta) {
   emit('update', props.block.id, { value: next })
 }
 
-function onProgressTrackClick(e) {
+function onProgressDragStart(e) {
   if (props.readOnly || props.block?.mode === 'auto') return
+  progressDragging.value = true
+  emit('save-history', props.block.id)
+  updateProgressFromPointer(e)
+  const onMove = (ev) => updateProgressFromPointer(ev)
+  const onUp = () => {
+    progressDragging.value = false
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('mouseup', onUp)
+  }
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('mouseup', onUp)
+}
+
+function updateProgressFromPointer(e) {
   const track = progressTrackRef.value
   if (!track) return
   const rect = track.getBoundingClientRect()
-  const pct = Math.round(((e.clientX - rect.left) / rect.width) * 100)
-  emit('save-history', props.block.id)
-  emit('update', props.block.id, { value: Math.max(0, Math.min(100, pct)) })
+  let pct = Math.round(((e.clientX - rect.left) / rect.width) * 100)
+  pct = Math.max(0, Math.min(100, pct))
+  emit('update', props.block.id, { value: pct })
 }
 
 function toggleProgressMode() {
@@ -1973,6 +2055,12 @@ onUnmounted(() => {
   cursor: pointer;
   overflow: visible;
 }
+.progress-track.is-dragging { cursor: grabbing; }
+.progress-track.is-auto { cursor: default; }
+.progress-track.is-dragging .progress-thumb {
+  transform: translate(-50%, -50%) scale(1.25);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
 .progress-fill {
   height: 100%;
   background: linear-gradient(90deg, var(--primary-color), var(--primary-dark, #3a8fc4));
@@ -2052,6 +2140,107 @@ onUnmounted(() => {
   font-size: 11px;
   color: var(--text-tertiary);
 }
+.progress-link-toggle {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  padding: 3px 8px;
+  border: 1px solid var(--border-light, #e0e0e0);
+  border-radius: 12px;
+  background: var(--bg-secondary, #fff);
+  color: var(--text-tertiary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.progress-link-toggle:hover { color: var(--primary-color); border-color: var(--primary-color); }
+.progress-link-toggle.active { background: var(--primary-soft, rgba(74,144,217,0.12)); color: var(--primary-color); border-color: var(--primary-color); }
+.progress-link-list {
+  margin-top: 4px;
+  padding: 8px;
+  border: 1px solid var(--border-light, #e0e0e0);
+  border-radius: 8px;
+  background: var(--bg-tertiary, #f9f9f9);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.progress-link-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-light, #eee);
+  margin-bottom: 2px;
+}
+.progress-link-clear {
+  border: none;
+  background: transparent;
+  color: var(--primary-color);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+}
+.progress-link-clear:hover { text-decoration: underline; }
+.progress-link-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.progress-link-item:hover { background: var(--bg-secondary, #fff); }
+.progress-link-check {
+  width: 15px;
+  height: 15px;
+  border: 1.5px solid var(--border-color, #ccc);
+  border-radius: 3px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  transition: all 0.12s;
+}
+.progress-link-item.checked .progress-link-check {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: #fff;
+}
+.progress-link-status {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--text-quaternary, #ccc);
+}
+.progress-link-status.status-todo { background: #9ca3af; }
+.progress-link-status.status-doing { background: var(--primary-color); }
+.progress-link-status.status-done { background: #4a8a64; }
+.progress-link-status.status-paused { background: #d4a657; }
+.progress-link-title {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.progress-link-empty {
+  margin-top: 4px;
+  padding: 10px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  text-align: center;
+  background: var(--bg-tertiary, #f9f9f9);
+  border-radius: 6px;
+}
 
 /* ===== 里程碑块 ===== */
 .milestone-block {
@@ -2106,12 +2295,13 @@ onUnmounted(() => {
   color: var(--text-tertiary);
 }
 .milestone-date-input {
-  border: 1px solid var(--border-light, #e0e0e0);
-  border-radius: 5px;
-  padding: 2px 6px;
+  border: none;
+  outline: none;
+  background: transparent;
   font-size: 12px;
-  color: var(--text-secondary);
-  background: var(--bg-secondary, #fff);
+  color: var(--text-secondary, #666);
+  cursor: pointer;
+  font-family: inherit;
 }
 .milestone-relative {
   font-size: 11px;
