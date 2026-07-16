@@ -159,7 +159,7 @@
             </div>
             <div class="tl-body">
               <div v-if="filteredTaskList.length === 0" class="tl-empty">该分类下暂无任务</div>
-              <div v-for="t in filteredTaskList" :key="t.id" class="tl-item" @click="goToNote(t._noteId)">
+              <div v-for="t in filteredTaskList" :key="t.id" class="tl-item" @click="goToNote(t._noteId, t.id)">
                 <span class="tl-status-dot" :style="{ background: statusColorOf(t.status) }"></span>
                 <div class="tl-item-main">
                   <div class="tl-item-title">{{ t.title || '未命名任务' }}</div>
@@ -271,26 +271,30 @@ function getNoteTags(noteId) {
   return note?.tags || []
 }
 
+const tagById = computed(() => new Map(tagStore.tags.map(t => [t.id, t])))
+
 const tagProgress = computed(() => {
   refreshKey.value
   const map = new Map()
   for (const t of todoBlocks.value) {
-    const tags = getNoteTags(t._noteId)
-    for (const tagName of tags) {
-      if (!map.has(tagName)) map.set(tagName, { total: 0, done: 0 })
-      const item = map.get(tagName)
+    const tagIds = getNoteTags(t._noteId)
+    for (const tagId of tagIds) {
+      const tag = tagById.value.get(tagId)
+      const displayName = tag?.name || tagId
+      if (!map.has(tagId)) map.set(tagId, { name: displayName, color: tag?.color || '#9ca3af', total: 0, done: 0 })
+      const item = map.get(tagId)
       item.total++
       if (t.status === 'done') item.done++
     }
   }
-  const tagColorMap = new Map(tagStore.tags.map(t => [t.name, t.color]))
-  return [...map.entries()]
-    .map(([name, v]) => ({
-      name,
+  return [...map.values()]
+    .map(v => ({
+      id: [...map.keys()].find(k => map.get(k) === v),
+      name: v.name,
       total: v.total,
       done: v.done,
       rate: v.total ? Math.round(v.done / v.total * 100) : 0,
-      color: tagColorMap.get(name) || '#9ca3af'
+      color: v.color
     }))
     .sort((a, b) => b.total - a.total)
     .slice(0, 8)
@@ -329,10 +333,10 @@ const milestoneTimeline = computed(() => {
     })
 })
 
-function goToNote(noteId) {
+function goToNote(noteId, blockId) {
   if (noteId) {
     showTaskList.value = false
-    router.push(`/note/${noteId}`)
+    router.push(blockId ? `/note/${noteId}?b=${blockId}` : `/note/${noteId}`)
   }
 }
 
