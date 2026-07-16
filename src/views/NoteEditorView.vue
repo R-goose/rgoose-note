@@ -1844,9 +1844,14 @@ watch(() => route.params.id, (newId) => {
   }
 })
 
-watch(() => route.query.b, (blockId) => {
-  if (!blockId || !note.value) {
-    highlightBlockId.value = null
+const pendingCenterBlockId = ref(null)
+
+watch([() => route.query.b, () => note.value], ([blockId, noteVal]) => {
+  if (!blockId || !noteVal) {
+    if (!noteVal) {
+      if (blockId) pendingCenterBlockId.value = blockId
+      else highlightBlockId.value = null
+    }
     return
   }
   const exists = blocks.value.some(b => b.id === blockId)
@@ -1858,8 +1863,13 @@ watch(() => route.query.b, (blockId) => {
   if (!hasTextRange) {
     highlightBlockId.value = blockId
   }
-  nextTick(() => {
+  const doCenter = () => {
     centerBlockInView(blockId)
+    pendingCenterBlockId.value = null
+  }
+  nextTick(() => {
+    if (canvasRef.value) doCenter()
+    else setTimeout(doCenter, 200)
   })
   const applyText = () => {
     if (pendingTextHighlight.value && pendingTextHighlight.value.blockId === blockId) {
