@@ -158,6 +158,32 @@
             </svg>
             看板
           </button>
+          <button
+            class="btn"
+            :class="showGrid ? 'btn-primary' : 'btn-secondary'"
+            @click="showGrid = !showGrid"
+            title="网格显示开关"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <rect x="3" y="3" width="7" height="7" rx="1"/>
+              <rect x="14" y="3" width="7" height="7" rx="1"/>
+              <rect x="3" y="14" width="7" height="7" rx="1"/>
+              <rect x="14" y="14" width="7" height="7" rx="1"/>
+            </svg>
+            网格
+          </button>
+          <button
+            class="btn"
+            :class="snapToGrid ? 'btn-primary' : 'btn-secondary'"
+            @click="snapToGrid = !snapToGrid"
+            :title="snapToGrid ? `吸附到网格（${gridSize}px）` : '网格吸附：关'"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 3v18M11 3v18M17 3v18M3 5h18M3 11h18M3 17h18"/>
+              <rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor" fill-opacity="0.3"/>
+            </svg>
+            吸附
+          </button>
         </div>
       </div>
       
@@ -1044,6 +1070,16 @@ function autoSizeTitle() {
 }
 const canvasConfig = ref({ zoom: 1, offsetX: 0, offsetY: 0 })
 
+const gridSize = ref(24)
+const showGrid = ref(localStorage.getItem('rgoose_show_grid') !== 'false')
+const snapToGrid = ref(localStorage.getItem('rgoose_snap_grid') === 'true')
+watch(showGrid, v => localStorage.setItem('rgoose_show_grid', v ? 'true' : 'false'))
+watch(snapToGrid, v => localStorage.setItem('rgoose_snap_grid', v ? 'true' : 'false'))
+function snapVal(v) {
+  if (!snapToGrid.value) return v
+  return Math.round(v / gridSize.value) * gridSize.value
+}
+
 const isPanning = ref(false)
 // 空格键按下状态（独立于 isPanning，避免语义混淆）
 const spaceHeld = ref(false)
@@ -1109,7 +1145,12 @@ function onBlockResize({ id, width, height }) {
 
 function onBlockResizeBlock({ id, width, height, x, y }) {
   blockSizes.value = { ...blockSizes.value, [id]: { width, height } }
-  noteStore.updateBlock(note.value.id, id, { width, height, x, y })
+  noteStore.updateBlock(note.value.id, id, {
+    width: snapVal(width),
+    height: snapVal(height),
+    x: snapVal(x),
+    y: snapVal(y)
+  })
 }
 
 const draggingBlock = ref(null)
@@ -1575,8 +1616,12 @@ const blocks = computed(() => note.value?.blocks || [])
 const connections = computed(() => note.value?.connections || [])
 
 const canvasBgStyle = computed(() => ({
-  backgroundSize: `${24 * canvasConfig.value.zoom}px ${24 * canvasConfig.value.zoom}px`,
-  backgroundPosition: `${canvasConfig.value.offsetX}px ${canvasConfig.value.offsetY}px`
+  backgroundImage: showGrid.value
+    ? `linear-gradient(to right, var(--grid-line) 1px, transparent 1px), linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px)`
+    : 'none',
+  backgroundSize: `${gridSize.value * canvasConfig.value.zoom}px ${gridSize.value * canvasConfig.value.zoom}px`,
+  backgroundPosition: `${canvasConfig.value.offsetX}px ${canvasConfig.value.offsetY}px`,
+  opacity: showGrid.value ? 0.5 : 0
 }))
 
 const canvasTransformStyle = computed(() => ({
@@ -2606,15 +2651,17 @@ function onWindowMouseMove(e) {
     
     const newX = canvasX - dragOffset.value.x
     const newY = canvasY - dragOffset.value.y
-    
+
     const currentBlock = blocks.value.find(b => b.id === draggingBlock.value)
     if (!currentBlock) return
 
     const isGroupDrag = selectedBlockIds.value.length > 1 && groupDragStart.value
     if (isGroupDrag) {
+      const snappedBaseX = snapVal(newX)
+      const snappedBaseY = snapVal(newY)
       const start = groupDragStart.value[draggingBlock.value] || { x: currentBlock.x, y: currentBlock.y }
-      const deltaX = newX - start.x
-      const deltaY = newY - start.y
+      const deltaX = (snapToGrid.value ? snappedBaseX : newX) - start.x
+      const deltaY = (snapToGrid.value ? snappedBaseY : newY) - start.y
       for (const id of selectedBlockIds.value) {
         const s = groupDragStart.value[id]
         if (!s) continue
@@ -2623,7 +2670,9 @@ function onWindowMouseMove(e) {
         noteStore.updateBlock(note.value.id, id, { x: s.x + deltaX, y: s.y + deltaY })
       }
     } else {
-      const { x: finalX, y: finalY } = resolveCollision(draggingBlock.value, newX, newY)
+      const sx = snapVal(newX)
+      const sy = snapVal(newY)
+      const { x: finalX, y: finalY } = resolveCollision(draggingBlock.value, sx, sy)
       noteStore.updateBlock(note.value.id, draggingBlock.value, { x: finalX, y: finalY })
     }
     nextTick(() => { connectionTick.value++ })

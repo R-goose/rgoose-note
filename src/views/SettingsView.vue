@@ -237,7 +237,7 @@
           <div class="setting-item">
             <div class="setting-info">
               <div class="setting-name brand-name">R-Goose Note</div>
-              <div class="setting-desc">版本 1.1.7</div>
+              <div class="setting-desc">版本 1.1.8</div>
             </div>
           </div>
           <div class="setting-item">
