@@ -16,7 +16,7 @@
     <div class="dash-content">
       <!-- 概览卡片 -->
       <section class="overview-cards">
-        <div class="stat-card stat-tasks">
+        <div class="stat-card stat-tasks clickable" @click="openTaskList({ type: 'all', label: '全部任务' })">
           <div class="stat-icon">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
           </div>
@@ -34,7 +34,7 @@
           </div>
         </div>
 
-        <div class="stat-card stat-doing">
+        <div class="stat-card stat-doing clickable" @click="openTaskList({ type: 'status', value: 'doing', label: '进行中的任务' })">
           <div class="stat-icon">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           </div>
@@ -45,7 +45,7 @@
           </div>
         </div>
 
-        <div class="stat-card stat-overdue">
+        <div class="stat-card stat-overdue" :class="{ clickable: overdueTasks > 0 }" @click="overdueTasks > 0 && openTaskList({ type: 'overdue', label: '逾期任务' })">
           <div class="stat-icon">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
           </div>
@@ -73,7 +73,7 @@
         <section class="dash-panel">
           <div class="panel-title">任务状态分布</div>
           <div class="status-bars" v-if="totalTasks > 0">
-            <div v-for="s in statusDist" :key="s.key" class="status-row">
+            <div v-for="s in statusDist" :key="s.key" class="status-row clickable" @click="openTaskList({ type: 'status', value: s.key, label: s.label + '的任务' })">
               <div class="status-label">
                 <span class="status-dot" :style="{ background: s.color }"></span>
                 <span>{{ s.label }}</span>
@@ -91,7 +91,7 @@
         <section class="dash-panel">
           <div class="panel-title">优先级分布</div>
           <div class="prio-chips" v-if="totalTasks > 0">
-            <div v-for="p in priorityDist" :key="p.key" class="prio-chip" :class="'prio-' + p.key">
+            <div v-for="p in priorityDist" :key="p.key" class="prio-chip clickable" :class="'prio-' + p.key" @click="openTaskList({ type: 'priority', value: p.key, label: p.label + '优先级任务' })">
               <span class="prio-name">{{ p.label }}</span>
               <span class="prio-count">{{ p.count }}</span>
               <div class="prio-bar"><div class="prio-bar-fill" :style="{ width: p.pct + '%' }"></div></div>
@@ -142,6 +142,46 @@
         </section>
       </div>
     </div>
+
+    <!-- 任务清单弹窗 -->
+    <Teleport to="body">
+      <Transition name="tl">
+        <div v-if="showTaskList" class="tl-overlay" @click.self="showTaskList = false">
+          <div class="tl-modal">
+            <div class="tl-header">
+              <div class="tl-title">
+                <span class="tl-title-text">{{ listFilter.label }}</span>
+                <span class="tl-count">{{ filteredTaskList.length }} 个</span>
+              </div>
+              <button class="tl-close" @click="showTaskList = false">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div class="tl-body">
+              <div v-if="filteredTaskList.length === 0" class="tl-empty">该分类下暂无任务</div>
+              <div v-for="t in filteredTaskList" :key="t.id" class="tl-item" @click="goToNote(t._noteId)">
+                <span class="tl-status-dot" :style="{ background: statusColorOf(t.status) }"></span>
+                <div class="tl-item-main">
+                  <div class="tl-item-title">{{ t.title || '未命名任务' }}</div>
+                  <div class="tl-item-meta">
+                    <span class="tl-note-name">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      {{ t._noteTitle }}
+                    </span>
+                    <span v-if="t.dueDate" class="tl-due" :class="{ 'tl-due-overdue': isOverdueTask(t) }">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                      {{ t.dueDate }}
+                    </span>
+                    <span v-if="(t.priority || 'normal') !== 'normal'" class="tl-prio" :class="'tl-prio-' + (t.priority || 'normal')">{{ prioLabelOf(t.priority) }}</span>
+                  </div>
+                </div>
+                <svg class="tl-go" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -290,8 +330,53 @@ const milestoneTimeline = computed(() => {
 })
 
 function goToNote(noteId) {
-  if (noteId) router.push(`/note/${noteId}`)
+  if (noteId) {
+    showTaskList.value = false
+    router.push(`/note/${noteId}`)
+  }
 }
+
+const showTaskList = ref(false)
+const listFilter = ref({ type: 'all', label: '全部任务' })
+
+function openTaskList(filter) {
+  listFilter.value = filter
+  showTaskList.value = true
+}
+
+const STATUS_COLORS = { todo: '#9ca3af', doing: '#4a90d9', done: '#4a8a64', paused: '#d4a657' }
+function statusColorOf(status) {
+  return STATUS_COLORS[status || 'todo'] || '#9ca3af'
+}
+
+const PRIO_LABELS = { high: '高优', low: '低优' }
+function prioLabelOf(priority) {
+  return PRIO_LABELS[priority] || ''
+}
+
+function isOverdueTask(t) {
+  if (t.status === 'done' || !t.dueDate) return false
+  return new Date(t.dueDate).getTime() < startToday
+}
+
+const filteredTaskList = computed(() => {
+  const f = listFilter.value
+  let list = todoBlocks.value
+  if (f.type === 'status') {
+    list = list.filter(t => (t.status || 'todo') === f.value)
+  } else if (f.type === 'priority') {
+    list = list.filter(t => (t.priority || 'normal') === f.value)
+  } else if (f.type === 'overdue') {
+    list = list.filter(t => isOverdueTask(t))
+  }
+  const order = { doing: 0, todo: 1, paused: 2, done: 3 }
+  return [...list].sort((a, b) => {
+    const sa = order[a.status || 'todo'] ?? 9
+    const sb = order[b.status || 'todo'] ?? 9
+    if (sa !== sb) return sa - sb
+    return (a._noteTitle || '').localeCompare(b._noteTitle || '')
+  })
+})
 </script>
 
 <style scoped>
@@ -483,6 +568,107 @@ function goToNote(noteId) {
   padding: 28px 12px; text-align: center;
   font-size: 12px; color: var(--text-tertiary);
 }
+
+/* 可点击项通用 */
+.clickable {
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.stat-card.clickable:hover {
+  border-color: var(--primary-light, var(--primary-color));
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.status-row.clickable:hover {
+  background: var(--bg-hover);
+  border-radius: var(--radius-sm);
+  margin: 0 -6px;
+  padding: 2px 6px;
+}
+.prio-chip.clickable:hover {
+  border: 1px solid var(--primary-color);
+}
+
+/* 任务清单弹窗 */
+.tl-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(2px);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 8vh 16px;
+}
+.tl-modal {
+  width: 100%; max-width: 520px; max-height: 76vh;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.tl-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-light);
+}
+.tl-title { display: flex; align-items: baseline; gap: 10px; }
+.tl-title-text { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+.tl-count {
+  font-size: 12px; font-weight: 600; color: var(--primary-color);
+  background: var(--primary-soft);
+  padding: 2px 8px; border-radius: 10px;
+}
+.tl-close {
+  width: 30px; height: 30px; border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-tertiary); cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.tl-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+.tl-body { flex: 1; overflow-y: auto; padding: 8px; }
+.tl-empty { padding: 40px 12px; text-align: center; font-size: 13px; color: var(--text-tertiary); }
+
+.tl-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px; border-radius: var(--radius-md);
+  cursor: pointer; transition: background var(--transition-fast);
+}
+.tl-item:hover { background: var(--bg-hover); }
+.tl-item + .tl-item { margin-top: 2px; }
+.tl-status-dot {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+}
+.tl-item-main { flex: 1; min-width: 0; }
+.tl-item-title {
+  font-size: 13px; font-weight: 600; color: var(--text-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tl-item-meta { display: flex; align-items: center; gap: 12px; margin-top: 3px; flex-wrap: wrap; }
+.tl-note-name {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 11px; color: var(--text-tertiary);
+  max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tl-note-name svg { flex-shrink: 0; }
+.tl-due {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 11px; color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.tl-due svg { flex-shrink: 0; }
+.tl-due-overdue { color: #d97757; font-weight: 600; }
+.tl-prio {
+  font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px;
+}
+.tl-prio-high { color: #d97757; background: rgba(217, 119, 87, 0.14); }
+.tl-prio-low { color: #9ca3af; background: rgba(156, 163, 175, 0.16); }
+.tl-go { color: var(--text-tertiary); flex-shrink: 0; transition: all var(--transition-fast); }
+.tl-item:hover .tl-go { color: var(--primary-color); transform: translateX(2px); }
+
+.tl-enter-active, .tl-leave-active { transition: opacity 0.18s ease; }
+.tl-enter-active .tl-modal, .tl-leave-active .tl-modal { transition: transform 0.18s ease, opacity 0.18s ease; }
+.tl-enter-from, .tl-leave-to { opacity: 0; }
+.tl-enter-from .tl-modal, .tl-leave-to .tl-modal { transform: translateY(-12px) scale(0.98); opacity: 0; }
 
 @media (max-width: 760px) {
   .dash-grid { grid-template-columns: 1fr; }
