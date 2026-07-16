@@ -14,7 +14,8 @@
       connecting: connectingFrom === block.id,
       'connect-target': connectMode && connectingFrom && connectingFrom !== block.id,
       [`block-color-${block.color || 'green'}`]: true,
-      [`block-border-${block.borderStyle || 'solid'}`]: true
+      [`block-border-${block.borderStyle || 'solid'}`]: true,
+      locked: !!block.locked
     }"
     :style="blockStyle"
     @mousedown.stop="onMouseDown"
@@ -121,6 +122,28 @@
             </button>
           </div>
         </div>
+        <button class="action-btn" :class="{ active: block.locked }" @click.stop="$emit('toggle-lock', block.id)" :title="block.locked ? '解锁' : '锁定'">
+          <svg v-if="block.locked" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+          <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+          </svg>
+        </button>
+        <button class="action-btn" @click.stop="$emit('bring-to-front', block.id)" title="置顶">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="14" height="14" rx="1" fill="currentColor" fill-opacity="0.25"/>
+            <rect x="7" y="7" width="14" height="14" rx="1"/>
+          </svg>
+        </button>
+        <button class="action-btn" @click.stop="$emit('send-to-back', block.id)" title="置底">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="7" y="7" width="14" height="14" rx="1"/>
+            <rect x="3" y="3" width="14" height="14" rx="1" fill="currentColor" fill-opacity="0.25"/>
+          </svg>
+        </button>
         <button class="action-btn delete" @click.stop="$emit('delete', block.id)" title="删除">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="3 6 5 6 21 6"/>
@@ -357,8 +380,8 @@
         v-else
         ref="editorRef"
         class="text-editor"
-        :class="{ 'read-only': readOnly || linkSelectionMode }"
-        :contenteditable="!readOnly && !linkSelectionMode"
+        :class="{ 'read-only': readOnly || linkSelectionMode || block.locked }"
+        :contenteditable="!readOnly && !linkSelectionMode && !block.locked"
         spellcheck="false"
         :style="editorStyle"
         :data-placeholder="block.content ? '' : '点击输入内容...'"
@@ -557,6 +580,12 @@ const blockStyle = computed(() => {
   if (props.block.borderColor) {
     style.borderColor = props.block.borderColor
   }
+  if (props.block.zIndex != null) {
+    style.zIndex = props.block.zIndex
+  }
+  if (props.block.locked) {
+    style.pointerEvents = ''
+  }
   return style
 })
 
@@ -614,6 +643,7 @@ function onClick(e) {
 
 function onMouseDown(e) {
   if (props.linkSelectionMode) return
+  if (props.block?.locked) return
   if (e.target.closest('.action-btn') || e.target.closest('.style-menu') || e.target.closest('.connect-dot') || e.target.closest('.resize-handle') || e.target.closest('.insert-menu') || e.target.closest('.table-grid-picker')) {
     return
   }
@@ -1328,6 +1358,7 @@ function reportResize() {
 let resizingInfo = null
 
 function onResizeStart(e, dir) {
+  if (props.block?.locked) return
   e.preventDefault()
   const block = props.block
   const domHeight = blockRef.value ? blockRef.value.offsetHeight : 0
@@ -1498,6 +1529,41 @@ onUnmounted(() => {
 .action-btn.delete:hover {
   color: var(--warning-color);
   background: rgba(217, 118, 118, 0.1);
+}
+
+.action-btn.active {
+  color: var(--primary-color);
+  background: var(--primary-soft);
+}
+
+/* 锁定块样式 */
+.note-block.locked {
+  border-style: dashed !important;
+  border-color: var(--text-tertiary) !important;
+}
+.note-block.locked .block-drag-handle {
+  opacity: 0.25;
+  cursor: default;
+}
+.note-block.locked .resize-handle {
+  display: none;
+}
+.note-block.locked .connect-dot {
+  opacity: 0.3;
+  pointer-events: none;
+}
+.note-block.locked::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 16px;
+  height: 16px;
+  background: var(--text-tertiary);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='11' width='18' height='11' rx='2'/><path d='M7 11V7a5 5 0 0 1 10 0v4'/></svg>") center / 13px no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='11' width='18' height='11' rx='2'/><path d='M7 11V7a5 5 0 0 1 10 0v4'/></svg>") center / 13px no-repeat;
+  opacity: 0.55;
+  pointer-events: none;
 }
 
 .insert-menu-wrap {

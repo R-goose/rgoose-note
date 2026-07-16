@@ -257,6 +257,9 @@
           @drag-end="onBlockDragEnd"
           @update="updateBlockContent"
           @delete="deleteBlock"
+          @toggle-lock="toggleLock"
+          @bring-to-front="bringToFront"
+          @send-to-back="sendToBack"
           @connect-start="startConnection"
           @connect-end="endConnection"
           @add-image="handleAddImageToBlock"
@@ -2615,6 +2618,8 @@ function onWindowMouseMove(e) {
       for (const id of selectedBlockIds.value) {
         const s = groupDragStart.value[id]
         if (!s) continue
+        const blk = blocks.value.find(x => x.id === id)
+        if (blk?.locked) continue
         noteStore.updateBlock(note.value.id, id, { x: s.x + deltaX, y: s.y + deltaY })
       }
     } else {
@@ -3497,6 +3502,28 @@ function deleteBlock(blockId) {
     }
     selectedBlockIds.value = selectedBlockIds.value.filter(x => x !== blockId)
   }
+}
+
+function toggleLock(blockId) {
+  if (!note.value) return
+  const block = note.value.blocks.find(b => b.id === blockId)
+  if (!block) return
+  saveHistory()
+  noteStore.updateBlock(note.value.id, blockId, { locked: !block.locked })
+}
+
+function bringToFront(blockId) {
+  if (!note.value) return
+  saveHistory()
+  const maxZ = note.value.blocks.reduce((m, b) => Math.max(m, b.zIndex || 0), 0)
+  noteStore.updateBlock(note.value.id, blockId, { zIndex: maxZ + 1 })
+}
+
+function sendToBack(blockId) {
+  if (!note.value) return
+  saveHistory()
+  const minZ = note.value.blocks.reduce((m, b) => Math.min(m, b.zIndex || 0), 0)
+  noteStore.updateBlock(note.value.id, blockId, { zIndex: minZ - 1 })
 }
 
 function deleteSelectedBlocks() {
