@@ -21,14 +21,14 @@
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
           </div>
           <div class="stat-body">
-            <div class="stat-value">{{ totalTasks }}</div>
+            <div class="stat-value">{{ animTotal }}</div>
             <div class="stat-label">任务总数</div>
             <div class="stat-sub">已完成 {{ doneTasks }} · 完成率 {{ completionRate }}%</div>
           </div>
-          <div class="stat-ring" :style="{ '--p': completionRate }">
+          <div class="stat-ring">
             <svg viewBox="0 0 36 36">
               <circle cx="18" cy="18" r="15.5" fill="none" stroke-width="3" class="ring-bg"/>
-              <circle cx="18" cy="18" r="15.5" fill="none" stroke-width="3" class="ring-fg" :stroke-dasharray="`${(completionRate/100)*97.4} 97.4`"/>
+              <circle cx="18" cy="18" r="15.5" fill="none" stroke-width="3" class="ring-fg" :stroke-dasharray="`${(ringValue/100)*97.4} 97.4`"/>
             </svg>
             <span class="ring-text">{{ completionRate }}%</span>
           </div>
@@ -39,7 +39,7 @@
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           </div>
           <div class="stat-body">
-            <div class="stat-value">{{ doingTasks }}</div>
+            <div class="stat-value">{{ animDoing }}</div>
             <div class="stat-label">进行中</div>
             <div class="stat-sub">{{ todoTasks }} 个待办 · {{ pausedTasks }} 个搁置</div>
           </div>
@@ -50,7 +50,7 @@
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
           </div>
           <div class="stat-body">
-            <div class="stat-value" :class="{ 'value-warn': overdueTasks > 0 }">{{ overdueTasks }}</div>
+            <div class="stat-value" :class="{ 'value-warn': overdueTasks > 0 }">{{ animOverdue }}</div>
             <div class="stat-label">逾期任务</div>
             <div class="stat-sub">{{ overduePlans }} 个计划逾期</div>
           </div>
@@ -61,7 +61,7 @@
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
           </div>
           <div class="stat-body">
-            <div class="stat-value">{{ totalMilestones }}</div>
+            <div class="stat-value">{{ animMilestone }}</div>
             <div class="stat-label">里程碑</div>
             <div class="stat-sub">{{ doneMilestones }} 个达成 · {{ totalMilestones - doneMilestones }} 个待完成</div>
           </div>
@@ -186,7 +186,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNoteStore } from '@/stores/note'
 import { usePlanStore } from '@/stores/plan'
@@ -197,6 +197,26 @@ const noteStore = useNoteStore()
 const planStore = usePlanStore()
 const tagStore = useTagStore()
 const refreshKey = ref(0)
+
+function useCountUp(source, duration = 1000) {
+  const display = ref(0)
+  let raf = null
+  function animate(to) {
+    if (raf) cancelAnimationFrame(raf)
+    const from = display.value
+    const start = performance.now()
+    function step(now) {
+      const t = Math.min((now - start) / duration, 1)
+      const eased = 1 - Math.pow(1 - t, 3)
+      display.value = Math.round(from + (to - from) * eased)
+      if (t < 1) raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+  }
+  watch(source, (v) => animate(Number(v) || 0))
+  onMounted(() => { setTimeout(() => animate(Number(source.value) || 0), 150) })
+  return display
+}
 
 const allNotes = computed(() => noteStore.allSortedNotes)
 
@@ -236,6 +256,14 @@ const overduePlans = computed(() => planStore.overduePlans.length)
 
 const totalMilestones = computed(() => milestoneBlocks.value.length)
 const doneMilestones = computed(() => milestoneBlocks.value.filter(b => b.done).length)
+
+const animTotal = useCountUp(totalTasks)
+const animDoing = useCountUp(doingTasks)
+const animOverdue = useCountUp(overdueTasks)
+const animMilestone = useCountUp(totalMilestones)
+const ringValue = ref(0)
+watch(completionRate, (v) => { ringValue.value = v })
+onMounted(() => { nextTick(() => setTimeout(() => { ringValue.value = completionRate.value }, 300)) })
 
 const STATUS_MAP = [
   { key: 'todo', label: '待办', color: '#9ca3af' },
@@ -389,6 +417,7 @@ const filteredTaskList = computed(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
 }
 .view-header {
   display: flex;
@@ -398,27 +427,50 @@ const filteredTaskList = computed(() => {
   border-bottom: 1px solid var(--border-light);
   background: var(--bg-secondary);
   flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+}
+.view-header::after {
+  content: '';
+  position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--primary-color), transparent);
+  opacity: 0.35;
 }
 .header-left { display: flex; align-items: baseline; gap: 12px; }
-.header-left h1 { font-size: 22px; font-weight: 700; color: var(--text-primary); }
+.header-left h1 {
+  font-size: 22px; font-weight: 800; color: var(--text-primary);
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
 .dash-count {
-  font-size: 12px; font-weight: 500;
-  color: var(--secondary-dark);
-  background: var(--secondary-softer);
-  padding: 3px 10px; border-radius: 10px;
+  font-size: 12px; font-weight: 600;
+  color: var(--primary-dark);
+  background: var(--primary-soft);
+  padding: 4px 12px; border-radius: 10px;
+  letter-spacing: 0.01em;
 }
 .header-right { display: flex; align-items: center; gap: 12px; margin-left: auto; }
 .btn {
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 7px 14px; border-radius: var(--radius-md);
+  padding: 8px 14px; border-radius: var(--radius-md);
   font-size: 13px; font-weight: 600; cursor: pointer;
   border: none; transition: all var(--transition-fast);
 }
 .btn-ghost { background: var(--bg-tertiary); color: var(--text-secondary); }
-.btn-ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
+.btn-ghost:hover {
+  background: var(--bg-hover); color: var(--text-primary);
+  transform: translateY(-1px);
+}
+.btn-ghost:active svg { transform: rotate(-90deg); transition: transform 0.4s; }
 
 .dash-content {
-  flex: 1; overflow-y: auto; padding: 24px 28px;
+  flex: 1; overflow-y: auto; padding: 24px 28px 32px;
+  background-image:
+    radial-gradient(circle at 12% 8%, rgba(74, 138, 100, 0.05), transparent 38%),
+    radial-gradient(circle at 88% 4%, rgba(74, 144, 217, 0.045), transparent 36%),
+    radial-gradient(circle at 70% 92%, rgba(155, 123, 214, 0.04), transparent 40%);
 }
 
 /* 概览卡片 */
@@ -429,43 +481,71 @@ const filteredTaskList = computed(() => {
 }
 .stat-card {
   display: flex; align-items: center; gap: 14px;
-  padding: 18px 20px; border-radius: var(--radius-lg);
+  padding: 20px 22px; border-radius: var(--radius-lg);
   background: var(--bg-secondary); border: 1px solid var(--border-light);
   position: relative; overflow: hidden;
+  opacity: 0;
+  animation: dashIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
+.stat-card:nth-child(1) { animation-delay: 0.05s; }
+.stat-card:nth-child(2) { animation-delay: 0.12s; }
+.stat-card:nth-child(3) { animation-delay: 0.19s; }
+.stat-card:nth-child(4) { animation-delay: 0.26s; }
+/* 渐变光晕装饰 */
 .stat-card::before {
-  content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%;
+  content: ''; position: absolute; top: -40%; right: -30%;
+  width: 140px; height: 140px; border-radius: 50%;
+  filter: blur(8px); opacity: 0.5; pointer-events: none;
+  transition: opacity 0.4s, transform 0.5s;
 }
-.stat-tasks::before { background: #4a8a64; }
-.stat-doing::before { background: #4a90d9; }
-.stat-overdue::before { background: #d97757; }
-.stat-milestone::before { background: #9b7bd6; }
+.stat-card::after {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, currentColor, transparent);
+  opacity: 0.15; pointer-events: none;
+}
+.stat-tasks { color: #4a8a64; }
+.stat-doing { color: #4a90d9; }
+.stat-overdue { color: #d97757; }
+.stat-milestone { color: #9b7bd6; }
+.stat-tasks::before { background: radial-gradient(circle, rgba(74,138,100,0.4), transparent 70%); }
+.stat-doing::before { background: radial-gradient(circle, rgba(74,144,217,0.4), transparent 70%); }
+.stat-overdue::before { background: radial-gradient(circle, rgba(217,119,87,0.42), transparent 70%); }
+.stat-milestone::before { background: radial-gradient(circle, rgba(155,123,214,0.4), transparent 70%); }
 .stat-icon {
-  width: 44px; height: 44px; border-radius: var(--radius-md);
+  width: 46px; height: 46px; border-radius: 14px;
   display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
+  flex-shrink: 0; position: relative; z-index: 1;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.stat-tasks .stat-icon { background: rgba(74,138,100,0.12); color: #4a8a64; }
-.stat-doing .stat-icon { background: rgba(74,144,217,0.12); color: #4a90d9; }
-.stat-overdue .stat-icon { background: rgba(217,119,87,0.12); color: #d97757; }
-.stat-milestone .stat-icon { background: rgba(155,123,214,0.12); color: #9b7bd6; }
-.stat-body { flex: 1; min-width: 0; }
-.stat-value { font-size: 26px; font-weight: 700; color: var(--text-primary); line-height: 1.2; }
+.stat-tasks .stat-icon { background: rgba(74,138,100,0.13); color: #4a8a64; }
+.stat-doing .stat-icon { background: rgba(74,144,217,0.13); color: #4a90d9; }
+.stat-overdue .stat-icon { background: rgba(217,119,87,0.13); color: #d97757; }
+.stat-milestone .stat-icon { background: rgba(155,123,214,0.13); color: #9b7bd6; }
+.stat-body { flex: 1; min-width: 0; position: relative; z-index: 1; }
+.stat-value {
+  font-size: 28px; font-weight: 800; color: var(--text-primary);
+  line-height: 1.1; letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
 .value-warn { color: #d97757; }
-.stat-label { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-top: 2px; }
-.stat-sub { font-size: 11px; color: var(--text-tertiary); margin-top: 4px; }
+.stat-label { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-top: 3px; }
+.stat-sub { font-size: 11px; color: var(--text-tertiary); margin-top: 5px; }
 
 /* 完成率环 */
 .stat-ring {
-  position: relative; width: 52px; height: 52px; flex-shrink: 0;
-  color: #4a8a64;
+  position: relative; width: 54px; height: 54px; flex-shrink: 0;
+  color: #4a8a64; z-index: 1;
 }
-.stat-ring svg { transform: rotate(-90deg); }
+.stat-ring svg { transform: rotate(-90deg); filter: drop-shadow(0 0 4px rgba(74,138,100,0.35)); }
 .ring-bg { stroke: var(--bg-tertiary); }
-.ring-fg { stroke: currentColor; stroke-linecap: round; transition: stroke-dasharray 0.4s; }
+.ring-fg {
+  stroke: currentColor; stroke-linecap: round;
+  transition: stroke-dasharray 1s cubic-bezier(0.22, 1, 0.36, 1);
+}
 .ring-text {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 700; color: #4a8a64;
+  font-size: 11px; font-weight: 800; color: #4a8a64;
+  font-variant-numeric: tabular-nums;
 }
 
 /* 网格区 */
@@ -474,34 +554,54 @@ const filteredTaskList = computed(() => {
 }
 .dash-panel {
   background: var(--bg-secondary); border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg); padding: 18px 20px;
+  border-radius: var(--radius-lg); padding: 20px 22px;
+  opacity: 0;
+  animation: dashIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: 0.32s;
+  position: relative; overflow: hidden;
 }
+.dash-panel:nth-of-type(2) { animation-delay: 0.38s; }
+.dash-panel:nth-of-type(3) { animation-delay: 0.44s; }
+.dash-panel:nth-of-type(4) { animation-delay: 0.5s; }
 .panel-wide { grid-column: 1 / -1; }
 .panel-title {
   font-size: 14px; font-weight: 700; color: var(--text-primary);
-  margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+  margin-bottom: 18px; display: flex; align-items: center; gap: 9px;
+  letter-spacing: -0.01em;
 }
 .panel-title::before {
-  content: ''; width: 3px; height: 14px; border-radius: 2px;
-  background: var(--primary-color);
+  content: ''; width: 4px; height: 15px; border-radius: 2px;
+  background: linear-gradient(180deg, var(--primary-color), #6bbd8f);
 }
 
 /* 状态分布条 */
-.status-bars { display: flex; flex-direction: column; gap: 12px; }
+.status-bars { display: flex; flex-direction: column; gap: 13px; }
 .status-row { display: flex; align-items: center; gap: 12px; }
 .status-label {
-  display: flex; align-items: center; gap: 6px;
+  display: flex; align-items: center; gap: 7px;
   font-size: 12px; font-weight: 600; color: var(--text-secondary);
-  width: 64px; flex-shrink: 0;
+  width: 68px; flex-shrink: 0;
 }
-.status-dot { width: 8px; height: 8px; border-radius: 50%; }
+.status-dot { width: 9px; height: 9px; border-radius: 50%; }
 .status-track {
-  flex: 1; height: 8px; background: var(--bg-tertiary); border-radius: 4px; overflow: hidden;
+  flex: 1; height: 9px; background: var(--bg-tertiary); border-radius: 5px; overflow: hidden;
+  position: relative;
 }
-.status-fill { height: 100%; border-radius: 4px; transition: width 0.4s; }
+.status-fill {
+  height: 100%; border-radius: 5px; position: relative;
+  transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+  overflow: hidden;
+}
+.status-fill::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+  transform: translateX(-100%);
+  animation: shimmer 2.4s ease-in-out infinite;
+}
 .status-num {
-  font-size: 12px; font-weight: 700; color: var(--text-primary);
-  min-width: 56px; text-align: right;
+  font-size: 13px; font-weight: 700; color: var(--text-primary);
+  min-width: 58px; text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 .status-pct { font-size: 11px; font-weight: 500; color: var(--text-tertiary); margin-left: 4px; }
 
@@ -509,33 +609,63 @@ const filteredTaskList = computed(() => {
 .prio-chips { display: flex; flex-direction: column; gap: 10px; }
 .prio-chip {
   display: flex; align-items: center; gap: 10px;
-  padding: 10px 12px; border-radius: var(--radius-md);
+  padding: 11px 13px; border-radius: var(--radius-md);
   background: var(--bg-tertiary);
+  border: 1px solid transparent;
+  transition: all var(--transition-fast);
 }
-.prio-name { font-size: 12px; font-weight: 600; color: var(--text-secondary); width: 40px; }
-.prio-count { font-size: 16px; font-weight: 700; color: var(--text-primary); width: 28px; }
-.prio-bar { flex: 1; height: 6px; background: var(--bg-hover); border-radius: 3px; overflow: hidden; }
-.prio-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s; }
-.prio-high .prio-bar-fill { background: #d97757; }
-.prio-normal .prio-bar-fill { background: #4a90d9; }
-.prio-low .prio-bar-fill { background: #9ca3af; }
+.prio-name { font-size: 12px; font-weight: 600; color: var(--text-secondary); width: 42px; }
+.prio-count {
+  font-size: 17px; font-weight: 800; color: var(--text-primary); width: 30px;
+  font-variant-numeric: tabular-nums;
+}
+.prio-bar { flex: 1; height: 7px; background: var(--bg-hover); border-radius: 4px; overflow: hidden; }
+.prio-bar-fill {
+  height: 100%; border-radius: 4px; position: relative; overflow: hidden;
+  transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.prio-bar-fill::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  transform: translateX(-100%);
+  animation: shimmer 2.6s ease-in-out infinite;
+}
+.prio-high .prio-bar-fill { background: linear-gradient(90deg, #d97757, #e89a7a); }
+.prio-normal .prio-bar-fill { background: linear-gradient(90deg, #4a90d9, #6aaae5); }
+.prio-low .prio-bar-fill { background: linear-gradient(90deg, #9ca3af, #b8bfc6); }
 
 /* 标签进度 */
-.tag-progress-list { display: flex; flex-direction: column; gap: 12px; }
+.tag-progress-list { display: flex; flex-direction: column; gap: 13px; }
 .tag-prog-row { display: flex; align-items: center; gap: 12px; }
 .tag-prog-name {
-  display: flex; align-items: center; gap: 6px;
+  display: flex; align-items: center; gap: 7px;
   font-size: 12px; font-weight: 600; color: var(--text-secondary);
-  width: 100px; flex-shrink: 0;
+  width: 104px; flex-shrink: 0;
 }
-.tag-prog-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.tag-prog-bar { flex: 1; height: 8px; background: var(--bg-tertiary); border-radius: 4px; overflow: hidden; }
+.tag-prog-dot {
+  width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.15);
+}
+.tag-prog-bar {
+  flex: 1; height: 9px; background: var(--bg-tertiary); border-radius: 5px;
+  overflow: hidden; position: relative;
+}
 .tag-prog-fill {
-  height: 100%; border-radius: 4px;
+  height: 100%; border-radius: 5px; position: relative; overflow: hidden;
   background: linear-gradient(90deg, var(--primary-color), #6bbd8f);
-  transition: width 0.4s;
+  transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.tag-prog-rate { font-size: 11px; font-weight: 600; color: var(--text-tertiary); min-width: 90px; text-align: right; }
+.tag-prog-fill::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+  transform: translateX(-100%);
+  animation: shimmer 2.8s ease-in-out infinite;
+}
+.tag-prog-rate {
+  font-size: 11px; font-weight: 700; color: var(--text-secondary);
+  min-width: 92px; text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 
 /* 里程碑时间线 */
 .ms-timeline { display: flex; flex-direction: column; }
@@ -546,30 +676,40 @@ const filteredTaskList = computed(() => {
   color: #9b7bd6; padding-top: 2px;
 }
 .ms-dot-inner {
-  width: 10px; height: 10px; border-radius: 50%;
+  width: 11px; height: 11px; border-radius: 50%;
   border: 2px solid currentColor; background: var(--bg-secondary);
+  position: relative; z-index: 1;
+}
+.ms-item:not(.done) .ms-dot-inner {
+  box-shadow: 0 0 0 0 rgba(155,123,214,0.45);
+  animation: dotPulse 2.4s ease-in-out infinite;
 }
 .ms-item.done .ms-marker { color: #4a8a64; }
-.ms-item.done .ms-dot-inner { background: currentColor; }
+.ms-item.done .ms-dot-inner { background: currentColor; animation: none; }
 .ms-line {
   position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
-  width: 2px; height: calc(100% + 4px); background: var(--border-light);
+  width: 2px; height: calc(100% + 4px);
+  background: linear-gradient(180deg, var(--border-light), transparent);
+  transform-origin: top;
+  animation: lineGrow 0.6s ease forwards;
 }
 .ms-info {
-  flex: 1; padding: 4px 0 16px;
+  flex: 1; padding: 5px 8px 16px;
   cursor: pointer; border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+  margin-left: -4px;
 }
-.ms-info:hover { opacity: 0.7; }
+.ms-info:hover { background: var(--bg-hover); }
 .ms-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
-.ms-item.done .ms-title { text-decoration: line-through; opacity: 0.6; }
-.ms-meta { display: flex; align-items: center; gap: 10px; margin-top: 3px; flex-wrap: wrap; }
+.ms-item.done .ms-title { text-decoration: line-through; opacity: 0.55; }
+.ms-meta { display: flex; align-items: center; gap: 10px; margin-top: 4px; flex-wrap: wrap; }
 .ms-note-name { font-size: 11px; color: var(--text-tertiary); }
 .ms-date { font-size: 11px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-.ms-relative { font-size: 11px; font-weight: 600; color: var(--primary-color); }
+.ms-relative { font-size: 11px; font-weight: 700; color: var(--primary-color); }
 .ms-relative.overdue { color: #d97757; }
 
 .empty-hint {
-  padding: 28px 12px; text-align: center;
+  padding: 32px 12px; text-align: center;
   font-size: 12px; color: var(--text-tertiary);
 }
 
@@ -579,18 +719,26 @@ const filteredTaskList = computed(() => {
   transition: all var(--transition-fast);
 }
 .stat-card.clickable:hover {
-  border-color: var(--primary-light, var(--primary-color));
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  border-color: color-mix(in srgb, currentColor 45%, transparent);
+  transform: translateY(-3px);
+  box-shadow: 0 10px 28px -12px color-mix(in srgb, currentColor 55%, transparent);
+}
+.stat-card.clickable:hover::before {
+  opacity: 0.85; transform: scale(1.15);
+}
+.stat-card.clickable:hover .stat-icon { transform: scale(1.08) rotate(-4deg); }
+.status-row.clickable {
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
 }
 .status-row.clickable:hover {
   background: var(--bg-hover);
-  border-radius: var(--radius-sm);
-  margin: 0 -6px;
-  padding: 2px 6px;
+  transform: translateX(3px);
 }
 .prio-chip.clickable:hover {
-  border: 1px solid var(--primary-color);
+  border-color: var(--primary-color);
+  transform: translateX(3px);
+  background: var(--bg-hover);
 }
 
 /* 任务清单弹窗 */
@@ -676,5 +824,31 @@ const filteredTaskList = computed(() => {
 
 @media (max-width: 760px) {
   .dash-grid { grid-template-columns: 1fr; }
+}
+
+/* 关键帧动画 */
+@keyframes dashIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  60%, 100% { transform: translateX(220%); }
+}
+@keyframes dotPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(155, 123, 214, 0.45); }
+  50% { box-shadow: 0 0 0 5px rgba(155, 123, 214, 0); }
+}
+@keyframes lineGrow {
+  from { transform: translateX(-50%) scaleY(0); }
+  to { transform: translateX(-50%) scaleY(1); }
+}
+
+/* 无障碍：尊重「减少动态」偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .stat-card, .dash-panel { animation: none; opacity: 1; }
+  .status-fill::after, .prio-bar-fill::after, .tag-prog-fill::after,
+  .ms-item:not(.done) .ms-dot-inner, .ms-line { animation: none; }
+  .ring-fg { transition: none; }
 }
 </style>
