@@ -459,6 +459,7 @@ function sc(actionId) {
 
 const props = defineProps({
   block: Object,
+  allBlocks: { type: Array, default: () => [] },
   selected: Boolean,
   connectMode: Boolean,
   connectingFrom: String,
@@ -672,8 +673,7 @@ const progressValue = computed(() => {
 })
 
 const progressLinkedTodos = computed(() => {
-  if (!noteStore.currentNote) return []
-  return noteStore.currentNote.blocks.filter(b => b.type === 'todo')
+  return (props.allBlocks || []).filter(b => b.type === 'todo')
 })
 
 const progressAutoValue = computed(() => {
@@ -1977,7 +1977,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 4px;
-  color: var(--text-tertiary, #999);
+  color: var(--text-secondary);
 }
 .todo-due-input {
   border: none;
@@ -2292,7 +2292,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 4px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 .milestone-date-input {
   border: none;

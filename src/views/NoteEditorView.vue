@@ -241,6 +241,7 @@
           :key="block.id"
           :ref="el => { if (el) blockRefs[block.id] = el }"
           :block="block"
+          :all-blocks="blocks"
           :selected="selectedBlockIds.includes(block.id)"
           :group-color="blockGroupColor(block.id)"
           :connect-mode="connectMode"
