@@ -195,16 +195,15 @@
             @mousedown.prevent
             title="优先级"
           >{{ todoPriorityLabel }}</button>
-          <label class="todo-due-wrap" @mousedown.stop @click.stop>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            <input
-              type="date"
-              class="todo-due-input"
-              :value="block.dueDate || ''"
+          <div class="todo-due-wrap" @mousedown.stop @click.stop>
+            <DateTimePicker
+              :model-value="block.dueDate || ''"
+              date-only
+              compact
               :disabled="readOnly"
-              @change="onTodoField('dueDate', $event.target.value || null)"
+              @update:model-value="onTodoField('dueDate', $event || null)"
             />
-          </label>
+          </div>
         </div>
         <textarea
           class="todo-notes-input"
@@ -331,16 +330,15 @@
           />
         </div>
         <div class="milestone-meta-row">
-          <label class="milestone-date-wrap" @mousedown.stop @click.stop>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            <input
-              type="date"
-              class="milestone-date-input"
-              :value="block.date || ''"
+          <div class="milestone-date-wrap" @mousedown.stop @click.stop>
+            <DateTimePicker
+              :model-value="block.date || ''"
+              date-only
+              compact
               :disabled="readOnly"
-              @change="onMilestoneField('date', $event.target.value || null)"
+              @update:model-value="onMilestoneField('date', $event || null)"
             />
-          </label>
+          </div>
           <div v-if="block.date" class="milestone-relative" :class="{ overdue: milestoneOverdue }">{{ milestoneRelative }}</div>
         </div>
         <textarea
@@ -446,6 +444,7 @@ import { useNoteStore } from '@/stores/note'
 import { useShortcutStore } from '@/stores/shortcut'
 import { resolveImageUrl, isImageRef } from '@/utils/imageStore'
 import { markdownToHtml, convertInlineMd, isLikelyMarkdown, escapeHtml, splitTableCells } from '@/utils/markdown'
+import DateTimePicker from '@/components/DateTimePicker.vue'
 
 const shortcutStore = useShortcutStore()
 shortcutStore.init()
@@ -1976,17 +1975,6 @@ onUnmounted(() => {
 .todo-due-wrap {
   display: flex;
   align-items: center;
-  gap: 4px;
-  color: var(--text-secondary);
-}
-.todo-due-input {
-  border: none;
-  outline: none;
-  background: transparent;
-  font-size: 12px;
-  color: var(--text-secondary, #666);
-  cursor: pointer;
-  font-family: inherit;
 }
 .todo-notes-input {
   width: 100%;
@@ -2291,17 +2279,6 @@ onUnmounted(() => {
 .milestone-date-wrap {
   display: flex;
   align-items: center;
-  gap: 4px;
-  color: var(--text-secondary);
-}
-.milestone-date-input {
-  border: none;
-  outline: none;
-  background: transparent;
-  font-size: 12px;
-  color: var(--text-secondary, #666);
-  cursor: pointer;
-  font-family: inherit;
 }
 .milestone-relative {
   font-size: 11px;

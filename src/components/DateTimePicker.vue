@@ -1,13 +1,13 @@
 <template>
-  <div ref="root" class="dtp">
-    <button type="button" class="dtp-trigger" :class="{ placeholder: !displayValue }" @click="toggle">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+  <div ref="root" class="dtp" :class="{ 'dtp-compact': compact, 'dtp-date-only': dateOnly }">
+    <button type="button" class="dtp-trigger" :class="{ placeholder: !displayValue, compact, disabled }" :disabled="disabled" @click="toggle">
+      <svg class="dtp-cal-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
         <rect x="3" y="4" width="18" height="18" rx="2"/>
         <line x1="16" y1="2" x2="16" y2="6"/>
         <line x1="8" y1="2" x2="8" y2="6"/>
         <line x1="3" y1="10" x2="21" y2="10"/>
       </svg>
-      <span class="dtp-text">{{ displayValue || '选择时间' }}</span>
+      <span class="dtp-text">{{ displayValue || (compact ? '日期' : '选择时间') }}</span>
       <svg v-if="modelValue" class="dtp-clear" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" @click.stop="clear">
         <line x1="18" y1="6" x2="6" y2="18"/>
         <line x1="6" y1="6" x2="18" y2="18"/>
@@ -57,7 +57,7 @@
             </button>
           </div>
 
-          <div class="dtp-time">
+          <div v-if="!dateOnly" class="dtp-time">
             <span class="dtp-time-label">时间</span>
             <div class="dtp-time-inputs">
               <div class="dtp-stepper">
@@ -99,7 +99,10 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import dayjs from 'dayjs'
 
 const props = defineProps({
-  modelValue: { type: [String, Number], default: '' }
+  modelValue: { type: [String, Number], default: '' },
+  dateOnly: { type: Boolean, default: false },
+  compact: { type: Boolean, default: false },
+  disabled: { type: Boolean, default: false }
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -113,13 +116,19 @@ const viewDate = ref(dayjs())
 const weekdays = ['日', '一', '二', '三', '四', '五', '六']
 
 const selectedDate = computed(() => {
-  return props.modelValue ? dayjs(typeof props.modelValue === 'number' ? props.modelValue : Number(props.modelValue)) : null
+  if (!props.modelValue) return null
+  if (props.dateOnly) {
+    const d = dayjs(props.modelValue, 'YYYY-MM-DD')
+    return d.isValid() ? d : null
+  }
+  return dayjs(typeof props.modelValue === 'number' ? props.modelValue : Number(props.modelValue))
 })
 
 const displayValue = computed(() => {
   if (!props.modelValue) return ''
   const d = selectedDate.value
-  return d ? d.format('YYYY-MM-DD HH:mm') : ''
+  if (!d || !d.isValid()) return ''
+  return props.dateOnly ? d.format('YYYY-MM-DD') : d.format('YYYY-MM-DD HH:mm')
 })
 
 const days = computed(() => {
@@ -170,6 +179,7 @@ function stepMinute(delta) {
 }
 
 function toggle() {
+  if (props.disabled) return
   open.value ? close() : openPanel()
 }
 
@@ -209,9 +219,15 @@ function nextMonth() {
 function pickDay(date) {
   viewDate.value = date
   emitValue()
+  if (props.dateOnly) close()
 }
 
 function emitValue() {
+  if (props.dateOnly) {
+    const base = viewDate.value.hour(0).minute(0).second(0).millisecond(0)
+    emit('update:modelValue', base.format('YYYY-MM-DD'))
+    return
+  }
   let base = viewDate.value.hour(Number(hour.value)).minute(Number(minute.value)).second(0).millisecond(0)
   const now = dayjs()
   if (base.isBefore(now)) {
@@ -287,6 +303,9 @@ onUnmounted(() => {
   position: relative;
   width: 100%;
 }
+.dtp-compact {
+  width: auto;
+}
 
 .dtp-trigger {
   width: 100%;
@@ -304,6 +323,25 @@ onUnmounted(() => {
   box-sizing: border-box;
   text-align: left;
 }
+
+/* compact 模式：紧凑内联触发器，适配 block 内 meta 行 */
+.dtp-trigger.compact {
+  width: auto;
+  padding: 2px 6px 2px 4px;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.dtp-trigger.compact .dtp-cal-icon { width: 13px; height: 13px; }
+.dtp-trigger.compact:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.dtp-trigger.compact.placeholder { color: var(--text-tertiary); }
 
 .dtp-trigger:hover {
   border-color: var(--text-tertiary);
