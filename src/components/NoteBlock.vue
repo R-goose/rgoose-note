@@ -132,18 +132,6 @@
             <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
           </svg>
         </button>
-        <button class="action-btn" @click.stop="$emit('bring-to-front', block.id)" title="置顶">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="14" height="14" rx="1" fill="currentColor" fill-opacity="0.25"/>
-            <rect x="7" y="7" width="14" height="14" rx="1"/>
-          </svg>
-        </button>
-        <button class="action-btn" @click.stop="$emit('send-to-back', block.id)" title="置底">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="7" y="7" width="14" height="14" rx="1"/>
-            <rect x="3" y="3" width="14" height="14" rx="1" fill="currentColor" fill-opacity="0.25"/>
-          </svg>
-        </button>
         <button class="action-btn delete" @click.stop="$emit('delete', block.id)" title="删除">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="3 6 5 6 21 6"/>
