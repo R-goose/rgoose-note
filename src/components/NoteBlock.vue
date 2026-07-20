@@ -160,33 +160,44 @@
 
       <div v-else-if="block.type === 'video' && block.mediaUrl" class="media-container video-container" @wheel.stop>
         <Teleport to="body" :disabled="!pseudoFullscreen">
-          <div :class="pseudoFullscreen ? 'video-fs-overlay' : 'video-inline-wrap'">
+          <div :class="pseudoFullscreen ? 'video-fs-overlay' : 'video-inline-wrap'" class="video-wrap">
             <video
               ref="videoRef"
               :src="resolvedMediaUrl"
-              controls
               preload="metadata"
+              @click.stop="togglePlay"
               @wheel.stop
               @dblclick.stop="toggleVideoFullscreen"
+              @play="isPlaying = true"
+              @pause="isPlaying = false"
+              @timeupdate="onTimeUpdate"
+              @loadedmetadata="onLoadedMetadata"
+              @ended="isPlaying = false"
             ></video>
-            <button v-if="pseudoFullscreen" class="exit-fs-btn" @click.stop="exitPseudoFullscreen" title="退出全屏 (Esc)">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
+            <div class="video-controls" @click.stop @mousedown.stop @wheel.stop>
+              <button class="vc-btn vc-play" @click="togglePlay" :title="isPlaying ? '暂停' : '播放'">
+                <svg v-if="!isPlaying" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+              </button>
+              <span class="vc-time">{{ formatTime(currentTime) }}</span>
+              <div class="vc-progress" ref="progressRef" @click="seekTo($event)" @mousedown="startSeek">
+                <div class="vc-progress-fill" :style="{ width: progressPercent + '%' }"></div>
+                <div class="vc-progress-thumb" :style="{ left: progressPercent + '%' }"></div>
+              </div>
+              <span class="vc-time vc-time-dur">{{ formatTime(duration) }}</span>
+              <button class="vc-btn vc-fs" @click="toggleVideoFullscreen" :title="pseudoFullscreen ? '退出全屏' : '全屏'">
+                <svg v-if="!pseudoFullscreen" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>
+                </svg>
+                <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 8V5a2 2 0 0 1 2-2h3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M21 16v3a2 2 0 0 1-2 2h-3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/>
+                </svg>
+              </button>
+            </div>
           </div>
         </Teleport>
         <div class="media-header">
           <span class="media-name">{{ block.mediaName || '视频' }}</span>
-          <button class="change-media-btn" @click.stop="toggleVideoFullscreen" title="全屏">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M8 3H5a2 2 0 0 0-2 2v3"/>
-              <path d="M21 8V5a2 2 0 0 0-2-2h-3"/>
-              <path d="M3 16v3a2 2 0 0 0 2 2h3"/>
-              <path d="M16 21h3a2 2 0 0 0 2-2v-3"/>
-            </svg>
-            全屏
-          </button>
           <button v-if="!readOnly" class="change-media-btn" @click.stop="$emit('add-media', { blockId: block.id, mediaType: 'video' })">更换</button>
         </div>
       </div>
@@ -555,7 +566,59 @@ watch(
 )
 
 const videoRef = ref(null)
+const progressRef = ref(null)
 const pseudoFullscreen = ref(false)
+const isPlaying = ref(false)
+const currentTime = ref(0)
+const duration = ref(0)
+
+const progressPercent = computed(() => duration.value > 0 ? (currentTime.value / duration.value) * 100 : 0)
+
+function togglePlay() {
+  const v = videoRef.value
+  if (!v) return
+  if (v.paused) v.play().catch(() => {})
+  else v.pause()
+}
+
+function onTimeUpdate() {
+  const v = videoRef.value
+  if (v) currentTime.value = v.currentTime
+}
+
+function onLoadedMetadata() {
+  const v = videoRef.value
+  if (v) duration.value = v.duration || 0
+}
+
+function formatTime(s) {
+  if (!s || isNaN(s)) return '0:00'
+  const m = Math.floor(s / 60)
+  const sec = Math.floor(s % 60)
+  return `${m}:${sec.toString().padStart(2, '0')}`
+}
+
+function seekTo(e) {
+  const bar = progressRef.value
+  const v = videoRef.value
+  if (!bar || !v || !duration.value) return
+  const rect = bar.getBoundingClientRect()
+  const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
+  v.currentTime = ratio * duration.value
+  currentTime.value = v.currentTime
+}
+
+function startSeek(e) {
+  e.preventDefault()
+  seekTo(e)
+  const move = (ev) => seekTo(ev)
+  const up = () => {
+    document.removeEventListener('mousemove', move)
+    document.removeEventListener('mouseup', up)
+  }
+  document.addEventListener('mousemove', move)
+  document.addEventListener('mouseup', up)
+}
 
 // 祖先 blocks-layer 带 transform（画布缩放），会同时让原生全屏和 position:fixed 失效。
 // 方案：用 Teleport 把 video 传送到 body，脱离 transform 祖主，再用 fixed 铺满视口。
@@ -1987,6 +2050,9 @@ onUnmounted(() => {
   background: #000;
   display: block;
 }
+.video-wrap {
+  position: relative;
+}
 .video-inline-wrap {
   display: contents;
 }
@@ -2011,24 +2077,103 @@ onUnmounted(() => {
   border-radius: 0;
   background: #000;
 }
-.exit-fs-btn {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  width: 44px;
-  height: 44px;
+
+/* 自定义播放控件 */
+.video-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-light);
+  border-top: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+.video-fs-overlay .video-controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.65);
+  border: none;
+  border-radius: 0;
+  padding: 10px 16px;
+  backdrop-filter: blur(6px);
+}
+.vc-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.6);
-  color: #fff;
-  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  color: var(--text-primary);
   border: none;
+  border-radius: 50%;
   cursor: pointer;
-  z-index: 100000;
+  flex-shrink: 0;
+  transition: background 0.15s;
 }
-.exit-fs-btn:hover {
-  background: rgba(0, 0, 0, 0.85);
+.vc-btn:hover {
+  background: var(--bg-hover);
+}
+.video-fs-overlay .vc-btn {
+  color: #fff;
+}
+.video-fs-overlay .vc-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+.vc-time {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  min-width: 34px;
+  text-align: center;
+}
+.video-fs-overlay .vc-time {
+  color: rgba(255, 255, 255, 0.85);
+}
+.vc-progress {
+  position: relative;
+  flex: 1;
+  height: 6px;
+  background: var(--bg-hover);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.video-fs-overlay .vc-progress {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.25);
+}
+.vc-progress-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: var(--primary-color);
+  border-radius: 3px;
+  pointer-events: none;
+}
+.vc-progress-thumb {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  background: var(--primary-color);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+.vc-progress:hover .vc-progress-thumb {
+  opacity: 1;
+}
+.video-fs-overlay .vc-progress-thumb {
+  width: 14px;
+  height: 14px;
 }
 .media-header {
   display: flex;
