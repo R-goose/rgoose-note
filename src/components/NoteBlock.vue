@@ -147,6 +147,25 @@
         <button v-if="!readOnly" class="change-image-btn" @click.stop="$emit('add-image', block.id)">更换图片</button>
       </div>
 
+      <div v-else-if="block.type === 'audio' && block.mediaUrl" class="media-container audio-container" @wheel.stop>
+        <div class="media-header">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+          </svg>
+          <span class="media-name">{{ block.mediaName || '音频' }}</span>
+          <button v-if="!readOnly" class="change-media-btn" @click.stop="$emit('add-media', { blockId: block.id, mediaType: 'audio' })">更换</button>
+        </div>
+        <audio :src="resolvedMediaUrl" controls preload="metadata" @wheel.stop></audio>
+      </div>
+
+      <div v-else-if="block.type === 'video' && block.mediaUrl" class="media-container video-container" @wheel.stop>
+        <video :src="resolvedMediaUrl" controls preload="metadata" @wheel.stop></video>
+        <div class="media-header">
+          <span class="media-name">{{ block.mediaName || '视频' }}</span>
+          <button v-if="!readOnly" class="change-media-btn" @click.stop="$emit('add-media', { blockId: block.id, mediaType: 'video' })">更换</button>
+        </div>
+      </div>
+
       <div
         v-else-if="block.type === 'note-link' && block.linkedNoteId"
         class="note-link-block"
@@ -496,6 +515,20 @@ watch(
   { immediate: true }
 )
 
+const resolvedMediaUrl = ref('')
+watch(
+  () => props.block?.mediaUrl,
+  async (url) => {
+    if (!url) { resolvedMediaUrl.value = ''; return }
+    if (isImageRef(url)) {
+      resolvedMediaUrl.value = await resolveImageUrl(url)
+    } else {
+      resolvedMediaUrl.value = url
+    }
+  },
+  { immediate: true }
+)
+
 const emit = defineEmits([
   'select',
   'update',
@@ -506,6 +539,7 @@ const emit = defineEmits([
   'connect-start',
   'connect-end',
   'add-image',
+  'add-media',
   'add-link',
   'add-note-link',
   'preview-image',
@@ -557,7 +591,7 @@ const blockStyle = computed(() => {
     top: `${props.block.y}px`,
     width: `${props.block.width || 220}px`
   }
-  const isAutoSize = props.block.type === 'image' || props.block.type === 'note-link'
+  const isAutoSize = props.block.type === 'image' || props.block.type === 'note-link' || props.block.type === 'audio'
   if (!isAutoSize && props.block.height && props.block.height > 0) {
     style.height = `${props.block.height}px`
   } else if (props.block.height && props.block.height > 0) {
@@ -633,6 +667,9 @@ function onMouseDown(e) {
     return
   }
   if (e.target.closest('.text-editor')) {
+    return
+  }
+  if (e.target.closest('.media-container')) {
     return
   }
   emit('drag-start', props.block.id, e.clientX, e.clientY, e)
@@ -1876,6 +1913,57 @@ onUnmounted(() => {
   background: rgba(26, 31, 28, 0.72);
   color: #fff;
   border-radius: 999px;
+}
+
+/* 音频/视频块 */
+.media-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px;
+}
+.audio-container audio {
+  width: 100%;
+  border-radius: var(--radius-md);
+  outline: none;
+}
+.video-container video {
+  width: 100%;
+  max-height: 320px;
+  border-radius: var(--radius-md);
+  background: #000;
+  display: block;
+}
+.media-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 0 4px;
+}
+.media-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.change-media-btn {
+  font-size: 12px;
+  padding: 2px 8px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  border: 1px solid var(--border-light);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.change-media-btn:hover {
+  background: var(--primary-soft);
+  color: var(--primary-color);
+  border-color: var(--primary-color);
 }
 
 .note-link-block {

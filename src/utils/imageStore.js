@@ -59,14 +59,17 @@ function idbKeys() {
 }
 
 function getExtFromDataUrl(dataUrl) {
-  const m = dataUrl.match(/^data:image\/(\w+);base64/)
-  if (m) return m[1] === 'jpeg' ? 'jpg' : m[1]
+  const m = dataUrl.match(/^data:(?:image|audio|video)\/([\w+]+);base64/)
+  if (m) {
+    const ext = m[1].replace('+xml', '')
+    return ext === 'jpeg' ? 'jpg' : ext
+  }
   return 'png'
 }
 
 export async function saveImage(dataUrl) {
   if (!dataUrl || typeof dataUrl !== 'string') return dataUrl
-  if (!dataUrl.startsWith('data:image/')) return dataUrl
+  if (!/^data:(image|audio|video)\//.test(dataUrl)) return dataUrl
 
   const ext = getExtFromDataUrl(dataUrl)
 
@@ -76,7 +79,9 @@ export async function saveImage(dataUrl) {
     console.error('saveImage failed:', res?.error)
     return dataUrl
   } else {
-    const id = `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`
+    const isMedia = /^data:(audio|video)\//.test(dataUrl)
+    const prefix = isMedia ? 'media_' : 'img_'
+    const id = `${prefix}${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`
     await idbPut(id, dataUrl)
     return id
   }
@@ -91,7 +96,7 @@ export async function resolveImageUrl(relativePath) {
   if (relativePath.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(relativePath)) {
     return relativePath
   }
-  if (!relativePath.startsWith('img_')) return relativePath
+  if (!relativePath.startsWith('img_') && !relativePath.startsWith('media_')) return relativePath
 
   if (_urlCache.has(relativePath)) {
     const cached = _urlCache.get(relativePath)
@@ -148,11 +153,11 @@ export async function getAllImageRefs() {
 }
 
 export function isImageRef(value) {
-  return typeof value === 'string' && value.startsWith('img_')
+  return typeof value === 'string' && (value.startsWith('img_') || value.startsWith('media_'))
 }
 
 export async function getImageAsDataUrl(relativePath) {
-  if (!relativePath || !relativePath.startsWith('img_')) return relativePath
+  if (!relativePath || (!relativePath.startsWith('img_') && !relativePath.startsWith('media_'))) return relativePath
   if (isElectron) {
     return await window.electronAPI.readImage(relativePath)
   } else {
@@ -181,6 +186,9 @@ export function collectImageRefsFromData(data) {
     for (const block of note.blocks) {
       if (block.type === 'image' && isImageRef(block.imageUrl)) {
         refs.add(block.imageUrl)
+      }
+      if ((block.type === 'audio' || block.type === 'video') && isImageRef(block.mediaUrl)) {
+        refs.add(block.mediaUrl)
       }
     }
   }
@@ -214,6 +222,9 @@ export function remapImageRefsInData(data, refMap) {
     for (const block of note.blocks) {
       if (block.type === 'image' && refMap[block.imageUrl]) {
         block.imageUrl = refMap[block.imageUrl]
+      }
+      if ((block.type === 'audio' || block.type === 'video') && refMap[block.mediaUrl]) {
+        block.mediaUrl = refMap[block.mediaUrl]
       }
     }
   }

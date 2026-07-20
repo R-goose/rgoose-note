@@ -299,6 +299,7 @@
           @connect-start="startConnection"
           @connect-end="endConnection"
           @add-image="handleAddImageToBlock"
+          @add-media="handleAddMediaToBlock"
           @add-link="handleAddLinkToBlock"
           @add-note-link="handleAddNoteLinkFromBlock"
           @preview-image="showImagePreview"
@@ -676,6 +677,14 @@
       class="hidden-file-input"
       @change="onImageFileSelect"
     />
+
+    <input
+      ref="mediaInputRef"
+      type="file"
+      accept="audio/*,video/*"
+      class="hidden-file-input"
+      @change="onMediaFileSelect"
+    />
     
     <div v-if="showNoteLinkModal" class="modal-overlay" @click.self="closeNoteLinkModal">
       <div class="modal-content note-link-modal">
@@ -804,6 +813,19 @@
             <polyline points="21 15 16 10 5 21"/>
           </svg>
           新建图片块
+        </div>
+        <div class="context-menu-item" @click="addMediaBlockAtContext('audio')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+          </svg>
+          新建音频块
+        </div>
+        <div class="context-menu-item" @click="addMediaBlockAtContext('video')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="5" width="14" height="14" rx="2"/>
+            <polygon points="23 7 16 12 23 17 23 7"/>
+          </svg>
+          新建视频块
         </div>
         <div class="context-menu-item" @click="addTodoBlockAtContext">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -1257,6 +1279,10 @@ function redo() {
 
 const isImageLoading = ref(false)
 const currentImageBlockId = ref(null)
+const mediaInputRef = ref(null)
+const currentMediaBlockId = ref(null)
+const pendingMediaType = ref(null)
+const pendingMediaPos = ref(null)
 const blockSelectionRanges = ref({})
 
 const showNoteLinkModal = ref(false)
@@ -3514,6 +3540,71 @@ function handleAddImageToBlock(blockId) {
   focusBlock(blockId)
   currentImageBlockId.value = blockId
   fileInputRef.value?.click()
+}
+
+function handleAddMediaToBlock({ blockId, mediaType }) {
+  focusBlock(blockId)
+  currentMediaBlockId.value = blockId
+  pendingMediaType.value = mediaType
+  pendingMediaPos.value = null
+  mediaInputRef.value?.click()
+}
+
+function addMediaBlockAtContext(mediaType) {
+  currentMediaBlockId.value = null
+  pendingMediaType.value = mediaType
+  pendingMediaPos.value = { x: contextMenu.value.canvasX - 160, y: contextMenu.value.canvasY - 60 }
+  contextMenu.value.show = false
+  mediaInputRef.value?.click()
+}
+
+function onMediaFileSelect(e) {
+  const file = e.target.files?.[0]
+  e.target.value = ''
+  if (!file) return
+
+  const isAudio = file.type.startsWith('audio/')
+  const isVideo = file.type.startsWith('video/')
+  if (!isAudio && !isVideo) return
+
+  const mediaType = pendingMediaType.value || (isAudio ? 'audio' : 'video')
+
+  const reader = new FileReader()
+  reader.onload = async (ev) => {
+    const dataUrl = ev.target.result
+    const mediaRef = await saveImage(dataUrl)
+
+    if (!note.value) return
+    saveHistory()
+
+    if (currentMediaBlockId.value) {
+      noteStore.updateBlock(note.value.id, currentMediaBlockId.value, {
+        mediaUrl: mediaRef,
+        mediaName: file.name
+      })
+      focusBlock(currentMediaBlockId.value)
+    } else {
+      const pos = pendingMediaPos.value || {
+        x: -canvasConfig.value.offsetX / canvasConfig.value.zoom + 300 + newBlockOffset.value,
+        y: -canvasConfig.value.offsetY / canvasConfig.value.zoom + 200 + newBlockOffset.value
+      }
+      newBlockOffset.value += 30
+      noteStore.addBlock(note.value.id, {
+        x: pos.x,
+        y: pos.y,
+        type: mediaType,
+        mediaUrl: mediaRef,
+        mediaName: file.name,
+        width: mediaType === 'video' ? 400 : 320,
+        minHeight: mediaType === 'video' ? 240 : 80
+      })
+    }
+
+    currentMediaBlockId.value = null
+    pendingMediaType.value = null
+    pendingMediaPos.value = null
+  }
+  reader.readAsDataURL(file)
 }
 
 function handleAddLinkToBlock(blockId) {
