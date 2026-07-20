@@ -159,15 +159,23 @@
       </div>
 
       <div v-else-if="block.type === 'video' && block.mediaUrl" class="media-container video-container" @wheel.stop>
-        <video
-          ref="videoRef"
-          :src="resolvedMediaUrl"
-          controls
-          preload="metadata"
-          :class="{ 'pseudo-fs': pseudoFullscreen }"
-          @wheel.stop
-          @dblclick.stop="toggleVideoFullscreen"
-        ></video>
+        <Teleport to="body" :disabled="!pseudoFullscreen">
+          <div :class="pseudoFullscreen ? 'video-fs-overlay' : 'video-inline-wrap'">
+            <video
+              ref="videoRef"
+              :src="resolvedMediaUrl"
+              controls
+              preload="metadata"
+              @wheel.stop
+              @dblclick.stop="toggleVideoFullscreen"
+            ></video>
+            <button v-if="pseudoFullscreen" class="exit-fs-btn" @click.stop="exitPseudoFullscreen" title="退出全屏 (Esc)">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+        </Teleport>
         <div class="media-header">
           <span class="media-name">{{ block.mediaName || '视频' }}</span>
           <button class="change-media-btn" @click.stop="toggleVideoFullscreen" title="全屏">
@@ -181,11 +189,6 @@
           </button>
           <button v-if="!readOnly" class="change-media-btn" @click.stop="$emit('add-media', { blockId: block.id, mediaType: 'video' })">更换</button>
         </div>
-        <button v-if="pseudoFullscreen" class="exit-fs-btn" @click.stop="exitPseudoFullscreen" title="退出全屏 (Esc)">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
       </div>
 
       <div
@@ -554,24 +557,15 @@ watch(
 const videoRef = ref(null)
 const pseudoFullscreen = ref(false)
 
-async function toggleVideoFullscreen() {
+// 祖先 blocks-layer 带 transform（画布缩放），会同时让原生全屏和 position:fixed 失效。
+// 方案：用 Teleport 把 video 传送到 body，脱离 transform 祖主，再用 fixed 铺满视口。
+function toggleVideoFullscreen() {
   const v = videoRef.value
   if (!v) return
   if (pseudoFullscreen.value) { exitPseudoFullscreen(); return }
-  // 祖先有 transform（画布缩放），原生全屏可能失效，先尝试，失败回退伪全屏
-  try {
-    if (v.requestFullscreen) {
-      await v.requestFullscreen()
-      if (document.fullscreenElement === v) return
-    } else if (v.webkitEnterFullscreen) {
-      v.webkitEnterFullscreen()
-      return
-    }
-  } catch (_) { /* 回退伪全屏 */ }
   pseudoFullscreen.value = true
-  document.addEventListener('keydown', onFsKeydown, { once: true })
-  await nextTick()
-  v.play?.().catch(() => {})
+  document.addEventListener('keydown', onFsKeydown)
+  nextTick(() => v.play?.().catch(() => {}))
 }
 
 function exitPseudoFullscreen() {
@@ -1993,22 +1987,36 @@ onUnmounted(() => {
   background: #000;
   display: block;
 }
-.video-container video.pseudo-fs {
+.video-inline-wrap {
+  display: contents;
+}
+/* 伪全屏 overlay：teleport 到 body，脱离 transform 祖先，fixed 才真正相对 viewport */
+.video-fs-overlay {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
-  max-height: none;
-  border-radius: 0;
+  background: #000;
   z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.video-fs-overlay video {
+  max-width: 100vw;
+  max-height: 100vh;
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+  background: #000;
 }
 .exit-fs-btn {
   position: fixed;
   top: 16px;
   right: 16px;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
