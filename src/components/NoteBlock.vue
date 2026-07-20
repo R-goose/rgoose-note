@@ -159,11 +159,33 @@
       </div>
 
       <div v-else-if="block.type === 'video' && block.mediaUrl" class="media-container video-container" @wheel.stop>
-        <video :src="resolvedMediaUrl" controls preload="metadata" @wheel.stop></video>
+        <video
+          ref="videoRef"
+          :src="resolvedMediaUrl"
+          controls
+          preload="metadata"
+          :class="{ 'pseudo-fs': pseudoFullscreen }"
+          @wheel.stop
+          @dblclick.stop="toggleVideoFullscreen"
+        ></video>
         <div class="media-header">
           <span class="media-name">{{ block.mediaName || '视频' }}</span>
+          <button class="change-media-btn" @click.stop="toggleVideoFullscreen" title="全屏">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M8 3H5a2 2 0 0 0-2 2v3"/>
+              <path d="M21 8V5a2 2 0 0 0-2-2h-3"/>
+              <path d="M3 16v3a2 2 0 0 0 2 2h3"/>
+              <path d="M16 21h3a2 2 0 0 0 2-2v-3"/>
+            </svg>
+            全屏
+          </button>
           <button v-if="!readOnly" class="change-media-btn" @click.stop="$emit('add-media', { blockId: block.id, mediaType: 'video' })">更换</button>
         </div>
+        <button v-if="pseudoFullscreen" class="exit-fs-btn" @click.stop="exitPseudoFullscreen" title="退出全屏 (Esc)">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
       </div>
 
       <div
@@ -469,7 +491,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount, onUnmounted } from 'vue'
 import { useNoteStore } from '@/stores/note'
 import { useShortcutStore } from '@/stores/shortcut'
 import { resolveImageUrl, isImageRef } from '@/utils/imageStore'
@@ -528,6 +550,42 @@ watch(
   },
   { immediate: true }
 )
+
+const videoRef = ref(null)
+const pseudoFullscreen = ref(false)
+
+async function toggleVideoFullscreen() {
+  const v = videoRef.value
+  if (!v) return
+  if (pseudoFullscreen.value) { exitPseudoFullscreen(); return }
+  // 祖先有 transform（画布缩放），原生全屏可能失效，先尝试，失败回退伪全屏
+  try {
+    if (v.requestFullscreen) {
+      await v.requestFullscreen()
+      if (document.fullscreenElement === v) return
+    } else if (v.webkitEnterFullscreen) {
+      v.webkitEnterFullscreen()
+      return
+    }
+  } catch (_) { /* 回退伪全屏 */ }
+  pseudoFullscreen.value = true
+  document.addEventListener('keydown', onFsKeydown, { once: true })
+  await nextTick()
+  v.play?.().catch(() => {})
+}
+
+function exitPseudoFullscreen() {
+  pseudoFullscreen.value = false
+  document.removeEventListener('keydown', onFsKeydown)
+}
+
+function onFsKeydown(e) {
+  if (e.key === 'Escape') exitPseudoFullscreen()
+}
+
+onBeforeUnmount(() => {
+  if (pseudoFullscreen.value) exitPseudoFullscreen()
+})
 
 const emit = defineEmits([
   'select',
@@ -1934,6 +1992,35 @@ onUnmounted(() => {
   border-radius: var(--radius-md);
   background: #000;
   display: block;
+}
+.video-container video.pseudo-fs {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  max-height: none;
+  border-radius: 0;
+  z-index: 99999;
+}
+.exit-fs-btn {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  z-index: 100000;
+}
+.exit-fs-btn:hover {
+  background: rgba(0, 0, 0, 0.85);
 }
 .media-header {
   display: flex;
