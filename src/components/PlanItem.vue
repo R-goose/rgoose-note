@@ -29,10 +29,23 @@
         <span class="priority-tag">
           {{ priorityLabel }}
         </span>
+        <span v-if="plan.noteId && noteTitle" class="note-link-tag" @click.stop="$emit('go-to-note', plan)" title="跳转到笔记">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+          </svg>
+          {{ noteTitle }}
+        </span>
       </div>
     </div>
     
     <div class="plan-actions">
+      <button v-if="plan.noteId" class="action-btn" @click.stop="$emit('go-to-note', plan)" title="跳转到笔记">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+        </svg>
+      </button>
       <button class="action-btn" @click.stop="$emit('edit', plan)" title="编辑">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -52,6 +65,7 @@
 <script setup>
 import { computed } from 'vue'
 import { formatRelativeTime, formatDate } from '@/utils'
+import { useNoteStore } from '@/stores/note'
 
 const props = defineProps({
   plan: {
@@ -60,7 +74,15 @@ const props = defineProps({
   }
 })
 
-defineEmits(['toggle', 'edit', 'delete'])
+defineEmits(['toggle', 'edit', 'delete', 'go-to-note'])
+
+const noteStore = useNoteStore()
+
+const noteTitle = computed(() => {
+  if (!props.plan.noteId) return ''
+  const n = (noteStore.notes || []).find(x => x.id === props.plan.noteId)
+  return n ? (n.title || '未命名') : ''
+})
 
 const isOverdue = computed(() => {
   if (props.plan.completed || !props.plan.dueDate) return false
@@ -209,6 +231,27 @@ function formatDueDate(timestamp) {
 .priority-low .priority-tag {
   background: rgba(201, 169, 110, 0.12);
   color: var(--secondary-color);
+}
+
+.note-link-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary-color);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.note-link-tag:hover {
+  background: var(--primary-color);
+  color: #fff;
 }
 
 .plan-actions {

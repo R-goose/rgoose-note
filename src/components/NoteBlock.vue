@@ -568,9 +568,6 @@ const blockStyle = computed(() => {
   if (props.block.borderColor) {
     style.borderColor = props.block.borderColor
   }
-  if (props.block.zIndex != null) {
-    style.zIndex = props.block.zIndex
-  }
   if (props.block.locked) {
     style.pointerEvents = ''
   }

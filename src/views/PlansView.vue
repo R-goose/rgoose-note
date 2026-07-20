@@ -72,6 +72,7 @@
             @toggle="togglePlan"
             @edit="editPlan"
             @delete="deletePlan"
+            @go-to-note="goToNote"
           />
         </div>
       </div>
@@ -94,6 +95,7 @@
             @toggle="togglePlan"
             @edit="editPlan"
             @delete="deletePlan"
+            @go-to-note="goToNote"
           />
         </div>
       </div>
@@ -118,6 +120,7 @@
             @toggle="togglePlan"
             @edit="editPlan"
             @delete="deletePlan"
+            @go-to-note="goToNote"
           />
           
           <div v-if="completedPlans.length" class="completed-header completed" @click="showCompleted = !showCompleted">
@@ -135,6 +138,7 @@
               @toggle="togglePlan"
               @edit="editPlan"
               @delete="deletePlan"
+              @go-to-note="goToNote"
             />
           </div>
         </div>
@@ -180,7 +184,17 @@
               </button>
             </div>
           </div>
-          
+
+          <div class="form-group">
+            <label>关联笔记（可选）</label>
+            <select v-model="form.noteId" class="input select-input">
+              <option :value="null">不关联</option>
+              <option v-for="n in linkableNotes" :key="n.id" :value="n.id">
+                {{ n.title || '未命名' }}
+              </option>
+            </select>
+          </div>
+
           <div class="modal-actions">
             <button class="btn btn-secondary" @click="closeModal">取消</button>
             <button class="btn btn-primary" @click="savePlan">{{ editingPlan ? '保存' : '创建' }}</button>
@@ -193,12 +207,16 @@
 
 <script setup>
 import { ref, computed, reactive } from 'vue'
+import { useRouter } from 'vue-router'
 import { usePlanStore } from '@/stores/plan'
+import { useNoteStore } from '@/stores/note'
 import { useToast } from '@/composables/useToast'
 import PlanItem from '@/components/PlanItem.vue'
 import DateTimePicker from '@/components/DateTimePicker.vue'
 
+const router = useRouter()
 const planStore = usePlanStore()
+const noteStore = useNoteStore()
 const { error: toastError } = useToast()
 const showAddModal = ref(false)
 const editingPlan = ref(null)
@@ -208,7 +226,8 @@ const form = reactive({
   title: '',
   description: '',
   dueDate: '',
-  priority: 'normal'
+  priority: 'normal',
+  noteId: null
 })
 
 const priorityOptions = [
@@ -221,6 +240,13 @@ const allPlans = computed(() => planStore.plans)
 const overduePlans = computed(() => planStore.overduePlans)
 const todayPlans = computed(() => planStore.todayPlans)
 const completedPlans = computed(() => allPlans.value.filter(p => p.completed))
+const linkableNotes = computed(() => (noteStore.notes || []).filter(n => !n.deleted))
+
+function goToNote(plan) {
+  if (!plan.noteId) return
+  const path = `/note/${plan.noteId}` + (plan.blockId ? `?b=${plan.blockId}` : '')
+  router.push(path)
+}
 const activePlans = computed(() =>
   allPlans.value.filter(plan =>
     !plan.completed &&
@@ -240,6 +266,7 @@ function editPlan(plan) {
   form.description = plan.description || ''
   form.dueDate = plan.dueDate || ''
   form.priority = plan.priority || 'normal'
+  form.noteId = plan.noteId || null
 }
 
 function deletePlan(id) {
@@ -253,6 +280,7 @@ function closeModal() {
   form.description = ''
   form.dueDate = ''
   form.priority = 'normal'
+  form.noteId = null
 }
 
 function savePlan() {
@@ -264,7 +292,8 @@ function savePlan() {
   const data = {
     description: form.description.trim(),
     dueDate: form.dueDate ? Number(form.dueDate) : null,
-    priority: form.priority
+    priority: form.priority,
+    noteId: form.noteId || null
   }
 
   if (editingPlan.value) {
@@ -551,6 +580,11 @@ function savePlan() {
 .priority-options {
   display: flex;
   gap: 8px;
+}
+
+.select-input {
+  width: 100%;
+  cursor: pointer;
 }
 
 .priority-btn {

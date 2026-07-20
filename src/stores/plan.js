@@ -36,6 +36,11 @@ export const usePlanStore = defineStore('plan', () => {
     })
   })
 
+  function plansByNote(noteId) {
+    if (!noteId) return []
+    return plans.value.filter(p => p.noteId === noteId)
+  }
+
   let initPromise = null
   async function init() {
     if (initPromise) return initPromise
@@ -80,6 +85,8 @@ export const usePlanStore = defineStore('plan', () => {
       completed: false,
       priority: options.priority || 'normal',
       tags: options.tags || [],
+      noteId: options.noteId || null,
+      blockId: options.blockId || null,
       createdAt: now,
       updatedAt: now
     }
@@ -161,6 +168,7 @@ export const usePlanStore = defineStore('plan', () => {
     sortedPlans,
     todayPlans,
     overduePlans,
+    plansByNote,
     lastSyncTime,
     init,
     persist,

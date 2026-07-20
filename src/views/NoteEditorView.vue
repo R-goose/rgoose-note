@@ -159,6 +159,18 @@
             看板
           </button>
           <button
+            v-if="linkedPlans.length"
+            class="btn btn-secondary"
+            @click="router.push('/plans')"
+            :title="`本笔记关联了 ${linkedPlans.length} 个计划，点击查看`"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 11l3 3L22 4"/>
+              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+            </svg>
+            {{ linkedPlans.length }} 计划
+          </button>
+          <button
             class="btn"
             :class="showGrid ? 'btn-primary' : 'btn-secondary'"
             @click="showGrid = !showGrid"
@@ -284,8 +296,6 @@
           @update="updateBlockContent"
           @delete="deleteBlock"
           @toggle-lock="toggleLock"
-          @bring-to-front="bringToFront"
-          @send-to-back="sendToBack"
           @connect-start="startConnection"
           @connect-end="endConnection"
           @add-image="handleAddImageToBlock"
@@ -1001,6 +1011,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useNoteStore } from '@/stores/note'
+import { usePlanStore } from '@/stores/plan'
 import { useTagStore, TAG_PRESET_COLORS } from '@/stores/tag'
 import { useShortcutStore } from '@/stores/shortcut'
 import NoteBlock from '@/components/NoteBlock.vue'
@@ -1015,6 +1026,7 @@ const { error: toastError } = useToast()
 const route = useRoute()
 const router = useRouter()
 const noteStore = useNoteStore()
+const planStore = usePlanStore()
 const tagStore = useTagStore()
 const shortcutStore = useShortcutStore()
 tagStore.init()
@@ -1614,6 +1626,7 @@ const note = computed(() => {
 
 const blocks = computed(() => note.value?.blocks || [])
 const connections = computed(() => note.value?.connections || [])
+const linkedPlans = computed(() => note.value ? planStore.plansByNote(note.value.id) : [])
 
 const canvasBgStyle = computed(() => ({
   backgroundImage: showGrid.value
@@ -3559,20 +3572,6 @@ function toggleLock(blockId) {
   if (!block) return
   saveHistory()
   noteStore.updateBlock(note.value.id, blockId, { locked: !block.locked })
-}
-
-function bringToFront(blockId) {
-  if (!note.value) return
-  saveHistory()
-  const maxZ = note.value.blocks.reduce((m, b) => Math.max(m, b.zIndex || 0), 0)
-  noteStore.updateBlock(note.value.id, blockId, { zIndex: maxZ + 1 })
-}
-
-function sendToBack(blockId) {
-  if (!note.value) return
-  saveHistory()
-  const minZ = note.value.blocks.reduce((m, b) => Math.min(m, b.zIndex || 0), 0)
-  noteStore.updateBlock(note.value.id, blockId, { zIndex: minZ - 1 })
 }
 
 function deleteSelectedBlocks() {
