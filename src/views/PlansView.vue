@@ -187,12 +187,7 @@
 
           <div class="form-group">
             <label>关联笔记（可选）</label>
-            <select v-model="form.noteId" class="input select-input">
-              <option :value="null">不关联</option>
-              <option v-for="n in linkableNotes" :key="n.id" :value="n.id">
-                {{ n.title || '未命名' }}
-              </option>
-            </select>
+            <CustomSelect v-model="form.noteId" :options="noteOptions" class="note-select" />
           </div>
 
           <div class="modal-actions">
@@ -213,6 +208,7 @@ import { useNoteStore } from '@/stores/note'
 import { useToast } from '@/composables/useToast'
 import PlanItem from '@/components/PlanItem.vue'
 import DateTimePicker from '@/components/DateTimePicker.vue'
+import CustomSelect from '@/components/CustomSelect.vue'
 
 const router = useRouter()
 const planStore = usePlanStore()
@@ -241,6 +237,10 @@ const overduePlans = computed(() => planStore.overduePlans)
 const todayPlans = computed(() => planStore.todayPlans)
 const completedPlans = computed(() => allPlans.value.filter(p => p.completed))
 const linkableNotes = computed(() => (noteStore.notes || []).filter(n => !n.deleted))
+const noteOptions = computed(() => [
+  { label: '不关联', value: null },
+  ...linkableNotes.value.map(n => ({ label: n.title || '未命名', value: n.id }))
+])
 
 function goToNote(plan) {
   if (!plan.noteId) return
@@ -582,9 +582,16 @@ function savePlan() {
   gap: 8px;
 }
 
-.select-input {
+.note-select {
+  display: flex;
   width: 100%;
-  cursor: pointer;
+}
+.note-select :deep(.cs-trigger) {
+  flex: 1;
+  justify-content: space-between;
+  padding: 10px 12px;
+  font-size: 13px;
+  border-radius: var(--radius-md);
 }
 
 .priority-btn {
