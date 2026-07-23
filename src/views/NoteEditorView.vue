@@ -335,6 +335,7 @@
           @open-note="openLinkedNote"
           @resize="onBlockResize"
           @resize-block="onBlockResizeBlock"
+          @resize-start="onBlockResizeStart"
           @save-selection="saveBlockSelection"
           @save-history="saveHistory"
           @blur="onBlockBlur"
@@ -1321,6 +1322,10 @@ function onBlockResizeBlock({ id, width, height, x, y }) {
   })
 }
 
+function onBlockResizeStart() {
+  saveHistory()
+}
+
 const draggingBlock = ref(null)
 const dragOffset = ref({ x: 0, y: 0 })
 const hasDragged = ref(false)
@@ -1344,6 +1349,7 @@ function snapshotNoteState() {
     blocks: note.value.blocks,
     connections: note.value.connections || [],
     title: note.value.title || '',
+    tags: [...(note.value.tags || [])],
     canvasConfig: { ...note.value.canvasConfig }
   })
 }
@@ -1358,6 +1364,7 @@ function restoreNoteState(stateJson) {
     noteStore.updateNote(note.value.id, { title: state.title })
     noteTitle.value = state.title
   }
+  if (state.tags) noteStore.setNoteTags(note.value.id, state.tags)
   if (state.canvasConfig) {
     noteStore.updateNote(note.value.id, { canvasConfig: state.canvasConfig })
     canvasConfig.value = { ...state.canvasConfig }
@@ -1516,6 +1523,7 @@ function tagChipStyle(id) {
 
 function toggleNoteTag(tagId) {
   if (!note.value) return
+  saveHistory()
   const current = Array.isArray(note.value.tags) ? [...note.value.tags] : []
   const idx = current.indexOf(tagId)
   if (idx >= 0) current.splice(idx, 1)
@@ -2567,6 +2575,7 @@ function goBack() {
 
 function updateTitle() {
   if (note.value) {
+    saveHistory()
     noteStore.updateNote(note.value.id, { title: noteTitle.value })
   }
 }

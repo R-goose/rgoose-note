@@ -557,16 +557,14 @@
         @wheel.stop
       >
         <div class="code-head">
-          <select
-            class="code-lang-select"
-            :value="block.codeLang || 'auto'"
-            :disabled="readOnly"
-            @change.stop="onCodeLangChange($event)"
-            @mousedown.stop
-          >
-            <option value="auto">自动</option>
-            <option v-for="lang in codeLangs" :key="lang" :value="lang">{{ lang }}</option>
-          </select>
+          <div class="code-lang-dropdown" @mousedown.stop @click.stop="langDropdownOpen = !langDropdownOpen">
+            <span class="code-lang-label">{{ block.codeLang || 'auto' }}</span>
+            <svg class="code-lang-arrow" :class="{ open: langDropdownOpen }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+            <div v-if="langDropdownOpen" class="code-lang-menu">
+              <div class="code-lang-option" :class="{ active: (block.codeLang || 'auto') === 'auto' }" @click.stop="onCodeLangPick('auto')">自动</div>
+              <div v-for="lang in codeLangs" :key="lang" class="code-lang-option" :class="{ active: (block.codeLang || 'auto') === lang }" @click.stop="onCodeLangPick(lang)">{{ lang }}</div>
+            </div>
+          </div>
           <button class="code-copy-btn" @click.stop="copyCode" title="复制">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
           </button>
@@ -1029,13 +1027,25 @@ const highlightedCode = computed(() => {
 function startCodeEdit() {
   codeText.value = props.block?.code || ''
   codeEditing.value = true
-  nextTick(() => codeTextareaRef.value?.focus())
+  nextTick(() => {
+    codeTextareaRef.value?.focus()
+    autoResizeCode()
+  })
+}
+function autoResizeCode() {
+  const el = codeTextareaRef.value
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = Math.min(el.scrollHeight, 400) + 'px'
 }
 function onCodeInput() {
   emit('update', props.block.id, { code: codeText.value })
+  autoResizeCode()
 }
-function onCodeLangChange(e) {
-  emit('update', props.block.id, { codeLang: e.target.value })
+const langDropdownOpen = ref(false)
+function onCodeLangPick(lang) {
+  emit('update', props.block.id, { codeLang: lang })
+  langDropdownOpen.value = false
 }
 async function copyCode() {
   try { await navigator.clipboard.writeText(props.block?.code || '') } catch {}
@@ -1950,6 +1960,7 @@ function onResizeStart(e, dir) {
     startWidth: block.width || 240,
     startHeight: Math.max(domHeight, block.height || block.minHeight || 80)
   }
+  emit('resize-start', { id: props.block.id })
   document.addEventListener('mousemove', onResizeMove)
   document.addEventListener('mouseup', onResizeEnd)
 }
@@ -2001,6 +2012,7 @@ function closeInsertMenu(e) {
   if (e.target.closest('.insert-menu-wrap') || e.target.closest('.table-grid-picker')) return
   showInsertMenu.value = false
   showTablePicker.value = false
+  if (!e.target.closest('.code-lang-dropdown')) langDropdownOpen.value = false
 }
 
 onMounted(() => {
@@ -2953,16 +2965,49 @@ onUnmounted(() => {
   padding: 4px 8px;
   background: #181825;
 }
-.code-lang-select {
+.code-lang-dropdown {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-size: 11px;
-  padding: 2px 6px;
-  border: 1px solid #313244;
-  background: #1e1e2e;
+  padding: 3px 8px;
+  background: #313244;
   color: #cdd6f4;
   border-radius: 4px;
-  outline: none;
   cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
 }
+.code-lang-dropdown:hover { background: #45475a; }
+.code-lang-label { text-transform: capitalize; }
+.code-lang-arrow { transition: transform 0.15s; opacity: 0.6; }
+.code-lang-arrow.open { transform: rotate(180deg); }
+.code-lang-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  min-width: 100px;
+  max-height: 220px;
+  overflow-y: auto;
+  background: #1e1e2e;
+  border: 1px solid #45475a;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  z-index: 50;
+  padding: 4px 0;
+}
+.code-lang-option {
+  padding: 5px 12px;
+  font-size: 12px;
+  color: #bac2de;
+  cursor: pointer;
+  text-transform: capitalize;
+  transition: all 0.1s;
+}
+.code-lang-option:hover { background: #313244; color: #cdd6f4; }
+.code-lang-option.active { color: #89b4fa; font-weight: 600; }
 .code-copy-btn {
   display: flex;
   align-items: center;
@@ -3006,7 +3051,9 @@ onUnmounted(() => {
   caret-color: #f5e0dc;
   border: none;
   outline: none;
-  resize: vertical;
+  resize: none;
+  max-height: 400px;
+  overflow-y: auto;
   min-height: 40px;
   width: 100%;
   display: block;
