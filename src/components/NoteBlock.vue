@@ -488,23 +488,42 @@
       >
         <div class="table-toolbar">
           <span class="table-count" v-if="tableRows.length > 1">{{ tableRows.length - 1 }} 行 × {{ (tableRows[0] || []).length }} 列</span>
-          <button v-if="!readOnly" class="change-media-btn" @click.stop="addTableRow">+ 行</button>
-          <button v-if="!readOnly" class="change-media-btn" @click.stop="addTableCol">+ 列</button>
-          <button class="change-media-btn" :class="{ active: block.tableAnalysis }" @click.stop="emit('update', block.id, { tableAnalysis: !block.tableAnalysis })">数值分析</button>
+          <div class="table-actions">
+            <button v-if="!readOnly" class="change-media-btn" @click.stop="addTableRow">+ 行</button>
+            <button v-if="!readOnly" class="change-media-btn" @click.stop="addTableCol">+ 列</button>
+            <button v-if="!readOnly && tableRows.length > 2" class="change-media-btn danger" @click.stop="delTableRow">− 行</button>
+            <button v-if="!readOnly && (tableRows[0]||[]).length > 1" class="change-media-btn danger" @click.stop="delTableCol">− 列</button>
+            <button class="change-media-btn" :class="{ active: block.tableAnalysis }" @click.stop="emit('update', block.id, { tableAnalysis: !block.tableAnalysis })">分析</button>
+          </div>
         </div>
         <table class="data-table">
           <thead>
             <tr>
-              <th v-for="(cell, ci) in (tableRows[0] || [])" :key="ci">
-                {{ cell }}
-              </th>
+              <th
+                v-for="(cell, ci) in (tableRows[0] || [])"
+                :key="ci"
+                :contenteditable="!readOnly && !block.locked"
+                spellcheck="false"
+                @blur="onCellEdit(0, ci, $event)"
+                @keydown.enter.prevent="$event.target.blur()"
+                @mousedown.stop
+                @wheel.stop
+              >{{ cell }}</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="(row, ri) in tableRows.slice(1)" :key="ri">
-              <td v-for="(cell, ci) in row" :key="ci" :class="getCellClass(ri + 1, ci, cell)">
-                {{ cell }}
-              </td>
+              <td
+                v-for="(cell, ci) in row"
+                :key="ci"
+                :class="getCellClass(ri + 1, ci, cell)"
+                :contenteditable="!readOnly && !block.locked"
+                spellcheck="false"
+                @blur="onCellEdit(ri + 1, ci, $event)"
+                @keydown.enter.prevent="$event.target.blur()"
+                @mousedown.stop
+                @wheel.stop
+              >{{ cell }}</td>
             </tr>
           </tbody>
           <tfoot v-if="block.tableAnalysis && tableSums">
@@ -515,18 +534,6 @@
             </tr>
           </tfoot>
         </table>
-        <textarea
-          v-if="tableEditing"
-          class="table-raw-input"
-          v-model="tableRawText"
-          spellcheck="false"
-          @input="onTableRawInput"
-          @blur="tableEditing = false"
-          @wheel.stop
-          @mousedown.stop
-          placeholder="每行用换行分隔，每列用 | 或 Tab 分隔"
-        ></textarea>
-        <div v-if="!tableEditing && !readOnly" class="code-edit-hint" style="position:static;background:transparent;color:var(--text-tertiary);text-align:right" @click.stop="startTableEdit">编辑数据</div>
       </div>
 
       <div
@@ -595,16 +602,16 @@
         @wheel.stop
       >
         <div class="callout-head">
-          <span class="callout-icon" v-html="calloutIcons[block.calloutType || 'info']"></span>
+          <span class="callout-icon" v-html="calloutIconSvg[block.calloutType || 'info']"></span>
           <div class="callout-type-selector">
             <button
               v-for="t in calloutTypes"
               :key="t.key"
               class="callout-type-btn"
-              :class="{ active: (block.calloutType || 'info') === t.key }"
+              :class="[{ active: (block.calloutType || 'info') === t.key }, `callout-type-${t.key}`]"
               :title="t.label"
               @click.stop="emit('update', block.id, { calloutType: t.key })"
-            >{{ t.icon }}</button>
+            ><span v-html="calloutIconSvg[t.key]"></span></button>
           </div>
         </div>
         <div
@@ -878,16 +885,16 @@ const galleryResolvedUrls = ref([])
 
 // ===== Callout 引用提示块 =====
 const calloutTypes = [
-  { key: 'info', label: '信息', icon: 'ℹ' },
-  { key: 'tip', label: '提示', icon: '💡' },
-  { key: 'warning', label: '警告', icon: '⚠' },
-  { key: 'danger', label: '危险', icon: '⛔' }
+  { key: 'info', label: '信息', icon: 'M12 16v-4M12 8h.01', circle: true },
+  { key: 'tip', label: '提示', icon: 'M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11', circle: false },
+  { key: 'warning', label: '警告', icon: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01', circle: false },
+  { key: 'danger', label: '危险', icon: 'M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z', circle: false }
 ]
-const calloutIcons = {
-  info: 'ℹ️',
-  tip: '💡',
-  warning: '⚠️',
-  danger: '⛔️'
+const calloutIconSvg = {
+  info: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
+  tip: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+  warning: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  danger: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'
 }
 
 // ===== 代码块语法高亮 =====
@@ -903,6 +910,14 @@ const tableRows = computed(() => {
   const raw = props.block?.tableData || '列1|列2|列3\n10|20|30\n15|25|35'
   return raw.split('\n').filter(r => r.trim()).map(r => r.split(/\||\t/).map(c => c.trim()))
 })
+function onCellEdit(rowIdx, colIdx, e) {
+  const newVal = e.target.innerText.trim()
+  const rows = tableRows.value.map(r => [...r])
+  if (!rows[rowIdx]) return
+  if (newVal === (rows[rowIdx][colIdx] || '')) return
+  rows[rowIdx][colIdx] = newVal
+  emit('update', props.block.id, { tableData: rows.map(r => r.join('|')).join('\n') })
+}
 const numericColumns = computed(() => {
   if (tableRows.value.length < 2) return new Set()
   const colCount = (tableRows.value[0] || []).length
@@ -952,13 +967,8 @@ function getCellClass(ri, ci, cell) {
   if (val === ext.min) return 'cell-min'
   return ''
 }
-function startTableEdit() {
-  tableRawText.value = props.block?.tableData || ''
-  tableEditing.value = true
-}
-function onTableRawInput() {
-  emit('update', props.block.id, { tableData: tableRawText.value })
-}
+function startTableEdit() {}
+function onTableRawInput() {}
 function addTableRow() {
   const cols = (tableRows.value[0] || []).length || 3
   const newRow = Array(cols).fill('0').join('|')
@@ -972,6 +982,18 @@ function addTableCol() {
     return cells.join('|')
   })
   emit('update', props.block.id, { tableData: newRows.join('\n') })
+}
+function delTableRow() {
+  const rows = (props.block.tableData || '').split('\n').filter(r => r.trim())
+  if (rows.length <= 2) return
+  rows.pop()
+  emit('update', props.block.id, { tableData: rows.join('\n') })
+}
+function delTableCol() {
+  const rows = tableRows.value
+  if ((rows[0] || []).length <= 1) return
+  const newRows = rows.map(r => r.slice(0, -1))
+  emit('update', props.block.id, { tableData: newRows.map(r => r.join('|')).join('\n') })
 }
 const formulaText = ref('')
 const formulaTextareaRef = ref(null)
@@ -2761,8 +2783,9 @@ onUnmounted(() => {
   justify-content: space-between;
 }
 .callout-icon {
-  font-size: 18px;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 .callout-type-selector {
   display: flex;
@@ -2772,20 +2795,26 @@ onUnmounted(() => {
 }
 .callout-block:hover .callout-type-selector { opacity: 1; }
 .callout-type-btn {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
   border: none;
   background: transparent;
   border-radius: 4px;
   cursor: pointer;
-  opacity: 0.5;
+  opacity: 0.4;
+  color: var(--text-secondary);
 }
-.callout-type-btn:hover { opacity: 1; background: rgba(0,0,0,0.06); }
-.callout-type-btn.active { opacity: 1; font-weight: bold; }
+.callout-type-btn:hover { opacity: 0.8; background: rgba(0,0,0,0.06); }
+.callout-type-btn.active { opacity: 1; }
+.callout-type-btn svg { width: 15px; height: 15px; }
+/* 类型选择器各自配色 */
+.callout-type-info.active { color: #1565c0; }
+.callout-type-tip.active { color: #2e7d32; }
+.callout-type-warning.active { color: #e65100; }
+.callout-type-danger.active { color: #c62828; }
 .callout-editor {
   outline: none;
   font-size: 14px;
@@ -2793,13 +2822,13 @@ onUnmounted(() => {
   min-height: 20px;
   word-break: break-word;
 }
-.callout-info { background: #e7f3fe; border-color: #2196f3; }
-.callout-tip { background: #e8f5e9; border-color: #4caf50; }
-.callout-warning { background: #fff8e1; border-color: #ff9800; }
-.callout-danger { background: #fdecea; border-color: #f44336; }
+.callout-info { background: #d6ebff; border-color: #1976d2; }
+.callout-tip { background: #d7f0d9; border-color: #388e3c; }
+.callout-warning { background: #fff0c2; border-color: #f57c00; }
+.callout-danger { background: #fdd9d6; border-color: #d32f2f; }
 .callout-info .callout-editor, .callout-info .callout-icon { color: #0d47a1; }
 .callout-tip .callout-editor, .callout-tip .callout-icon { color: #1b5e20; }
-.callout-warning .callout-editor, .callout-warning .callout-icon { color: #e65100; }
+.callout-warning .callout-editor, .callout-warning .callout-icon { color: #bf360c; }
 .callout-danger .callout-editor, .callout-danger .callout-icon { color: #b71c1c; }
 
 /* 数值表格块 */
@@ -2831,6 +2860,19 @@ onUnmounted(() => {
 .data-table th {
   background: var(--bg-tertiary);
   font-weight: 600;
+}
+.data-table th:focus,
+.data-table td:focus {
+  outline: 2px solid var(--primary-color);
+  outline-offset: -2px;
+  background: var(--primary-soft);
+}
+.table-actions {
+  display: flex;
+  gap: 4px;
+}
+.change-media-btn.danger {
+  color: #e53935;
 }
 .data-table td.cell-max {
   color: #e53935;

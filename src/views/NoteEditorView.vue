@@ -856,6 +856,7 @@
         </div>
       </template>
       <template v-else-if="contextMenu.type === 'canvas'">
+        <div class="context-menu-label">基础</div>
         <div class="context-menu-item" @click="addTextBlockAtContext">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -866,6 +867,43 @@
           新建文本块
           <span class="shortcut">{{ sc('newBlock') }}</span>
         </div>
+        <div class="context-menu-item" @click="addTodoBlockAtContext">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <polyline points="9 11 12 14 22 4"/>
+            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+          </svg>
+          新建任务块
+        </div>
+
+        <div class="context-menu-divider"></div>
+        <div class="context-menu-label">富文本</div>
+        <div class="context-menu-item" @click="addCalloutBlockAtContext">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          新建提示块
+        </div>
+        <div class="context-menu-item" @click="addCodeBlockAtContext">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+          </svg>
+          新建代码块
+        </div>
+        <div class="context-menu-item" @click="addFormulaBlockAtContext">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 4h16M4 20h16M9 8l-2 8M15 8l-2 8M7 12h6"/>
+          </svg>
+          新建公式块
+        </div>
+        <div class="context-menu-item" @click="addTableBlockAtContext">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="12" y1="3" x2="12" y2="21"/>
+          </svg>
+          新建数值表格
+        </div>
+
+        <div class="context-menu-divider"></div>
+        <div class="context-menu-label">媒体</div>
         <div class="context-menu-item" @click="addImageBlockAtContext">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -896,37 +934,9 @@
           </svg>
           新建图片画廊
         </div>
-        <div class="context-menu-item" @click="addTodoBlockAtContext">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <polyline points="9 11 12 14 22 4"/>
-            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-          </svg>
-          新建任务块
-        </div>
-        <div class="context-menu-item" @click="addCalloutBlockAtContext">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-          新建提示块
-        </div>
-        <div class="context-menu-item" @click="addCodeBlockAtContext">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
-          </svg>
-          新建代码块
-        </div>
-        <div class="context-menu-item" @click="addFormulaBlockAtContext">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 4h16M4 20h16M9 8l-2 8M15 8l-2 8M7 12h6"/>
-          </svg>
-          新建公式块
-        </div>
-        <div class="context-menu-item" @click="addTableBlockAtContext">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="12" y1="3" x2="12" y2="21"/>
-          </svg>
-          新建数值表格
-        </div>
+
+        <div class="context-menu-divider"></div>
+        <div class="context-menu-label">项目管理</div>
         <div class="context-menu-item" @click="addProgressBlockAtContext">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
@@ -4831,12 +4841,12 @@ function deleteSelectedConnection() {
   top: 60px;
   right: 16px;
   width: 260px;
-  max-height: calc(100vh - 120px);
+  max-height: calc(100vh - 240px);
   background: var(--bg-elevated, var(--bg-secondary));
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
   box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-  z-index: 100;
+  z-index: 500;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -5226,6 +5236,14 @@ function deleteSelectedConnection() {
   height: 1px;
   background: var(--border-color);
   margin: 6px 0;
+}
+.context-menu-label {
+  padding: 2px 14px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-tertiary, var(--text-secondary));
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .right-panel {
