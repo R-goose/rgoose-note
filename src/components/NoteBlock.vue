@@ -553,41 +553,14 @@
 
       <div
         v-else-if="block.type === 'code'"
-        class="code-block"
+        class="code-block-legacy"
         @wheel.stop
-      >
-        <div class="code-head">
-          <div class="code-lang-dropdown" @mousedown.stop @click.stop="langDropdownOpen = !langDropdownOpen">
-            <span class="code-lang-label">{{ block.codeLang || 'auto' }}</span>
-            <svg class="code-lang-arrow" :class="{ open: langDropdownOpen }" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
-            <div v-if="langDropdownOpen" class="code-lang-menu">
-              <div class="code-lang-option" :class="{ active: (block.codeLang || 'auto') === 'auto' }" @click.stop="onCodeLangPick('auto')">自动</div>
-              <div v-for="lang in codeLangs" :key="lang" class="code-lang-option" :class="{ active: (block.codeLang || 'auto') === lang }" @click.stop="onCodeLangPick(lang)">{{ lang }}</div>
-            </div>
-          </div>
-          <button class="code-copy-btn" @click.stop="copyCode" title="复制">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-          </button>
-        </div>
-        <textarea
-          v-if="!readOnly && !block.locked && codeEditing"
-          ref="codeTextareaRef"
-          class="code-textarea"
-          v-model="codeText"
-          spellcheck="false"
-          @input="onCodeInput"
-          @blur="codeEditing = false"
-          @wheel.stop
-          @mousedown.stop
-        ></textarea>
-        <pre
-          v-else
-          class="code-pre"
-          :class="{ 'code-pre-interactive': !readOnly && !block.locked }"
-          v-html="highlightedCode"
-          @click.stop="startCodeEdit"
-        ></pre>
-      </div>
+        @mousedown.stop
+        contenteditable="true"
+        spellcheck="false"
+        @input="onLegacyCodeInput"
+        style="white-space: pre-wrap; font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace; font-size: 13px; line-height: 1.5; padding: 10px 12px; min-height: 30px;"
+      >{{ block.code || '// 代码块已迁移到文本块的插入菜单' }}</div>
 
       <div
         v-else-if="block.type === 'callout'"
@@ -719,26 +692,8 @@ import { useShortcutStore } from '@/stores/shortcut'
 import { resolveImageUrl, isImageRef } from '@/utils/imageStore'
 import { markdownToHtml, convertInlineMd, isLikelyMarkdown, escapeHtml, splitTableCells } from '@/utils/markdown'
 import DateTimePicker from '@/components/DateTimePicker.vue'
-import hljs from 'highlight.js/lib/core'
-import hljsJavascript from 'highlight.js/lib/languages/javascript'
-import hljsXml from 'highlight.js/lib/languages/xml'
-import hljsCss from 'highlight.js/lib/languages/css'
-import hljsJson from 'highlight.js/lib/languages/json'
-import hljsPython from 'highlight.js/lib/languages/python'
-import hljsSql from 'highlight.js/lib/languages/sql'
-import hljsGlsl from 'highlight.js/lib/languages/glsl'
-import hljsPlaintext from 'highlight.js/lib/languages/plaintext'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
-
-hljs.registerLanguage('javascript', hljsJavascript)
-hljs.registerLanguage('xml', hljsXml)
-hljs.registerLanguage('css', hljsCss)
-hljs.registerLanguage('json', hljsJson)
-hljs.registerLanguage('python', hljsPython)
-hljs.registerLanguage('sql', hljsSql)
-hljs.registerLanguage('glsl', hljsGlsl)
-hljs.registerLanguage('plaintext', hljsPlaintext)
 
 const shortcutStore = useShortcutStore()
 shortcutStore.init()
@@ -891,8 +846,10 @@ const calloutIconSvg = {
   danger: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'
 }
 
-// ===== 代码块语法高亮 =====
-const codeLangs = ['javascript', 'xml', 'css', 'json', 'python', 'sql', 'glsl', 'plaintext']
+// 兼容旧的 code 块类型
+function onLegacyCodeInput(e) {
+  emit('update', props.block.id, { code: e.target.innerText })
+}
 
 // ===== 数学公式块 =====
 const formulaEditing = ref(false)
@@ -1007,48 +964,6 @@ function startFormulaEdit() {
 }
 function onFormulaInput() {
   emit('update', props.block.id, { formula: formulaText.value })
-}
-const codeEditing = ref(false)
-const codeText = ref('')
-const codeTextareaRef = ref(null)
-
-const highlightedCode = computed(() => {
-  const raw = props.block?.code || ''
-  const lang = props.block?.codeLang || 'auto'
-  try {
-    if (lang !== 'auto' && hljs.getLanguage(lang)) {
-      return hljs.highlight(raw, { language: lang }).value
-    }
-    return hljs.highlightAuto(raw).value
-  } catch {
-    return escapeHtml(raw)
-  }
-})
-function startCodeEdit() {
-  codeText.value = props.block?.code || ''
-  codeEditing.value = true
-  nextTick(() => {
-    codeTextareaRef.value?.focus()
-    autoResizeCode()
-  })
-}
-function autoResizeCode() {
-  const el = codeTextareaRef.value
-  if (!el) return
-  el.style.height = 'auto'
-  el.style.height = Math.min(el.scrollHeight, 400) + 'px'
-}
-function onCodeInput() {
-  emit('update', props.block.id, { code: codeText.value })
-  autoResizeCode()
-}
-const langDropdownOpen = ref(false)
-function onCodeLangPick(lang) {
-  emit('update', props.block.id, { codeLang: lang })
-  langDropdownOpen.value = false
-}
-async function copyCode() {
-  try { await navigator.clipboard.writeText(props.block?.code || '') } catch {}
 }
 let galleryWatchStop = null
 
@@ -1866,7 +1781,7 @@ function insertList(type) {
 function insertCodeBlock() {
   showInsertMenu.value = false
   focusEditorAtEnd()
-  const html = `<pre><code>// 在此输入代码</code></pre><p><br></p>`
+  const html = `<pre style="background:#1e1e2e;border:1px solid #313244;border-radius:6px;padding:12px 14px;margin:8px 0;overflow-x:auto"><code style="font-family:'Cascadia Code','Fira Code','Consolas',monospace;font-size:13px;line-height:1.5;color:#cdd6f4;background:transparent;white-space:pre-wrap;word-break:break-word">// 在此输入代码</code></pre><p><br></p>`
   document.execCommand('insertHTML', false, html)
   emit('update', props.block.id, { content: editorRef.value.innerHTML })
 }
@@ -2012,7 +1927,6 @@ function closeInsertMenu(e) {
   if (e.target.closest('.insert-menu-wrap') || e.target.closest('.table-grid-picker')) return
   showInsertMenu.value = false
   showTablePicker.value = false
-  if (!e.target.closest('.code-lang-dropdown')) langDropdownOpen.value = false
 }
 
 onMounted(() => {
@@ -2027,10 +1941,7 @@ onMounted(() => {
       })
       resizeObserver.observe(blockRef.value)
     }
-    // 空代码块/公式块自动进入编辑
-    if (props.block?.type === 'code' && !props.block.code) {
-      startCodeEdit()
-    }
+    // 空公式块自动进入编辑
     if (props.block?.type === 'formula' && !props.block.formula) {
       startFormulaEdit()
     }
@@ -2361,6 +2272,32 @@ onUnmounted(() => {
 .text-editor :deep(li ul li ul li::marker) {
   content: '▪';
   color: var(--text-tertiary);
+}
+
+.text-editor :deep(pre) {
+  background: #1e1e2e;
+  border: 1px solid #313244;
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin: 8px 0;
+  overflow-x: auto;
+}
+.text-editor :deep(pre code) {
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #cdd6f4;
+  background: transparent;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.text-editor :deep(:not(pre) > code) {
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 0.88em;
+  background: var(--bg-tertiary, #e8eaec);
+  color: var(--primary-color);
+  padding: 1px 5px;
+  border-radius: 4px;
 }
 
 .text-editor :deep(table) {
@@ -2908,175 +2845,12 @@ onUnmounted(() => {
   min-height: 60px;
 }
 
-/* 代码块 */
-.formula-block {
-  position: relative;
-  padding: 14px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-light);
+.code-block-legacy {
+  background: #1e1e2e;
+  color: #cdd6f4;
   border-radius: var(--radius-md);
-  text-align: center;
-  overflow-x: auto;
-}
-.formula-render {
-  font-size: 18px;
-  min-height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.formula-render:empty { min-height: 24px; }
-.formula-placeholder {
-  font-size: 13px;
-  color: var(--text-tertiary, var(--text-secondary));
-}
-.formula-input {
-  margin-top: 8px;
-  width: 100%;
-  font-family: monospace;
-  font-size: 13px;
-  padding: 6px 8px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  outline: none;
-  resize: vertical;
-  min-height: 32px;
-}
-.formula-edit-hint {
-  margin-top: 6px;
-  font-size: 11px;
-  color: var(--text-tertiary, var(--text-secondary));
-  cursor: pointer;
 }
 
-/* 代码块 */
-.code-block {
-  position: relative;
-  background: #1e1e2e;
-  border-radius: var(--radius-md);
-  overflow: visible;
-}
-.code-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 4px 8px;
-  background: #181825;
-}
-.code-lang-dropdown {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  padding: 3px 8px;
-  background: #313244;
-  color: #cdd6f4;
-  border-radius: 4px;
-  cursor: pointer;
-  user-select: none;
-  transition: background 0.15s;
-}
-.code-lang-dropdown:hover { background: #45475a; }
-.code-lang-label { text-transform: capitalize; }
-.code-lang-arrow { transition: transform 0.15s; opacity: 0.6; }
-.code-lang-arrow.open { transform: rotate(180deg); }
-.code-lang-menu {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  margin-top: 4px;
-  min-width: 100px;
-  max-height: 220px;
-  overflow-y: auto;
-  background: #1e1e2e;
-  border: 1px solid #45475a;
-  border-radius: 6px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-  z-index: 60;
-  padding: 4px 0;
-}
-.code-lang-option {
-  padding: 5px 12px;
-  font-size: 12px;
-  color: #bac2de;
-  cursor: pointer;
-  text-transform: capitalize;
-  transition: all 0.1s;
-}
-.code-lang-option:hover { background: #313244; color: #cdd6f4; }
-.code-lang-option.active { color: #89b4fa; font-weight: 600; }
-.code-copy-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border: none;
-  background: transparent;
-  color: #6c7086;
-  border-radius: 4px;
-  cursor: pointer;
-}
-.code-copy-btn:hover { color: #cdd6f4; background: #313244; }
-.code-pre {
-  margin: 0;
-  padding: 10px 12px;
-  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
-  font-size: 13px;
-  line-height: 1.5;
-  color: #cdd6f4;
-  overflow-x: auto;
-  white-space: pre-wrap;
-  word-break: break-word;
-  min-height: 30px;
-}
-.code-pre-interactive {
-  cursor: text;
-}
-.code-pre-interactive:empty::before {
-  content: '点击输入代码...';
-  color: #585b70;
-}
-.code-textarea {
-  margin: 0;
-  padding: 10px 12px;
-  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
-  font-size: 13px;
-  line-height: 1.5;
-  background: #181825;
-  color: #cdd6f4;
-  caret-color: #f5e0dc;
-  border: none;
-  outline: none;
-  resize: none;
-  max-height: 400px;
-  overflow-y: auto;
-  min-height: 40px;
-  width: 100%;
-  display: block;
-  white-space: pre-wrap;
-  word-break: break-word;
-  box-sizing: border-box;
-}
-/* hljs 主题色 (Catppuccin Mocha 简化版) */
-.code-pre .hljs-keyword { color: #cba6f7; }
-.code-pre .hljs-string { color: #a6e3a1; }
-.code-pre .hljs-number { color: #fab387; }
-.code-pre .hljs-comment { color: #6c7086; font-style: italic; }
-.code-pre .hljs-function { color: #89b4fa; }
-.code-pre .hljs-title { color: #89b4fa; }
-.code-pre .hljs-built_in { color: #f9e2af; }
-.code-pre .hljs-attr { color: #89dceb; }
-.code-pre .hljs-tag { color: #f38ba8; }
-.code-pre .hljs-name { color: #f38ba8; }
-.code-pre .hljs-attribute { color: #89dceb; }
-.code-pre .hljs-variable { color: #f5e0dc; }
-.code-pre .hljs-type { color: #f9e2af; }
-.code-pre .hljs-meta { color: #6c7086; }
-.code-pre .hljs-literal { color: #fab387; }
 .media-header {
   display: flex;
   align-items: center;

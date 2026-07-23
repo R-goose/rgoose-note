@@ -884,12 +884,6 @@
           </svg>
           新建提示块
         </div>
-        <div class="context-menu-item" @click="addCodeBlockAtContext">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
-          </svg>
-          新建代码块
-        </div>
         <div class="context-menu-item" @click="addFormulaBlockAtContext">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M4 4h16M4 20h16M9 8l-2 8M15 8l-2 8M7 12h6"/>
@@ -3547,22 +3541,6 @@ function addCalloutBlockAtContext() {
       type: 'callout',
       calloutType: 'info',
       width: 280
-    })
-    contextMenu.value.show = false
-    focusAndCenterBlock(block.id)
-  }
-}
-
-function addCodeBlockAtContext() {
-  if (note.value) {
-    saveHistory()
-    const block = noteStore.addBlock(note.value.id, {
-      x: contextMenu.value.canvasX - 160,
-      y: contextMenu.value.canvasY - 50,
-      type: 'code',
-      code: '',
-      codeLang: 'auto',
-      width: 320
     })
     contextMenu.value.show = false
     focusAndCenterBlock(block.id)
