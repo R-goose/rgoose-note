@@ -73,6 +73,14 @@
           </svg>
           <span>标签</span>
         </router-link>
+        <router-link to="/media" class="nav-item nav-media" active-class="active">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+          <span>素材库</span>
+        </router-link>
         <router-link to="/settings" class="nav-item nav-settings" active-class="active">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <circle cx="12" cy="12" r="3"/>
@@ -1274,6 +1282,7 @@ function closeFolderModalTagDropdown(e) {
 .nav-plans svg { color: var(--secondary-dark); }
 .nav-dashboard svg { color: #4a9e9e; }
 .nav-tags svg { color: #9b7bd6; }
+.nav-media svg { color: #e8a838; }
 .nav-settings svg { color: var(--info-color); }
 
 .nav-notes:hover svg { color: var(--primary-dark); }

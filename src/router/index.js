@@ -36,6 +36,12 @@ const routes = [
     meta: { title: '标签' }
   },
   {
+    path: '/media',
+    name: 'Media',
+    component: () => import('@/views/MediaView.vue'),
+    meta: { title: '素材库' }
+  },
+  {
     path: '/settings',
     name: 'Settings',
     component: () => import('@/views/SettingsView.vue'),
