@@ -33,6 +33,9 @@
         </svg>
       </div>
       <div v-if="groupColor" class="block-group-badge" :style="{ background: groupColor }" :title="'同组成员将一起移动'"></div>
+      <div v-if="block.pinned" class="block-pinned-badge" title="已置顶">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>
+      </div>
       <div v-if="!readOnly" class="block-actions">
         <button v-if="block.type !== 'image'" class="action-btn" @click.stop="$emit('add-image', block.id)" :title="`插入图片 ${sc('insertImage')}`.trim()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -122,6 +125,11 @@
             </button>
           </div>
         </div>
+        <button class="action-btn" :class="{ active: block.pinned }" @click.stop="emit('update', block.id, { pinned: !block.pinned })" :title="block.pinned ? '取消置顶' : '置顶'">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>
+          </svg>
+        </button>
         <button class="action-btn" :class="{ active: block.locked }" @click.stop="$emit('toggle-lock', block.id)" :title="block.locked ? '解锁' : '锁定'">
           <svg v-if="block.locked" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
@@ -474,6 +482,151 @@
       </div>
 
       <div
+        v-else-if="block.type === 'table'"
+        class="table-block"
+        @wheel.stop
+      >
+        <div class="table-toolbar">
+          <span class="table-count" v-if="tableRows.length > 1">{{ tableRows.length - 1 }} 行 × {{ (tableRows[0] || []).length }} 列</span>
+          <button v-if="!readOnly" class="change-media-btn" @click.stop="addTableRow">+ 行</button>
+          <button v-if="!readOnly" class="change-media-btn" @click.stop="addTableCol">+ 列</button>
+          <button class="change-media-btn" :class="{ active: block.tableAnalysis }" @click.stop="emit('update', block.id, { tableAnalysis: !block.tableAnalysis })">数值分析</button>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th v-for="(cell, ci) in (tableRows[0] || [])" :key="ci">
+                {{ cell }}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(row, ri) in tableRows.slice(1)" :key="ri">
+              <td v-for="(cell, ci) in row" :key="ci" :class="getCellClass(ri + 1, ci, cell)">
+                {{ cell }}
+              </td>
+            </tr>
+          </tbody>
+          <tfoot v-if="block.tableAnalysis && tableSums">
+            <tr>
+              <td v-for="(sum, ci) in tableSums" :key="ci" class="table-sum">
+                {{ sum }}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+        <textarea
+          v-if="tableEditing"
+          class="table-raw-input"
+          v-model="tableRawText"
+          spellcheck="false"
+          @input="onTableRawInput"
+          @blur="tableEditing = false"
+          @wheel.stop
+          @mousedown.stop
+          placeholder="每行用换行分隔，每列用 | 或 Tab 分隔"
+        ></textarea>
+        <div v-if="!tableEditing && !readOnly" class="code-edit-hint" style="position:static;background:transparent;color:var(--text-tertiary);text-align:right" @click.stop="startTableEdit">编辑数据</div>
+      </div>
+
+      <div
+        v-else-if="block.type === 'formula'"
+        class="formula-block"
+        @wheel.stop
+        @mousedown.stop
+      >
+        <div class="formula-render" v-html="renderedFormula"></div>
+        <textarea
+          v-if="!readOnly && !block.locked"
+          v-show="formulaEditing"
+          ref="formulaTextareaRef"
+          class="formula-input"
+          v-model="formulaText"
+          spellcheck="false"
+          placeholder="输入 LaTeX 公式，如 \frac{a}{b}"
+          @input="onFormulaInput"
+          @blur="formulaEditing = false"
+          @wheel.stop
+          @mousedown.stop
+        ></textarea>
+        <div v-if="!formulaEditing && !readOnly && !block.locked" class="formula-edit-hint" @click.stop="startFormulaEdit">点击编辑公式</div>
+      </div>
+
+      <div
+        v-else-if="block.type === 'code'"
+        class="code-block"
+        @wheel.stop
+      >
+        <div class="code-head">
+          <select
+            class="code-lang-select"
+            :value="block.codeLang || 'auto'"
+            :disabled="readOnly"
+            @change.stop="onCodeLangChange($event)"
+            @mousedown.stop
+          >
+            <option value="auto">自动</option>
+            <option v-for="lang in codeLangs" :key="lang" :value="lang">{{ lang }}</option>
+          </select>
+          <button class="code-copy-btn" @click.stop="copyCode" title="复制">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+        </div>
+        <pre class="code-pre" v-html="highlightedCode"></pre>
+        <textarea
+          v-if="!readOnly && !block.locked"
+          v-show="codeEditing"
+          ref="codeTextareaRef"
+          class="code-textarea"
+          v-model="codeText"
+          spellcheck="false"
+          @input="onCodeInput"
+          @blur="codeEditing = false"
+          @wheel.stop
+          @mousedown.stop
+        ></textarea>
+        <div v-if="!codeEditing && !readOnly && !block.locked" class="code-edit-hint" @click.stop="startCodeEdit">点击编辑</div>
+      </div>
+
+      <div
+        v-else-if="block.type === 'callout'"
+        class="callout-block"
+        :class="`callout-${block.calloutType || 'info'}`"
+        @wheel.stop
+      >
+        <div class="callout-head">
+          <span class="callout-icon" v-html="calloutIcons[block.calloutType || 'info']"></span>
+          <div class="callout-type-selector">
+            <button
+              v-for="t in calloutTypes"
+              :key="t.key"
+              class="callout-type-btn"
+              :class="{ active: (block.calloutType || 'info') === t.key }"
+              :title="t.label"
+              @click.stop="emit('update', block.id, { calloutType: t.key })"
+            >{{ t.icon }}</button>
+          </div>
+        </div>
+        <div
+          ref="editorRef"
+          class="text-editor callout-editor"
+          :class="{ 'read-only': readOnly || linkSelectionMode || block.locked }"
+          :contenteditable="!readOnly && !linkSelectionMode && !block.locked"
+          spellcheck="false"
+          :data-placeholder="block.content ? '' : '输入内容...'"
+          @input="onInput"
+          @blur="onBlur"
+          @paste="onPaste"
+          @keydown="onEditorKeyDown"
+          @mouseup="saveSelection"
+          @keyup="saveSelection"
+          @focus="saveSelection"
+          @wheel.stop
+          @mousedown.stop
+        ></div>
+      </div>
+
+      <div
         v-else
         ref="editorRef"
         class="text-editor"
@@ -565,6 +718,26 @@ import { useShortcutStore } from '@/stores/shortcut'
 import { resolveImageUrl, isImageRef } from '@/utils/imageStore'
 import { markdownToHtml, convertInlineMd, isLikelyMarkdown, escapeHtml, splitTableCells } from '@/utils/markdown'
 import DateTimePicker from '@/components/DateTimePicker.vue'
+import hljs from 'highlight.js/lib/core'
+import hljsJavascript from 'highlight.js/lib/languages/javascript'
+import hljsXml from 'highlight.js/lib/languages/xml'
+import hljsCss from 'highlight.js/lib/languages/css'
+import hljsJson from 'highlight.js/lib/languages/json'
+import hljsPython from 'highlight.js/lib/languages/python'
+import hljsSql from 'highlight.js/lib/languages/sql'
+import hljsGlsl from 'highlight.js/lib/languages/glsl'
+import hljsPlaintext from 'highlight.js/lib/languages/plaintext'
+import katex from 'katex'
+import 'katex/dist/katex.min.css'
+
+hljs.registerLanguage('javascript', hljsJavascript)
+hljs.registerLanguage('xml', hljsXml)
+hljs.registerLanguage('css', hljsCss)
+hljs.registerLanguage('json', hljsJson)
+hljs.registerLanguage('python', hljsPython)
+hljs.registerLanguage('sql', hljsSql)
+hljs.registerLanguage('glsl', hljsGlsl)
+hljs.registerLanguage('plaintext', hljsPlaintext)
 
 const shortcutStore = useShortcutStore()
 shortcutStore.init()
@@ -702,6 +875,153 @@ onBeforeUnmount(() => {
 const galleryIndex = ref(0)
 const galleryLayout = ref('carousel')
 const galleryResolvedUrls = ref([])
+
+// ===== Callout 引用提示块 =====
+const calloutTypes = [
+  { key: 'info', label: '信息', icon: 'ℹ' },
+  { key: 'tip', label: '提示', icon: '💡' },
+  { key: 'warning', label: '警告', icon: '⚠' },
+  { key: 'danger', label: '危险', icon: '⛔' }
+]
+const calloutIcons = {
+  info: 'ℹ️',
+  tip: '💡',
+  warning: '⚠️',
+  danger: '⛔️'
+}
+
+// ===== 代码块语法高亮 =====
+const codeLangs = ['javascript', 'xml', 'css', 'json', 'python', 'sql', 'glsl', 'plaintext']
+
+// ===== 数学公式块 =====
+const formulaEditing = ref(false)
+
+// ===== 数值表格块 =====
+const tableEditing = ref(false)
+const tableRawText = ref('')
+const tableRows = computed(() => {
+  const raw = props.block?.tableData || '列1|列2|列3\n10|20|30\n15|25|35'
+  return raw.split('\n').filter(r => r.trim()).map(r => r.split(/\||\t/).map(c => c.trim()))
+})
+const numericColumns = computed(() => {
+  if (tableRows.value.length < 2) return new Set()
+  const colCount = (tableRows.value[0] || []).length
+  const numeric = new Set()
+  for (let c = 0; c < colCount; c++) {
+    let allNum = true
+    for (let r = 1; r < tableRows.value.length; r++) {
+      const val = parseFloat((tableRows.value[r][c] || '').replace(/[%,]/g, ''))
+      if (isNaN(val)) { allNum = false; break }
+    }
+    if (allNum) numeric.add(c)
+  }
+  return numeric
+})
+const tableSums = computed(() => {
+  if (!props.block?.tableAnalysis || tableRows.value.length < 2) return null
+  const colCount = (tableRows.value[0] || []).length
+  return Array.from({ length: colCount }, (_, c) => {
+    if (!numericColumns.value.has(c)) return c === 0 ? '合计' : ''
+    let sum = 0
+    for (let r = 1; r < tableRows.value.length; r++) {
+      sum += parseFloat((tableRows.value[r][c] || '0').replace(/[%,]/g, '')) || 0
+    }
+    return Number.isInteger(sum) ? sum.toString() : sum.toFixed(1)
+  })
+})
+const columnExtremes = computed(() => {
+  const extremes = {}
+  numericColumns.value.forEach(c => {
+    let min = Infinity, max = -Infinity
+    for (let r = 1; r < tableRows.value.length; r++) {
+      const val = parseFloat((tableRows.value[r][c] || '0').replace(/[%,]/g, ''))
+      if (val < min) min = val
+      if (val > max) max = val
+    }
+    extremes[c] = { min, max }
+  })
+  return extremes
+})
+function getCellClass(ri, ci, cell) {
+  if (!props.block?.tableAnalysis || !numericColumns.value.has(ci)) return ''
+  const val = parseFloat((cell || '0').replace(/[%,]/g, ''))
+  if (isNaN(val)) return ''
+  const ext = columnExtremes.value[ci]
+  if (!ext) return ''
+  if (val === ext.max) return 'cell-max'
+  if (val === ext.min) return 'cell-min'
+  return ''
+}
+function startTableEdit() {
+  tableRawText.value = props.block?.tableData || ''
+  tableEditing.value = true
+}
+function onTableRawInput() {
+  emit('update', props.block.id, { tableData: tableRawText.value })
+}
+function addTableRow() {
+  const cols = (tableRows.value[0] || []).length || 3
+  const newRow = Array(cols).fill('0').join('|')
+  emit('update', props.block.id, { tableData: (props.block.tableData || '') + '\n' + newRow })
+}
+function addTableCol() {
+  const rows = (props.block.tableData || '').split('\n').filter(r => r.trim())
+  const newRows = rows.map(r => {
+    const cells = r.split(/\||\t/)
+    cells.push('0')
+    return cells.join('|')
+  })
+  emit('update', props.block.id, { tableData: newRows.join('\n') })
+}
+const formulaText = ref('')
+const formulaTextareaRef = ref(null)
+const renderedFormula = computed(() => {
+  const latex = props.block?.formula || ''
+  if (!latex) return '<span class="formula-placeholder">点击编辑输入 LaTeX 公式</span>'
+  try {
+    return katex.renderToString(latex, { throwOnError: false, displayMode: true })
+  } catch {
+    return escapeHtml(latex)
+  }
+})
+function startFormulaEdit() {
+  formulaText.value = props.block?.formula || ''
+  formulaEditing.value = true
+  nextTick(() => formulaTextareaRef.value?.focus())
+}
+function onFormulaInput() {
+  emit('update', props.block.id, { formula: formulaText.value })
+}
+const codeEditing = ref(false)
+const codeText = ref('')
+const codeTextareaRef = ref(null)
+
+const highlightedCode = computed(() => {
+  const raw = props.block?.code || ''
+  const lang = props.block?.codeLang || 'auto'
+  try {
+    if (lang !== 'auto' && hljs.getLanguage(lang)) {
+      return hljs.highlight(raw, { language: lang }).value
+    }
+    return hljs.highlightAuto(raw).value
+  } catch {
+    return escapeHtml(raw)
+  }
+})
+function startCodeEdit() {
+  codeText.value = props.block?.code || ''
+  codeEditing.value = true
+  nextTick(() => codeTextareaRef.value?.focus())
+}
+function onCodeInput() {
+  emit('update', props.block.id, { code: codeText.value })
+}
+function onCodeLangChange(e) {
+  emit('update', props.block.id, { codeLang: e.target.value })
+}
+async function copyCode() {
+  try { await navigator.clipboard.writeText(props.block?.code || '') } catch {}
+}
 let galleryWatchStop = null
 
 function setupGallery() {
@@ -1745,6 +2065,13 @@ onUnmounted(() => {
   box-shadow: 0 0 0 2px var(--bg-primary, #fff);
   margin-left: -2px;
 }
+.block-pinned-badge {
+  color: var(--primary-color);
+  opacity: 0.7;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
 
 .block-actions {
   display: flex;
@@ -2418,6 +2745,260 @@ onUnmounted(() => {
   cursor: pointer;
 }
 .gallery-empty span { opacity: 0.7; }
+
+/* Callout 引用提示块 */
+.callout-block {
+  border-radius: var(--radius-md);
+  border-left: 4px solid;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.callout-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.callout-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+.callout-type-selector {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.callout-block:hover .callout-type-selector { opacity: 1; }
+.callout-type-btn {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0.5;
+}
+.callout-type-btn:hover { opacity: 1; background: rgba(0,0,0,0.06); }
+.callout-type-btn.active { opacity: 1; font-weight: bold; }
+.callout-editor {
+  outline: none;
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 20px;
+  word-break: break-word;
+}
+.callout-info { background: #e7f3fe; border-color: #2196f3; }
+.callout-tip { background: #e8f5e9; border-color: #4caf50; }
+.callout-warning { background: #fff8e1; border-color: #ff9800; }
+.callout-danger { background: #fdecea; border-color: #f44336; }
+.callout-info .callout-editor, .callout-info .callout-icon { color: #0d47a1; }
+.callout-tip .callout-editor, .callout-tip .callout-icon { color: #1b5e20; }
+.callout-warning .callout-editor, .callout-warning .callout-icon { color: #e65100; }
+.callout-danger .callout-editor, .callout-danger .callout-icon { color: #b71c1c; }
+
+/* 数值表格块 */
+.table-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.table-count {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.data-table {
+  border-collapse: collapse;
+  font-size: 13px;
+  width: 100%;
+}
+.data-table th, .data-table td {
+  border: 1px solid var(--border-color);
+  padding: 4px 8px;
+  text-align: center;
+}
+.data-table th {
+  background: var(--bg-tertiary);
+  font-weight: 600;
+}
+.data-table td.cell-max {
+  color: #e53935;
+  font-weight: 700;
+}
+.data-table td.cell-min {
+  color: #43a047;
+  font-weight: 700;
+}
+.data-table td.table-sum {
+  background: var(--primary-soft);
+  font-weight: 700;
+  color: var(--primary-color);
+}
+.table-raw-input {
+  width: 100%;
+  font-family: monospace;
+  font-size: 12px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  outline: none;
+  resize: vertical;
+  min-height: 60px;
+}
+
+/* 代码块 */
+.formula-block {
+  position: relative;
+  padding: 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  text-align: center;
+  overflow-x: auto;
+}
+.formula-render {
+  font-size: 18px;
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.formula-render:empty { min-height: 24px; }
+.formula-placeholder {
+  font-size: 13px;
+  color: var(--text-tertiary, var(--text-secondary));
+}
+.formula-input {
+  margin-top: 8px;
+  width: 100%;
+  font-family: monospace;
+  font-size: 13px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  outline: none;
+  resize: vertical;
+  min-height: 32px;
+}
+.formula-edit-hint {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-tertiary, var(--text-secondary));
+  cursor: pointer;
+}
+
+/* 代码块 */
+.code-block {
+  position: relative;
+  background: #1e1e2e;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.code-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  background: #181825;
+}
+.code-lang-select {
+  font-size: 11px;
+  padding: 2px 6px;
+  border: 1px solid #313244;
+  background: #1e1e2e;
+  color: #cdd6f4;
+  border-radius: 4px;
+  outline: none;
+  cursor: pointer;
+}
+.code-copy-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: #6c7086;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.code-copy-btn:hover { color: #cdd6f4; background: #313244; }
+.code-pre {
+  margin: 0;
+  padding: 10px 12px;
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #cdd6f4;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 30px;
+}
+.code-pre:empty::before {
+  content: '点击下方"编辑"输入代码...';
+  color: #585b70;
+}
+.code-textarea {
+  position: absolute;
+  inset: 32px 0 0 0;
+  padding: 10px 12px;
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  background: transparent;
+  color: transparent;
+  caret-color: #cdd6f4;
+  border: none;
+  outline: none;
+  resize: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.code-edit-hint {
+  position: absolute;
+  bottom: 6px;
+  right: 8px;
+  font-size: 11px;
+  color: #585b70;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(30,30,46,0.8);
+}
+.code-edit-hint:hover { color: #cdd6f4; }
+/* hljs 主题色 (Catppuccin Mocha 简化版) */
+.code-pre .hljs-keyword { color: #cba6f7; }
+.code-pre .hljs-string { color: #a6e3a1; }
+.code-pre .hljs-number { color: #fab387; }
+.code-pre .hljs-comment { color: #6c7086; font-style: italic; }
+.code-pre .hljs-function { color: #89b4fa; }
+.code-pre .hljs-title { color: #89b4fa; }
+.code-pre .hljs-built_in { color: #f9e2af; }
+.code-pre .hljs-attr { color: #89dceb; }
+.code-pre .hljs-tag { color: #f38ba8; }
+.code-pre .hljs-name { color: #f38ba8; }
+.code-pre .hljs-attribute { color: #89dceb; }
+.code-pre .hljs-variable { color: #f5e0dc; }
+.code-pre .hljs-type { color: #f9e2af; }
+.code-pre .hljs-meta { color: #6c7086; }
+.code-pre .hljs-literal { color: #fab387; }
 .media-header {
   display: flex;
   align-items: center;

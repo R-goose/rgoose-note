@@ -29,6 +29,7 @@
       </div>
     </div>
     <ToastContainer />
+    <CommandPalette :show="showCmdPalette" @close="showCmdPalette = false" />
   </div>
 </template>
 
@@ -36,6 +37,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import Sidebar from '@/components/Sidebar.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
+import CommandPalette from '@/components/CommandPalette.vue'
 import { useThemeStore } from '@/stores/theme'
 import { useNoteStore } from '@/stores/note'
 import { usePlanStore } from '@/stores/plan'
@@ -43,6 +45,14 @@ import { useTagStore } from '@/stores/tag'
 
 const sidebarCollapsed = ref(false)
 const isMaximized = ref(false)
+const showCmdPalette = ref(false)
+
+function onGlobalKeydown(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+    e.preventDefault()
+    showCmdPalette.value = !showCmdPalette.value
+  }
+}
 
 function toggleSidebar() {
   sidebarCollapsed.value = !sidebarCollapsed.value
@@ -88,6 +98,7 @@ onMounted(() => {
     tagStore.flushPersist()
   }
   window.addEventListener('beforeunload', onBeforeUnload)
+  window.addEventListener('keydown', onGlobalKeydown)
 })
 
 onUnmounted(() => {
@@ -99,6 +110,7 @@ onUnmounted(() => {
     window.removeEventListener('beforeunload', onBeforeUnload)
     onBeforeUnload = null
   }
+  window.removeEventListener('keydown', onGlobalKeydown)
 })
 </script>
 

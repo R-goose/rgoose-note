@@ -13,6 +13,7 @@ export const useNoteStore = defineStore('note', () => {
   const currentFolderId = ref(null)
   const lastFolderId = ref(null)
   const lastSyncTime = ref(0)
+  const saveStatus = ref('saved') // 'saved' | 'saving'
 
   const currentNote = computed(() => {
     return notes.value.find(n => n.id === currentNoteId.value && !n.deleted) || null
@@ -137,6 +138,7 @@ export const useNoteStore = defineStore('note', () => {
   }
   function persist() {
     if (persistTimer) clearTimeout(persistTimer)
+    saveStatus.value = 'saving'
     persistTimer = setTimeout(() => {
       doPersist()
       persistTimer = null
@@ -160,6 +162,7 @@ export const useNoteStore = defineStore('note', () => {
     }
     await saveToStore(data)
     lastSyncTime.value = getLastSyncTime()
+    saveStatus.value = 'saved'
   }
   async function clearCache() {
     if (persistTimer) {
@@ -510,6 +513,15 @@ export const useNoteStore = defineStore('note', () => {
     }
   }
 
+  function restoreNoteConnections(noteId, connections) {
+    const note = notes.value.find(n => n.id === noteId)
+    if (note) {
+      note.connections = connections
+      note.updatedAt = getTimestamp()
+      persist()
+    }
+  }
+
   function setNoteTags(noteId, tags) {
     const note = notes.value.find(n => n.id === noteId)
     if (note) {
@@ -547,6 +559,7 @@ export const useNoteStore = defineStore('note', () => {
     allSortedNotes,
     sortedFolders,
     lastSyncTime,
+    saveStatus,
     init,
     persist,
     flushPersist,
@@ -582,6 +595,7 @@ export const useNoteStore = defineStore('note', () => {
     replaceAll,
     replaceAllFolders,
     restoreNoteBlocks,
+    restoreNoteConnections,
     getChildFolders,
     getChildFolderCount,
     getFolderNoteCount,

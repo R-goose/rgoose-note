@@ -200,6 +200,25 @@
       </div>
       
       <div class="header-right">
+        <span class="save-indicator" :class="noteStore.saveStatus">
+          <span class="save-dot"></span>
+          {{ noteStore.saveStatus === 'saving' ? '保存中...' : '已保存' }}
+        </span>
+        <button
+          class="btn btn-ghost btn-icon"
+          :class="{ 'btn-active': showOutline }"
+          @click="showOutline = !showOutline"
+          title="大纲"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="8" y1="6" x2="21" y2="6"/>
+            <line x1="8" y1="12" x2="21" y2="12"/>
+            <line x1="8" y1="18" x2="21" y2="18"/>
+            <line x1="3" y1="6" x2="3.01" y2="6"/>
+            <line x1="3" y1="12" x2="3.01" y2="12"/>
+            <line x1="3" y1="18" x2="3.01" y2="18"/>
+          </svg>
+        </button>
         <button
           class="btn"
           :class="isReadOnly ? 'btn-secondary' : 'btn-primary'"
@@ -215,6 +234,15 @@
             <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
           </svg>
           {{ isReadOnly ? '只读' : '编辑' }}
+        </button>
+        <button
+          class="btn btn-ghost btn-icon"
+          @click="openInNewWindow"
+          title="在新窗口打开（可分屏对照）"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 3h7v7"/><path d="M10 14L21 3"/><path d="M21 14v7H3V3h7"/>
+          </svg>
         </button>
       </div>
     </header>
@@ -760,7 +788,29 @@
         </div>
       </div>
     </div>
-    
+
+    <!-- 大纲面板 -->
+    <transition name="outline-slide">
+      <div v-if="showOutline" class="outline-panel">
+        <div class="outline-header">
+          <span>大纲</span>
+          <button class="btn btn-ghost btn-icon btn-sm" @click="showOutline = false" title="关闭">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div v-if="outlineItems.length === 0" class="outline-empty">未找到标题，使用标题样式格式化文字即可生成大纲</div>
+        <div v-else class="outline-list">
+          <div
+            v-for="(item, idx) in outlineItems"
+            :key="idx"
+            class="outline-item"
+            :style="{ paddingLeft: (item.level - 1) * 14 + 'px' }"
+            @click="jumpToOutlineItem(item)"
+          >{{ item.text }}</div>
+        </div>
+      </div>
+    </transition>
+
     <div v-if="contextMenu.show" class="context-menu" :style="contextMenuStyle" @click.stop>
       <template v-if="contextMenu.type === 'block'">
         <div class="context-menu-item" @click="duplicateSelectedBlock">
@@ -852,6 +902,30 @@
             <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
           </svg>
           新建任务块
+        </div>
+        <div class="context-menu-item" @click="addCalloutBlockAtContext">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          新建提示块
+        </div>
+        <div class="context-menu-item" @click="addCodeBlockAtContext">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+          </svg>
+          新建代码块
+        </div>
+        <div class="context-menu-item" @click="addFormulaBlockAtContext">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 4h16M4 20h16M9 8l-2 8M15 8l-2 8M7 12h6"/>
+          </svg>
+          新建公式块
+        </div>
+        <div class="context-menu-item" @click="addTableBlockAtContext">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="12" y1="3" x2="12" y2="21"/>
+          </svg>
+          新建数值表格
         </div>
         <div class="context-menu-item" @click="addProgressBlockAtContext">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -1178,6 +1252,32 @@ function focusBlock(id) {
   selectedConnectionId.value = null
 }
 
+// ===== 笔记内大纲 =====
+const showOutline = ref(false)
+const outlineItems = computed(() => {
+  if (!note.value) return []
+  const items = []
+  for (const block of note.value.blocks) {
+    if (block.type !== 'text' || !block.content) continue
+    // 从 HTML 中提取标题
+    const tempDiv = document.createElement('div')
+    tempDiv.innerHTML = block.content
+    const headings = tempDiv.querySelectorAll('h1, h2, h3, h4, h5, h6')
+    headings.forEach(h => {
+      items.push({
+        blockId: block.id,
+        level: parseInt(h.tagName[1]),
+        text: h.textContent.trim() || '(无标题)'
+      })
+    })
+  }
+  return items
+})
+function jumpToOutlineItem(item) {
+  focusBlock(item.blockId)
+  centerBlockInView(item.blockId)
+}
+
 function toggleBlockInSelection(id) {
   const idx = selectedBlockIds.value.indexOf(id)
   if (idx >= 0) {
@@ -1222,10 +1322,39 @@ const redoStack = ref([])
 const MAX_HISTORY = 50
 const syncVersion = ref(0)
 
+// 快照完整笔记状态（blocks + connections + title + canvasConfig）
+function snapshotNoteState() {
+  if (!note.value) return null
+  return JSON.stringify({
+    blocks: note.value.blocks,
+    connections: note.value.connections || [],
+    title: note.value.title || '',
+    canvasConfig: { ...note.value.canvasConfig }
+  })
+}
+
+function restoreNoteState(stateJson) {
+  if (!note.value || !stateJson) return
+  const state = JSON.parse(stateJson)
+  suppressContentHistory = true
+  if (state.blocks) noteStore.restoreNoteBlocks(note.value.id, state.blocks)
+  if (state.connections) noteStore.restoreNoteConnections(note.value.id, state.connections)
+  if (state.title !== undefined) {
+    noteStore.updateNote(note.value.id, { title: state.title })
+    noteTitle.value = state.title
+  }
+  if (state.canvasConfig) {
+    noteStore.updateNote(note.value.id, { canvasConfig: state.canvasConfig })
+    canvasConfig.value = { ...state.canvasConfig }
+  }
+  syncVersion.value++
+  nextTick(() => { suppressContentHistory = false })
+}
+
 function saveHistory() {
   flushContentHistory()
   if (!note.value) return
-  undoStack.value.push(JSON.stringify(note.value.blocks))
+  undoStack.value.push(snapshotNoteState())
   if (undoStack.value.length > MAX_HISTORY) {
     undoStack.value.shift()
   }
@@ -1249,7 +1378,7 @@ function commitContentHistory() {
 function scheduleContentHistory() {
   if (suppressContentHistory) return
   if (pendingContentSnapshot == null) {
-    pendingContentSnapshot = JSON.stringify(note.value.blocks)
+    pendingContentSnapshot = snapshotNoteState()
   }
   if (contentHistoryTimer) clearTimeout(contentHistoryTimer)
   contentHistoryTimer = setTimeout(() => {
@@ -1275,12 +1404,9 @@ function undo() {
   if (undoStack.value.length === 0) return
   if (!note.value) return
   
-  redoStack.value.push(JSON.stringify(note.value.blocks))
-  const previousState = JSON.parse(undoStack.value.pop())
-  suppressContentHistory = true
-  noteStore.restoreNoteBlocks(note.value.id, previousState)
-  syncVersion.value++
-  nextTick(() => { suppressContentHistory = false })
+  redoStack.value.push(snapshotNoteState())
+  const previousState = undoStack.value.pop()
+  restoreNoteState(previousState)
 }
 
 function redo() {
@@ -1288,12 +1414,9 @@ function redo() {
   if (redoStack.value.length === 0) return
   if (!note.value) return
   
-  undoStack.value.push(JSON.stringify(note.value.blocks))
-  const nextState = JSON.parse(redoStack.value.pop())
-  suppressContentHistory = true
-  noteStore.restoreNoteBlocks(note.value.id, nextState)
-  syncVersion.value++
-  nextTick(() => { suppressContentHistory = false })
+  undoStack.value.push(snapshotNoteState())
+  const nextState = redoStack.value.pop()
+  restoreNoteState(nextState)
 }
 
 const isImageLoading = ref(false)
@@ -3382,6 +3505,74 @@ function addTextBlockAt(x, y) {
   }
 }
 
+function addCalloutBlockAtContext() {
+  if (note.value) {
+    saveHistory()
+    const block = noteStore.addBlock(note.value.id, {
+      x: contextMenu.value.canvasX - 120,
+      y: contextMenu.value.canvasY - 40,
+      type: 'callout',
+      calloutType: 'info',
+      width: 280
+    })
+    contextMenu.value.show = false
+    focusBlock(block.id)
+  }
+}
+
+function addCodeBlockAtContext() {
+  if (note.value) {
+    saveHistory()
+    const block = noteStore.addBlock(note.value.id, {
+      x: contextMenu.value.canvasX - 160,
+      y: contextMenu.value.canvasY - 50,
+      type: 'code',
+      code: '',
+      codeLang: 'auto',
+      width: 320
+    })
+    contextMenu.value.show = false
+    focusBlock(block.id)
+  }
+}
+
+function addFormulaBlockAtContext() {
+  if (note.value) {
+    saveHistory()
+    const block = noteStore.addBlock(note.value.id, {
+      x: contextMenu.value.canvasX - 120,
+      y: contextMenu.value.canvasY - 30,
+      type: 'formula',
+      formula: '',
+      width: 240
+    })
+    contextMenu.value.show = false
+    focusBlock(block.id)
+  }
+}
+
+function addTableBlockAtContext() {
+  if (note.value) {
+    saveHistory()
+    const block = noteStore.addBlock(note.value.id, {
+      x: contextMenu.value.canvasX - 140,
+      y: contextMenu.value.canvasY - 50,
+      type: 'table',
+      tableData: '属性|攻击|防御\n角色A|100|80\n角色B|90|95\n角色C|110|70',
+      tableAnalysis: false,
+      width: 280
+    })
+    contextMenu.value.show = false
+    focusBlock(block.id)
+  }
+}
+
+function openInNewWindow() {
+  if (!note.value) return
+  const url = window.location.origin + window.location.pathname + '#/note/' + note.value.id
+  window.open(url, '_blank', 'width=1200,height=800')
+}
+
 function addTodoBlockAt(x, y) {
   if (note.value) {
     saveHistory()
@@ -4608,6 +4799,98 @@ function deleteSelectedConnection() {
   flex: 1 1 0;
   justify-content: flex-end;
   min-width: 0;
+}
+
+.save-indicator {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.save-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4caf50;
+  transition: background 0.2s;
+}
+.save-indicator.saving .save-dot {
+  background: #ff9800;
+  animation: save-pulse 0.8s ease-in-out infinite;
+}
+@keyframes save-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* 大纲面板 */
+.outline-panel {
+  position: absolute;
+  top: 60px;
+  right: 16px;
+  width: 260px;
+  max-height: calc(100vh - 120px);
+  background: var(--bg-elevated, var(--bg-secondary));
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.outline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-light);
+  font-size: 14px;
+  font-weight: 600;
+}
+.outline-list {
+  overflow-y: auto;
+  padding: 6px 0;
+}
+.outline-item {
+  padding: 5px 14px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all 0.1s;
+}
+.outline-item:hover {
+  background: var(--bg-hover);
+  color: var(--primary-color);
+}
+.outline-empty {
+  padding: 20px 14px;
+  font-size: 12px;
+  color: var(--text-tertiary, var(--text-secondary));
+  text-align: center;
+  line-height: 1.6;
+}
+.btn-sm {
+  padding: 2px;
+  min-width: auto;
+}
+.btn-active {
+  background: var(--primary-soft);
+  color: var(--primary-color);
+}
+.outline-slide-enter-active,
+.outline-slide-leave-active {
+  transition: all 0.2s ease;
+}
+.outline-slide-enter-from,
+.outline-slide-leave-to {
+  opacity: 0;
+  transform: translateX(20px);
 }
 
 .canvas-container {
