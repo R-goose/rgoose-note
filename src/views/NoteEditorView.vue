@@ -1262,6 +1262,11 @@ function focusBlock(id) {
   selectedConnectionId.value = null
 }
 
+function focusAndCenterBlock(id) {
+  focusBlock(id)
+  nextTick(() => centerBlockInView(id))
+}
+
 // ===== 笔记内大纲 =====
 const showOutline = ref(false)
 const outlineItems = computed(() => {
@@ -2982,11 +2987,20 @@ const multiToolbarStyle = computed(() => {
   }
 })
 
+function getViewportCenter() {
+  if (!canvasRef.value) return { x: 0, y: 0 }
+  const rect = canvasRef.value.getBoundingClientRect()
+  const cx = (-canvasConfig.value.offsetX + rect.width / 2) / canvasConfig.value.zoom
+  const cy = (-canvasConfig.value.offsetY + rect.height / 2) / canvasConfig.value.zoom
+  return { x: cx, y: cy }
+}
+
 function addTextBlock() {
-  const centerX = -canvasConfig.value.offsetX / canvasConfig.value.zoom + 300 + newBlockOffset.value
-  const centerY = -canvasConfig.value.offsetY / canvasConfig.value.zoom + 200 + newBlockOffset.value
+  const center = getViewportCenter()
+  const cx = center.x - 120 + newBlockOffset.value
+  const cy = center.y - 40 + newBlockOffset.value
   newBlockOffset.value += 30
-  addTextBlockAt(centerX, centerY)
+  addTextBlockAt(cx, cy)
 }
 
 function onTextBlockDragStart(e) {
@@ -3049,7 +3063,7 @@ function onViewPaste(e) {
             width: 280,
             minHeight: 150
           })
-          focusBlock(block.id)
+          focusAndCenterBlock(block.id)
           newBlockOffset.value += 30
         }
       }
@@ -3080,7 +3094,7 @@ function onViewPaste(e) {
         type: 'text',
         content: html
       })
-      focusBlock(block.id)
+      focusAndCenterBlock(block.id)
       newBlockOffset.value += 30
     }
   }
@@ -3511,7 +3525,7 @@ function addTextBlockAt(x, y) {
   if (note.value) {
     saveHistory()
     const block = noteStore.addBlock(note.value.id, { x, y, type: 'text' })
-    focusBlock(block.id)
+    focusAndCenterBlock(block.id)
   }
 }
 
@@ -3526,7 +3540,7 @@ function addCalloutBlockAtContext() {
       width: 280
     })
     contextMenu.value.show = false
-    focusBlock(block.id)
+    focusAndCenterBlock(block.id)
   }
 }
 
@@ -3542,7 +3556,7 @@ function addCodeBlockAtContext() {
       width: 320
     })
     contextMenu.value.show = false
-    focusBlock(block.id)
+    focusAndCenterBlock(block.id)
   }
 }
 
@@ -3557,7 +3571,7 @@ function addFormulaBlockAtContext() {
       width: 240
     })
     contextMenu.value.show = false
-    focusBlock(block.id)
+    focusAndCenterBlock(block.id)
   }
 }
 
@@ -3573,7 +3587,7 @@ function addTableBlockAtContext() {
       width: 280
     })
     contextMenu.value.show = false
-    focusBlock(block.id)
+    focusAndCenterBlock(block.id)
   }
 }
 
@@ -3597,7 +3611,7 @@ function addTodoBlockAt(x, y) {
       width: 280,
       minHeight: 90
     })
-    focusBlock(block.id)
+    focusAndCenterBlock(block.id)
   }
 }
 
@@ -3613,7 +3627,7 @@ function addProgressBlockAt(x, y) {
       width: 280,
       minHeight: 90
     })
-    focusBlock(block.id)
+    focusAndCenterBlock(block.id)
   }
 }
 
@@ -3635,7 +3649,7 @@ function addMilestoneBlockAt(x, y) {
       width: 300,
       minHeight: 100
     })
-    focusBlock(block.id)
+    focusAndCenterBlock(block.id)
   }
 }
 
@@ -3738,7 +3752,7 @@ function onImageFileSelect(e) {
           width: 280,
           minHeight: 200
         })
-        focusBlock(block.id)
+        focusAndCenterBlock(block.id)
       }
     }
     isImageLoading.value = false
@@ -3842,7 +3856,7 @@ function addGalleryBlockAtContext() {
     width: 360
   })
   contextMenu.value.show = false
-  focusBlock(block.id)
+  focusAndCenterBlock(block.id)
   // 立即触发选图
   nextTick(() => {
     currentGalleryBlockId.value = block.id
@@ -3915,7 +3929,7 @@ function updateBlockContent(blockId, updates) {
     // 样式修改时保存历史
     if (updates.color || updates.borderStyle || updates.fontSize || updates.fontWeight || updates.textColor || updates.borderColor) {
       saveHistory()
-    } else if (updates.content !== undefined) {
+    } else if (updates.content !== undefined || updates.tableData !== undefined || updates.code !== undefined || updates.formula !== undefined || updates.calloutType !== undefined || updates.codeLang !== undefined || updates.tableAnalysis !== undefined) {
       scheduleContentHistory()
     }
     noteStore.updateBlock(note.value.id, blockId, updates)

@@ -33,9 +33,6 @@
         </svg>
       </div>
       <div v-if="groupColor" class="block-group-badge" :style="{ background: groupColor }" :title="'同组成员将一起移动'"></div>
-      <div v-if="block.pinned" class="block-pinned-badge" title="已置顶">
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>
-      </div>
       <div v-if="!readOnly" class="block-actions">
         <button v-if="block.type !== 'image'" class="action-btn" @click.stop="$emit('add-image', block.id)" :title="`插入图片 ${sc('insertImage')}`.trim()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -125,11 +122,6 @@
             </button>
           </div>
         </div>
-        <button class="action-btn" :class="{ active: block.pinned }" @click.stop="emit('update', block.id, { pinned: !block.pinned })" :title="block.pinned ? '取消置顶' : '置顶'">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>
-          </svg>
-        </button>
         <button class="action-btn" :class="{ active: block.locked }" @click.stop="$emit('toggle-lock', block.id)" :title="block.locked ? '解锁' : '锁定'">
           <svg v-if="block.locked" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
@@ -579,10 +571,8 @@
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
           </button>
         </div>
-        <pre class="code-pre" v-html="highlightedCode"></pre>
         <textarea
-          v-if="!readOnly && !block.locked"
-          v-show="codeEditing"
+          v-if="!readOnly && !block.locked && codeEditing"
           ref="codeTextareaRef"
           class="code-textarea"
           v-model="codeText"
@@ -592,7 +582,13 @@
           @wheel.stop
           @mousedown.stop
         ></textarea>
-        <div v-if="!codeEditing && !readOnly && !block.locked" class="code-edit-hint" @click.stop="startCodeEdit">点击编辑</div>
+        <pre
+          v-else
+          class="code-pre"
+          :class="{ 'code-pre-interactive': !readOnly && !block.locked }"
+          v-html="highlightedCode"
+          @click.stop="startCodeEdit"
+        ></pre>
       </div>
 
       <div
@@ -2019,6 +2015,13 @@ onMounted(() => {
       })
       resizeObserver.observe(blockRef.value)
     }
+    // 空代码块/公式块自动进入编辑
+    if (props.block?.type === 'code' && !props.block.code) {
+      startCodeEdit()
+    }
+    if (props.block?.type === 'formula' && !props.block.formula) {
+      startFormulaEdit()
+    }
   })
 })
 
@@ -2087,14 +2090,6 @@ onUnmounted(() => {
   box-shadow: 0 0 0 2px var(--bg-primary, #fff);
   margin-left: -2px;
 }
-.block-pinned-badge {
-  color: var(--primary-color);
-  opacity: 0.7;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-}
-
 .block-actions {
   display: flex;
   align-items: center;
@@ -2993,38 +2988,32 @@ onUnmounted(() => {
   word-break: break-word;
   min-height: 30px;
 }
-.code-pre:empty::before {
-  content: '点击下方"编辑"输入代码...';
+.code-pre-interactive {
+  cursor: text;
+}
+.code-pre-interactive:empty::before {
+  content: '点击输入代码...';
   color: #585b70;
 }
 .code-textarea {
-  position: absolute;
-  inset: 32px 0 0 0;
+  margin: 0;
   padding: 10px 12px;
   font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
   font-size: 13px;
   line-height: 1.5;
-  background: transparent;
-  color: transparent;
-  caret-color: #cdd6f4;
+  background: #181825;
+  color: #cdd6f4;
+  caret-color: #f5e0dc;
   border: none;
   outline: none;
-  resize: none;
+  resize: vertical;
+  min-height: 40px;
+  width: 100%;
+  display: block;
   white-space: pre-wrap;
   word-break: break-word;
+  box-sizing: border-box;
 }
-.code-edit-hint {
-  position: absolute;
-  bottom: 6px;
-  right: 8px;
-  font-size: 11px;
-  color: #585b70;
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: rgba(30,30,46,0.8);
-}
-.code-edit-hint:hover { color: #cdd6f4; }
 /* hljs 主题色 (Catppuccin Mocha 简化版) */
 .code-pre .hljs-keyword { color: #cba6f7; }
 .code-pre .hljs-string { color: #a6e3a1; }
