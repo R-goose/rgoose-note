@@ -2956,7 +2956,7 @@ onUnmounted(() => {
   position: relative;
   background: #1e1e2e;
   border-radius: var(--radius-md);
-  overflow: hidden;
+  overflow: visible;
 }
 .code-head {
   display: flex;
@@ -2995,7 +2995,7 @@ onUnmounted(() => {
   border: 1px solid #45475a;
   border-radius: 6px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-  z-index: 50;
+  z-index: 60;
   padding: 4px 0;
 }
 .code-lang-option {
