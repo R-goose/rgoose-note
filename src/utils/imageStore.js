@@ -190,6 +190,9 @@ export function collectImageRefsFromData(data) {
       if ((block.type === 'audio' || block.type === 'video') && isImageRef(block.mediaUrl)) {
         refs.add(block.mediaUrl)
       }
+      if (block.type === 'gallery' && Array.isArray(block.images)) {
+        block.images.forEach(img => { if (isImageRef(img)) refs.add(img) })
+      }
     }
   }
   return refs
@@ -225,6 +228,9 @@ export function remapImageRefsInData(data, refMap) {
       }
       if ((block.type === 'audio' || block.type === 'video') && refMap[block.mediaUrl]) {
         block.mediaUrl = refMap[block.mediaUrl]
+      }
+      if (block.type === 'gallery' && Array.isArray(block.images)) {
+        block.images = block.images.map(img => refMap[img] || img)
       }
     }
   }

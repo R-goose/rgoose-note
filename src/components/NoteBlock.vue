@@ -202,6 +202,60 @@
         </div>
       </div>
 
+      <div v-else-if="block.type === 'gallery'" class="gallery-container" @wheel.stop>
+        <div class="gallery-toolbar">
+          <button class="change-media-btn" :class="{ active: galleryLayout === 'carousel' }" @click.stop="setGalleryLayout('carousel')">轮播</button>
+          <button class="change-media-btn" :class="{ active: galleryLayout === 'grid' }" @click.stop="setGalleryLayout('grid')">网格</button>
+          <span class="gallery-count">{{ (block.images || []).length }} 张</span>
+          <button v-if="!readOnly" class="change-media-btn" @click.stop="$emit('add-gallery-image', block.id)">+ 添加</button>
+        </div>
+
+        <!-- 网格布局 -->
+        <div v-if="galleryLayout === 'grid' && (block.images || []).length" class="gallery-grid">
+          <div
+            v-for="(img, idx) in (block.images || [])"
+            :key="idx"
+            class="gallery-cell"
+            @click.stop="$emit('preview-image', galleryResolvedUrls[idx])"
+          >
+            <img :src="galleryResolvedUrls[idx]" alt="" draggable="false" />
+            <button v-if="!readOnly" class="gallery-del-btn" @click.stop="removeGalleryImage(idx)" title="删除">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- 轮播布局 -->
+        <div v-else-if="galleryLayout === 'carousel' && (block.images || []).length" class="gallery-carousel">
+          <button v-if="(block.images || []).length > 1" class="gallery-nav prev" @click.stop="galleryPrev">‹</button>
+          <div class="gallery-stage" @click.stop="$emit('preview-image', galleryResolvedUrls[galleryIndex])">
+            <img :src="galleryResolvedUrls[galleryIndex]" alt="" draggable="false" />
+            <button v-if="!readOnly" class="gallery-del-btn" @click.stop="removeGalleryImage(galleryIndex)" title="删除">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <button v-if="(block.images || []).length > 1" class="gallery-nav next" @click.stop="galleryNext">›</button>
+          <div v-if="(block.images || []).length > 1" class="gallery-dots">
+            <span
+              v-for="(img, idx) in (block.images || [])"
+              :key="idx"
+              class="gallery-dot"
+              :class="{ active: idx === galleryIndex }"
+              @click.stop="galleryIndex = idx"
+            ></span>
+          </div>
+        </div>
+
+        <!-- 空状态 -->
+        <div v-else-if="!readOnly" class="gallery-empty" @click.stop="$emit('add-gallery-image', block.id)">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+          </svg>
+          <span>点击添加图片</span>
+        </div>
+        <div v-else class="gallery-empty"><span>暂无图片</span></div>
+      </div>
+
       <div
         v-else-if="block.type === 'note-link' && block.linkedNoteId"
         class="note-link-block"
@@ -644,6 +698,55 @@ onBeforeUnmount(() => {
   if (pseudoFullscreen.value) exitPseudoFullscreen()
 })
 
+// ===== 图片画廊块 =====
+const galleryIndex = ref(0)
+const galleryLayout = ref('carousel')
+const galleryResolvedUrls = ref([])
+let galleryWatchStop = null
+
+function setupGallery() {
+  if (galleryWatchStop) galleryWatchStop()
+  galleryWatchStop = watch(
+    () => [props.block?.images, props.block?.galleryLayout],
+    async () => {
+      const imgs = props.block?.images || []
+      galleryLayout.value = props.block?.galleryLayout || 'carousel'
+      if (galleryIndex.value >= imgs.length) galleryIndex.value = Math.max(0, imgs.length - 1)
+      galleryResolvedUrls.value = await Promise.all(
+        imgs.map(async (url) => {
+          if (!url) return ''
+          return isImageRef(url) ? await resolveImageUrl(url) : url
+        })
+      )
+    },
+    { immediate: true }
+  )
+}
+
+function galleryPrev() {
+  const len = (props.block?.images || []).length
+  if (len) galleryIndex.value = (galleryIndex.value - 1 + len) % len
+}
+function galleryNext() {
+  const len = (props.block?.images || []).length
+  if (len) galleryIndex.value = (galleryIndex.value + 1) % len
+}
+function setGalleryLayout(layout) {
+  galleryLayout.value = layout
+  emit('update', props.block.id, { galleryLayout: layout })
+}
+function removeGalleryImage(idx) {
+  const imgs = [...(props.block?.images || [])]
+  imgs.splice(idx, 1)
+  emit('update', props.block.id, { images: imgs })
+  if (galleryIndex.value >= imgs.length) galleryIndex.value = Math.max(0, imgs.length - 1)
+}
+
+onMounted(() => { if (props.block?.type === 'gallery') setupGallery() })
+watch(() => props.block?.type, (t) => {
+  if (t === 'gallery' && !galleryWatchStop) setupGallery()
+})
+
 const emit = defineEmits([
   'select',
   'update',
@@ -655,6 +758,7 @@ const emit = defineEmits([
   'connect-end',
   'add-image',
   'add-media',
+  'add-gallery-image',
   'add-link',
   'add-note-link',
   'preview-image',
@@ -706,7 +810,7 @@ const blockStyle = computed(() => {
     top: `${props.block.y}px`,
     width: `${props.block.width || 220}px`
   }
-  const isAutoSize = props.block.type === 'image' || props.block.type === 'note-link' || props.block.type === 'audio'
+  const isAutoSize = props.block.type === 'image' || props.block.type === 'note-link' || props.block.type === 'audio' || props.block.type === 'gallery'
   if (!isAutoSize && props.block.height && props.block.height > 0) {
     style.height = `${props.block.height}px`
   } else if (props.block.height && props.block.height > 0) {
@@ -2175,6 +2279,145 @@ onUnmounted(() => {
   width: 14px;
   height: 14px;
 }
+
+/* 图片画廊块 */
+.gallery-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px;
+}
+.gallery-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+}
+.gallery-toolbar .change-media-btn.active {
+  background: var(--primary-soft);
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+.gallery-count {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 6px;
+}
+.gallery-cell {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--bg-tertiary);
+}
+.gallery-cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.gallery-cell:hover img {
+  opacity: 0.88;
+}
+.gallery-carousel {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.gallery-stage {
+  position: relative;
+  width: 100%;
+  cursor: pointer;
+}
+.gallery-stage img {
+  width: 100%;
+  border-radius: var(--radius-sm);
+  display: block;
+  background: var(--bg-tertiary);
+}
+.gallery-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.45);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 22px;
+  cursor: pointer;
+  z-index: 2;
+  line-height: 1;
+  padding: 0;
+}
+.gallery-nav:hover { background: rgba(0,0,0,0.7); }
+.gallery-nav.prev { left: 4px; }
+.gallery-nav.next { right: 4px; }
+.gallery-dots {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  padding-top: 6px;
+}
+.gallery-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border-color);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.gallery-dot.active {
+  background: var(--primary-color);
+  width: 16px;
+  border-radius: 4px;
+}
+.gallery-del-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 3;
+}
+.gallery-cell:hover .gallery-del-btn,
+.gallery-stage:hover .gallery-del-btn {
+  opacity: 1;
+}
+.gallery-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 100px;
+  border: 2px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+.gallery-empty span { opacity: 0.7; }
 .media-header {
   display: flex;
   align-items: center;

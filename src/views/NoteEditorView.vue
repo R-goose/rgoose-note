@@ -300,6 +300,7 @@
           @connect-end="endConnection"
           @add-image="handleAddImageToBlock"
           @add-media="handleAddMediaToBlock"
+          @add-gallery-image="handleAddGalleryImage"
           @add-link="handleAddLinkToBlock"
           @add-note-link="handleAddNoteLinkFromBlock"
           @preview-image="showImagePreview"
@@ -685,6 +686,15 @@
       class="hidden-file-input"
       @change="onMediaFileSelect"
     />
+
+    <input
+      ref="galleryInputRef"
+      type="file"
+      accept="image/*"
+      multiple
+      class="hidden-file-input"
+      @change="onGalleryFileSelect"
+    />
     
     <div v-if="showNoteLinkModal" class="modal-overlay" @click.self="closeNoteLinkModal">
       <div class="modal-content note-link-modal">
@@ -826,6 +836,15 @@
             <polygon points="23 7 16 12 23 17 23 7"/>
           </svg>
           新建视频块
+        </div>
+        <div class="context-menu-item" @click="addGalleryBlockAtContext">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/>
+          </svg>
+          新建图片画廊
         </div>
         <div class="context-menu-item" @click="addTodoBlockAtContext">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -1283,6 +1302,8 @@ const mediaInputRef = ref(null)
 const currentMediaBlockId = ref(null)
 const pendingMediaType = ref(null)
 const pendingMediaPos = ref(null)
+const galleryInputRef = ref(null)
+const currentGalleryBlockId = ref(null)
 const blockSelectionRanges = ref({})
 
 const showNoteLinkModal = ref(false)
@@ -3605,6 +3626,60 @@ function onMediaFileSelect(e) {
     pendingMediaPos.value = null
   }
   reader.readAsDataURL(file)
+}
+
+// ===== 图片画廊块 =====
+function addGalleryBlockAtContext() {
+  if (!note.value) { contextMenu.value.show = false; return }
+  saveHistory()
+  const block = noteStore.addBlock(note.value.id, {
+    x: contextMenu.value.canvasX - 180,
+    y: contextMenu.value.canvasY - 100,
+    type: 'gallery',
+    images: [],
+    galleryLayout: 'carousel',
+    width: 360
+  })
+  contextMenu.value.show = false
+  focusBlock(block.id)
+  // 立即触发选图
+  nextTick(() => {
+    currentGalleryBlockId.value = block.id
+    galleryInputRef.value?.click()
+  })
+}
+
+function handleAddGalleryImage(blockId) {
+  focusBlock(blockId)
+  currentGalleryBlockId.value = blockId
+  galleryInputRef.value?.click()
+}
+
+function onGalleryFileSelect(e) {
+  const files = Array.from(e.target.files || [])
+  e.target.value = ''
+  if (!files.length || !note.value) return
+
+  const blockId = currentGalleryBlockId.value
+  const block = note.value.blocks.find(b => b.id === blockId)
+  if (!block || block.type !== 'gallery') return
+
+  saveHistory()
+  const readers = files.map(file => new Promise((resolve) => {
+    const reader = new FileReader()
+    reader.onload = async (ev) => {
+      const imgRef = await saveImage(ev.target.result)
+      resolve(imgRef)
+    }
+    reader.readAsDataURL(file)
+  }))
+
+  Promise.all(readers).then((newRefs) => {
+    noteStore.updateBlock(note.value.id, blockId, {
+      images: [...(block.images || []), ...newRefs]
+    })
+    currentGalleryBlockId.value = null
+  })
 }
 
 function handleAddLinkToBlock(blockId) {
