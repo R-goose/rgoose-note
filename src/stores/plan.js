@@ -56,22 +56,16 @@ export const usePlanStore = defineStore('plan', () => {
     return initPromise
   }
 
-  let persistTimer = null
   function persist() {
-    if (persistTimer) clearTimeout(persistTimer)
-    persistTimer = setTimeout(() => {
-      flushPersist()
-      persistTimer = null
-    }, 500)
-  }
-  function flushPersist() {
-    if (persistTimer) {
-      clearTimeout(persistTimer)
-      persistTimer = null
-    }
+    // 同步设置 pending 数据，避免延迟导致的竞态条件
     const noteStore = useNoteStore()
     noteStore.setPendingPlans(plans.value)
     noteStore.persist()
+  }
+  function flushPersist() {
+    const noteStore = useNoteStore()
+    noteStore.setPendingPlans(plans.value)
+    noteStore.flushPersist && noteStore.flushPersist()
   }
 
   function createPlan(title, options = {}) {
@@ -120,13 +114,16 @@ export const usePlanStore = defineStore('plan', () => {
     }
   }
 
+  // 用独立 Set 跟踪已提醒的 plan，避免污染持久化数据
+  const remindedPlanIds = new Set()
+
   function checkReminders() {
     const now = Date.now()
     plans.value.forEach(plan => {
       if (!plan.completed && plan.reminder && plan.reminder > now - 60000 && plan.reminder <= now + 60000) {
-        if (!plan._reminded) {
+        if (!remindedPlanIds.has(plan.id)) {
           showReminder(plan)
-          plan._reminded = true
+          remindedPlanIds.add(plan.id)
         }
       }
     })

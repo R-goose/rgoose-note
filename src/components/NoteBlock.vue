@@ -1781,7 +1781,7 @@ function insertList(type) {
 function insertCodeBlock() {
   showInsertMenu.value = false
   focusEditorAtEnd()
-  const html = `<pre style="background:#1e1e2e;border:1px solid #313244;border-radius:6px;padding:12px 14px;margin:8px 0;overflow-x:auto"><code style="font-family:'Cascadia Code','Fira Code','Consolas',monospace;font-size:13px;line-height:1.5;color:#cdd6f4;background:transparent;white-space:pre-wrap;word-break:break-word">// 在此输入代码</code></pre><p><br></p>`
+  const html = `<pre><code>// 在此输入代码</code></pre><p><br></p>`
   document.execCommand('insertHTML', false, html)
   emit('update', props.block.id, { content: editorRef.value.innerHTML })
 }
@@ -1838,13 +1838,25 @@ function closeLinkModal() {
 }
 
 function insertLink() {
-  if (!linkUrl.value.trim()) {
+  const url = linkUrl.value.trim()
+  if (!url) {
     closeLinkModal()
     return
   }
-  const text = linkText.value || linkUrl.value
-  const html = `<a href="${linkUrl.value}" target="_blank" rel="noopener noreferrer">${text}</a>`
-  const newContent = (props.block.content || '') + html
+  // 协议白名单校验，防止 javascript: 等 XSS
+  const allowedProto = /^(https?:\/\/|mailto:|\/|#)/i
+  if (!allowedProto.test(url)) {
+    closeLinkModal()
+    return
+  }
+  const text = linkText.value || url
+  // 用 DOM API 构建节点，避免 HTML 拼接注入
+  const a = document.createElement('a')
+  a.href = url
+  a.target = '_blank'
+  a.rel = 'noopener noreferrer'
+  a.textContent = text
+  const newContent = (props.block.content || '') + a.outerHTML
   emit('update', props.block.id, { content: newContent })
   closeLinkModal()
 }
@@ -1954,6 +1966,10 @@ onUnmounted(() => {
   if (resizeObserver) {
     resizeObserver.disconnect()
     resizeObserver = null
+  }
+  if (galleryWatchStop) {
+    galleryWatchStop()
+    galleryWatchStop = null
   }
 })
 </script>
@@ -2774,6 +2790,16 @@ onUnmounted(() => {
 .callout-tip .callout-editor, .callout-tip .callout-icon { color: #1b5e20; }
 .callout-warning .callout-editor, .callout-warning .callout-icon { color: #bf360c; }
 .callout-danger .callout-editor, .callout-danger .callout-icon { color: #b71c1c; }
+
+/* 暗色模式 callout 适配 */
+[data-theme="dark"] .callout-info { background: #1a2a3a; border-color: #1976d2; }
+[data-theme="dark"] .callout-tip { background: #1a2e22; border-color: #388e3c; }
+[data-theme="dark"] .callout-warning { background: #2e2818; border-color: #f57c00; }
+[data-theme="dark"] .callout-danger { background: #2e1c1c; border-color: #d32f2f; }
+[data-theme="dark"] .callout-info .callout-editor, [data-theme="dark"] .callout-info .callout-icon { color: #8ec5f5; }
+[data-theme="dark"] .callout-tip .callout-editor, [data-theme="dark"] .callout-tip .callout-icon { color: #8edca0; }
+[data-theme="dark"] .callout-warning .callout-editor, [data-theme="dark"] .callout-warning .callout-icon { color: #f0c060; }
+[data-theme="dark"] .callout-danger .callout-editor, [data-theme="dark"] .callout-danger .callout-icon { color: #f08080; }
 
 /* 数值表格块 */
 .table-block {

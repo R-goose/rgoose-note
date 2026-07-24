@@ -305,7 +305,7 @@
         <NoteBlock
           v-for="block in blocks"
           :key="block.id"
-          :ref="el => { if (el) blockRefs[block.id] = el }"
+          :ref="el => { if (el) blockRefs[block.id] = el; else delete blockRefs[block.id] }"
           :block="block"
           :all-blocks="blocks"
           :selected="selectedBlockIds.includes(block.id)"
@@ -1151,6 +1151,17 @@ const tagStore = useTagStore()
 const shortcutStore = useShortcutStore()
 tagStore.init()
 shortcutStore.init()
+
+let isUnmounted = false
+const pendingTimers = new Set()
+function safeTimeout(fn, delay) {
+  const id = setTimeout(() => {
+    pendingTimers.delete(id)
+    if (!isUnmounted) fn()
+  }, delay)
+  pendingTimers.add(id)
+  return id
+}
 
 const canvasRef = ref(null)
 const findInputRef = ref(null)
@@ -2059,6 +2070,9 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  isUnmounted = true
+  pendingTimers.forEach(id => clearTimeout(id))
+  pendingTimers.clear()
   window.removeEventListener('keydown', onKeyDown)
   window.removeEventListener('keyup', onKeyUp)
   window.removeEventListener('mouseup', onWindowMouseUp)
@@ -2117,21 +2131,21 @@ watch([() => route.query.b, () => note.value], ([blockId, noteVal]) => {
   }
   nextTick(() => {
     if (canvasRef.value) doCenter()
-    else setTimeout(doCenter, 200)
+    else safeTimeout(doCenter, 200)
   })
-  const applyText = () => {
+  const applyText = (retries = 0) => {
     if (pendingTextHighlight.value && pendingTextHighlight.value.blockId === blockId) {
       const blockEl = document.querySelector(`.note-block[data-block-id="${blockId}"]`)
       if (blockEl) {
         applyTextHighlight(blockId, pendingTextHighlight.value)
         pendingTextHighlight.value = null
-      } else {
-        setTimeout(applyText, 150)
+      } else if (retries < 20) {
+        safeTimeout(() => applyText(retries + 1), 150)
       }
     }
   }
-  setTimeout(applyText, 200)
-  setTimeout(() => {
+  safeTimeout(applyText, 200)
+  safeTimeout(() => {
     if (highlightBlockId.value === blockId) highlightBlockId.value = null
     clearTextHighlight()
   }, 4500)
@@ -2383,6 +2397,12 @@ function onKeyDown(e) {
   const isEditing = document.activeElement?.contentEditable === 'true' ||
                     document.activeElement?.tagName === 'INPUT' ||
                     document.activeElement?.tagName === 'TEXTAREA'
+
+  // 只读模式：阻止所有修改性操作，仅允许 copy/escape/zoom
+  if (isReadOnly.value) {
+    const readOnlyAllowed = ['copy', 'escape', 'zoomIn', 'zoomOut', 'zoomReset']
+    if (!readOnlyAllowed.some(a => shortcutStore.matches(e, a))) return
+  }
 
   if (shortcutStore.matches(e, 'copy') && (selectedBlockIds.value.length || selectedBlockId.value) && !isEditing) {
     const ids = selectedBlockIds.value.length ? [...selectedBlockIds.value] : (selectedBlockId.value ? [selectedBlockId.value] : [])
@@ -3348,11 +3368,11 @@ function closeImagePreview() {
 
 function exportAsPDF() {
   showExportMenu.value = false
-  
-  const originalTransform = canvasConfig.value
+
   const originalZoom = canvasConfig.value.zoom
-  const originalOffset = { ...canvasConfig.value.offset }
-  
+  const originalOffsetX = canvasConfig.value.offsetX
+  const originalOffsetY = canvasConfig.value.offsetY
+
   if (blocks.value.length > 0) {
     const minX = Math.min(...blocks.value.map(b => b.x))
     const minY = Math.min(...blocks.value.map(b => b.y))
@@ -3360,14 +3380,14 @@ function exportAsPDF() {
     canvasConfig.value.offsetX = -minX + 60
     canvasConfig.value.offsetY = -minY + 60
   }
-  
+
   nextTick(() => {
     window.print()
-    
-    setTimeout(() => {
+
+    safeTimeout(() => {
       canvasConfig.value.zoom = originalZoom
-      canvasConfig.value.offsetX = originalOffset.x
-      canvasConfig.value.offsetY = originalOffset.y
+      canvasConfig.value.offsetX = originalOffsetX
+      canvasConfig.value.offsetY = originalOffsetY
     }, 500)
   })
 }
@@ -3916,7 +3936,7 @@ function updateBlockContent(blockId, updates) {
     // 样式修改时保存历史
     if (updates.color || updates.borderStyle || updates.fontSize || updates.fontWeight || updates.textColor || updates.borderColor) {
       saveHistory()
-    } else if (updates.content !== undefined || updates.tableData !== undefined || updates.code !== undefined || updates.formula !== undefined || updates.calloutType !== undefined || updates.codeLang !== undefined || updates.tableAnalysis !== undefined) {
+    } else if (updates.content !== undefined || updates.tableData !== undefined || updates.code !== undefined || updates.formula !== undefined || updates.calloutType !== undefined || updates.codeLang !== undefined || updates.tableAnalysis !== undefined || updates.images !== undefined || updates.galleryLayout !== undefined) {
       scheduleContentHistory()
     }
     noteStore.updateBlock(note.value.id, blockId, updates)

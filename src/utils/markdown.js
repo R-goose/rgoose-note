@@ -3,6 +3,8 @@ export function escapeHtml(s) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 
 export function convertInlineMd(text) {
@@ -10,7 +12,11 @@ export function convertInlineMd(text) {
   html = html.replace(/`([^`]+)`/g, '<code>$1</code>')
   html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
   html = html.replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
-  html = html.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+  // 链接：校验协议白名单，阻止 javascript: 等
+  html = html.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (match, label, url) => {
+    if (!/^(https?:\/\/|mailto:|\/|#)/i.test(url)) return label
+    return `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`
+  })
   return html
 }
 

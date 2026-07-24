@@ -35,22 +35,16 @@ export const useTagStore = defineStore('tag', () => {
     return initPromise
   }
 
-  let persistTimer = null
   function persist() {
-    if (persistTimer) clearTimeout(persistTimer)
-    persistTimer = setTimeout(() => {
-      flushPersist()
-      persistTimer = null
-    }, 500)
-  }
-  function flushPersist() {
-    if (persistTimer) {
-      clearTimeout(persistTimer)
-      persistTimer = null
-    }
+    // 同步设置 pending 数据，避免延迟导致的竞态条件
     const noteStore = useNoteStore()
     noteStore.setPendingTags(tags.value)
     noteStore.persist()
+  }
+  function flushPersist() {
+    const noteStore = useNoteStore()
+    noteStore.setPendingTags(tags.value)
+    noteStore.flushPersist && noteStore.flushPersist()
   }
 
   function getTag(id) {

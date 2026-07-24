@@ -163,6 +163,9 @@ export const useNoteStore = defineStore('note', () => {
     await saveToStore(data)
     lastSyncTime.value = getLastSyncTime()
     saveStatus.value = 'saved'
+    // 清除 pending 引用，防止下次持久化使用过时数据
+    pendingPlans = null
+    pendingTags = null
   }
   async function clearCache() {
     if (persistTimer) {
