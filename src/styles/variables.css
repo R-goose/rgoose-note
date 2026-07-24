@@ -46,7 +46,7 @@
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
   --shadow-primary: 0 4px 12px rgba(107, 189, 143, 0.25);
 
-  --grid-line: #e4e7e4;
+  --grid-line: #c8cdc8;
 
   --radius-sm: 5px;
   --radius-md: 8px;
@@ -113,7 +113,7 @@
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.45);
   --shadow-primary: 0 4px 12px rgba(95, 174, 132, 0.3);
 
-  --grid-line: #2a302d;
+  --grid-line: #4a534e;
 }
 
 [data-theme="dark"] ::selection {
