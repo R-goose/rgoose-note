@@ -4953,7 +4953,7 @@ function deleteSelectedConnection() {
     linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
     linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
   background-size: 24px 24px;
-  opacity: 0.5;
+  opacity: 0.4;
   pointer-events: none;
 }
 
