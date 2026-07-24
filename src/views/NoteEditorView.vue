@@ -170,20 +170,51 @@
             </svg>
             {{ linkedPlans.length }} 计划
           </button>
-          <button
-            class="btn"
-            :class="showGrid ? 'btn-primary' : 'btn-secondary'"
-            @click="showGrid = !showGrid"
-            title="网格显示开关"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-              <rect x="3" y="3" width="7" height="7" rx="1"/>
-              <rect x="14" y="3" width="7" height="7" rx="1"/>
-              <rect x="3" y="14" width="7" height="7" rx="1"/>
-              <rect x="14" y="14" width="7" height="7" rx="1"/>
-            </svg>
-            网格
-          </button>
+          <div class="bg-type-wrapper">
+            <button
+              class="btn"
+              :class="bgType !== 'none' ? 'btn-primary' : 'btn-secondary'"
+              @click="showBgMenu = !showBgMenu"
+              title="画布背景"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <rect x="3" y="3" width="7" height="7" rx="1"/>
+                <rect x="14" y="3" width="7" height="7" rx="1"/>
+                <rect x="3" y="14" width="7" height="7" rx="1"/>
+                <rect x="14" y="14" width="7" height="7" rx="1"/>
+              </svg>
+              背景
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div v-if="showBgMenu" class="bg-type-menu">
+              <div class="bg-type-item" :class="{ active: bgType === 'grid' }" @click="setBgType('grid')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/></svg>
+                <span>网格</span>
+              </div>
+              <div class="bg-type-item" :class="{ active: bgType === 'dots' }" @click="setBgType('dots')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="6" cy="6" r="1.5"/><circle cx="12" cy="6" r="1.5"/><circle cx="18" cy="6" r="1.5"/><circle cx="6" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/><circle cx="6" cy="18" r="1.5"/><circle cx="12" cy="18" r="1.5"/><circle cx="18" cy="18" r="1.5"/></svg>
+                <span>点阵</span>
+              </div>
+              <div class="bg-type-item" :class="{ active: bgType === 'none' }" @click="setBgType('none')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="3" x2="21" y2="21"/></svg>
+                <span>无背景</span>
+              </div>
+              <div class="bg-type-divider"></div>
+              <div class="bg-type-item" :class="{ active: bgType === 'image' }" @click="setBgType('image')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                <span>自定义图片</span>
+              </div>
+              <label v-if="bgType === 'image'" class="bg-type-item bg-upload-label">
+                <input type="file" accept="image/*" @change="onBgImageUpload" style="display:none"/>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <span>{{ bgImage ? '更换图片' : '选择图片' }}</span>
+              </label>
+              <div v-if="bgType === 'image' && bgImage" class="bg-opacity-control">
+                <span>透明度</span>
+                <input type="range" min="5" max="60" :value="bgOpacity" @input="e => bgOpacity = +e.target.value" style="width:100%"/>
+              </div>
+            </div>
+          </div>
           <button
             class="btn"
             :class="snapToGrid ? 'btn-primary' : 'btn-secondary'"
@@ -1214,10 +1245,32 @@ function autoSizeTitle() {
 const canvasConfig = ref({ zoom: 1, offsetX: 0, offsetY: 0 })
 
 const gridSize = ref(24)
-const showGrid = ref(localStorage.getItem('rgoose_show_grid') !== 'false')
+const bgType = ref(localStorage.getItem('rgoose_bg_type') || 'grid')
+const bgImage = ref(localStorage.getItem('rgoose_bg_image') || '')
+const bgOpacity = ref(parseInt(localStorage.getItem('rgoose_bg_opacity')) || 15)
+const showBgMenu = ref(false)
+// 兼容旧 showGrid 设置
+const showGrid = computed(() => bgType.value === 'grid' || bgType.value === 'dots')
 const snapToGrid = ref(localStorage.getItem('rgoose_snap_grid') === 'true')
-watch(showGrid, v => localStorage.setItem('rgoose_show_grid', v ? 'true' : 'false'))
+watch(bgType, v => localStorage.setItem('rgoose_bg_type', v))
+watch(bgImage, v => localStorage.setItem('rgoose_bg_image', v))
+watch(bgOpacity, v => localStorage.setItem('rgoose_bg_opacity', v))
 watch(snapToGrid, v => localStorage.setItem('rgoose_snap_grid', v ? 'true' : 'false'))
+function setBgType(type) {
+  bgType.value = type
+  if (type !== 'image') showBgMenu.value = false
+}
+function onBgImageUpload(e) {
+  const file = e.target.files[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    bgImage.value = reader.result
+    showBgMenu.value = false
+  }
+  reader.readAsDataURL(file)
+  e.target.value = ''
+}
 function snapVal(v) {
   if (!snapToGrid.value) return v
   return Math.round(v / gridSize.value) * gridSize.value
@@ -1826,14 +1879,34 @@ const blocks = computed(() => note.value?.blocks || [])
 const connections = computed(() => note.value?.connections || [])
 const linkedPlans = computed(() => note.value ? planStore.plansByNote(note.value.id) : [])
 
-const canvasBgStyle = computed(() => ({
-  backgroundImage: showGrid.value
-    ? `linear-gradient(to right, var(--grid-line) 1px, transparent 1px), linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px)`
-    : 'none',
-  backgroundSize: `${gridSize.value * canvasConfig.value.zoom}px ${gridSize.value * canvasConfig.value.zoom}px`,
-  backgroundPosition: `${canvasConfig.value.offsetX}px ${canvasConfig.value.offsetY}px`,
-  opacity: showGrid.value ? 0.5 : 0
-}))
+const canvasBgStyle = computed(() => {
+  if (bgType.value === 'none') return { opacity: 0 }
+  if (bgType.value === 'image' && bgImage.value) {
+    return {
+      backgroundImage: `url(${bgImage.value})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat',
+      opacity: bgOpacity.value / 100
+    }
+  }
+  const size = gridSize.value * canvasConfig.value.zoom
+  if (bgType.value === 'dots') {
+    return {
+      backgroundImage: `radial-gradient(var(--grid-line) 1.5px, transparent 1.5px)`,
+      backgroundSize: `${size}px ${size}px`,
+      backgroundPosition: `${canvasConfig.value.offsetX}px ${canvasConfig.value.offsetY}px`,
+      opacity: 0.5
+    }
+  }
+  // grid (default)
+  return {
+    backgroundImage: `linear-gradient(to right, var(--grid-line) 1px, transparent 1px), linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px)`,
+    backgroundSize: `${size}px ${size}px`,
+    backgroundPosition: `${canvasConfig.value.offsetX}px ${canvasConfig.value.offsetY}px`,
+    opacity: 0.4
+  }
+})
 
 const canvasTransformStyle = computed(() => ({
   transform: `translate(${canvasConfig.value.offsetX}px, ${canvasConfig.value.offsetY}px) scale(${canvasConfig.value.zoom})`,
@@ -2661,6 +2734,9 @@ function onWindowMouseDown(e) {
   if (showTagPicker.value && !e.target.closest('.tag-add-wrap') && !e.target.closest('.tag-picker')) {
     showTagPicker.value = false
     tagSearch.value = ''
+  }
+  if (showBgMenu.value && !e.target.closest('.bg-type-wrapper')) {
+    showBgMenu.value = false
   }
 }
 
@@ -4929,6 +5005,58 @@ function deleteSelectedConnection() {
   position: relative;
   overflow: hidden;
   cursor: default;
+}
+
+.bg-type-wrapper {
+  position: relative;
+}
+.bg-type-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  padding: 6px;
+  min-width: 160px;
+  z-index: 100;
+}
+.bg-type-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-secondary);
+  transition: background 0.1s;
+}
+.bg-type-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.bg-type-item.active {
+  color: var(--primary-color);
+  font-weight: 600;
+}
+.bg-upload-label {
+  cursor: pointer;
+}
+.bg-type-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 4px 0;
+}
+.bg-opacity-control {
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--text-tertiary, var(--text-secondary));
+}
+.bg-opacity-control input[type="range"] {
+  margin-top: 4px;
+  accent-color: var(--primary-color);
 }
 
 .canvas-container.panning {
