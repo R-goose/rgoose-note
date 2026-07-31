@@ -45,18 +45,18 @@
           </div>
         </div>
 
-        <div class="stat-card stat-overdue" :class="{ clickable: overdueTasks > 0 }" @click="overdueTasks > 0 && openTaskList({ type: 'overdue', label: '逾期任务' })">
+        <div class="stat-card stat-overdue" :class="{ clickable: overdueTasks > 0 || overduePlans > 0 }" @click="(overdueTasks > 0 || overduePlans > 0) && openTaskList({ type: 'overdue', label: '逾期任务' })">
           <div class="stat-icon">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
           </div>
           <div class="stat-body">
-            <div class="stat-value" :class="{ 'value-warn': overdueTasks > 0 }">{{ animOverdue }}</div>
+            <div class="stat-value" :class="{ 'value-warn': overdueTasks > 0 || overduePlans > 0 }">{{ animOverdue }}</div>
             <div class="stat-label">逾期任务</div>
             <div class="stat-sub">{{ overduePlans }} 个计划逾期</div>
           </div>
         </div>
 
-        <div class="stat-card stat-milestone">
+        <div class="stat-card stat-milestone" :class="{ clickable: totalMilestones > 0 }" @click="totalMilestones > 0 && openTaskList({ type: 'milestone', label: '里程碑' })">
           <div class="stat-icon">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
           </div>
@@ -159,8 +159,12 @@
             </div>
             <div class="tl-body">
               <div v-if="filteredTaskList.length === 0" class="tl-empty">该分类下暂无任务</div>
-              <div v-for="t in filteredTaskList" :key="t.id" class="tl-item" @click="goToNote(t._noteId, t.id)">
-                <span class="tl-status-dot" :style="{ background: statusColorOf(t.status) }"></span>
+              <div v-for="t in filteredTaskList" :key="t.id" class="tl-item" :class="{ 'tl-item-done': t._done }" @click="goToNote(t._noteId, t.id)">
+                <span v-if="t._isMilestone && t._done" class="tl-status-dot tl-ms-done">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </span>
+                <span v-else-if="t._isMilestone" class="tl-status-dot tl-ms-pending"></span>
+                <span v-else class="tl-status-dot" :style="{ background: statusColorOf(t.status) }"></span>
                 <div class="tl-item-main">
                   <div class="tl-item-title">{{ t.title || '未命名任务' }}</div>
                   <div class="tl-item-meta">
@@ -362,9 +366,12 @@ const milestoneTimeline = computed(() => {
 })
 
 function goToNote(noteId, blockId) {
+  showTaskList.value = false
   if (noteId) {
-    showTaskList.value = false
     router.push(blockId ? `/note/${noteId}?b=${blockId}` : `/note/${noteId}`)
+  } else if (blockId && String(blockId).startsWith('plan-')) {
+    // 计划项无关联笔记时跳转到计划视图
+    router.push('/plans')
   }
 }
 
@@ -393,13 +400,50 @@ function isOverdueTask(t) {
 
 const filteredTaskList = computed(() => {
   const f = listFilter.value
+  // 里程碑列表：特殊处理，直接返回里程碑块
+  if (f.type === 'milestone') {
+    return [...milestoneBlocks.value]
+      .sort((a, b) => {
+        if (a.done !== b.done) return a.done ? 1 : -1
+        const da = a.date ? new Date(a.date).getTime() : Infinity
+        const db = b.date ? new Date(b.date).getTime() : Infinity
+        return da - db
+      })
+      .map(m => ({
+        id: m.id,
+        title: m.title || '未命名里程碑',
+        _noteId: m._noteId,
+        _noteTitle: m._noteTitle || '未命名笔记',
+        date: m.date,
+        status: m.done ? 'done' : 'todo',
+        priority: 'normal',
+        _isMilestone: true,
+        _done: !!m.done
+      }))
+  }
+
   let list = todoBlocks.value
   if (f.type === 'status') {
     list = list.filter(t => (t.status || 'todo') === f.value)
   } else if (f.type === 'priority') {
     list = list.filter(t => (t.priority || 'normal') === f.value)
   } else if (f.type === 'overdue') {
-    list = list.filter(t => isOverdueTask(t))
+    // 逾期任务块
+    const overdueBlocks = list.filter(t => isOverdueTask(t))
+    // 逾期计划（映射为列表项）
+    const noteTitleMap = {}
+    for (const n of allNotes.value) noteTitleMap[n.id] = n.title
+    const overduePlanItems = planStore.overduePlans.map(p => ({
+      id: 'plan-' + p.id,
+      title: p.title || '未命名计划',
+      _noteId: p.noteId,
+      _noteTitle: (p.noteId && noteTitleMap[p.noteId]) || '计划',
+      dueDate: p.dueDate ? new Date(p.dueDate).toLocaleDateString('zh-CN') : '',
+      status: 'todo',
+      priority: p.priority || 'normal',
+      _isPlan: true
+    }))
+    list = [...overdueBlocks, ...overduePlanItems]
   }
   const order = { doing: 0, todo: 1, paused: 2, done: 3 }
   return [...list].sort((a, b) => {
@@ -789,7 +833,15 @@ const filteredTaskList = computed(() => {
 .tl-item + .tl-item { margin-top: 2px; }
 .tl-status-dot {
   width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
 }
+.tl-ms-done {
+  background: #4a8a64; color: #fff;
+}
+.tl-ms-pending {
+  background: var(--bg-tertiary); border: 1.5px solid var(--text-tertiary);
+}
+.tl-item-done .tl-item-title { color: var(--text-tertiary); text-decoration: line-through; }
 .tl-item-main { flex: 1; min-width: 0; }
 .tl-item-title {
   font-size: 13px; font-weight: 600; color: var(--text-primary);

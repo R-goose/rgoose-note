@@ -4,6 +4,41 @@
       <div class="header-left">
         <h1>设置</h1>
       </div>
+      <div class="search-box">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input
+          ref="searchInputRef"
+          v-model="searchQuery"
+          type="text"
+          placeholder="搜索设置..."
+          class="search-input"
+          @input="onSearchInput"
+          @keydown.esc="closeSearch"
+          @keydown.down.prevent="moveHighlight(1)"
+          @keydown.up.prevent="moveHighlight(-1)"
+          @keydown.enter.prevent="selectHighlighted"
+          @focus="showResults = true"
+        />
+        <Transition name="search-dropdown">
+          <div v-if="showResults && searchResults.length > 0" class="search-dropdown">
+            <div
+              v-for="(r, i) in searchResults"
+              :key="r.id"
+              class="search-result-item"
+              :class="{ active: i === highlightIndex }"
+              @mouseenter="highlightIndex = i"
+              @mousedown.prevent="goToSetting(r)"
+            >
+              <span class="result-group">{{ r.group }}</span>
+              <span class="result-name">{{ r.name }}</span>
+              <span v-if="r.desc" class="result-desc">{{ r.desc }}</span>
+            </div>
+          </div>
+        </Transition>
+      </div>
     </header>
 
     <div class="settings-content">
@@ -11,7 +46,7 @@
       <section class="settings-section">
         <h2 class="section-title"><span class="title-bar bar-blue"></span>数据管理</h2>
         <div class="settings-list">
-          <div class="setting-item">
+          <div id="set-export" class="setting-item">
             <div class="setting-info">
               <div class="setting-name">导出数据</div>
               <div class="setting-desc">将所有笔记和计划导出为 JSON 文件备份</div>
@@ -28,7 +63,7 @@
             </button>
           </div>
 
-          <div class="setting-item">
+          <div id="set-import" class="setting-item">
             <div class="setting-info">
               <div class="setting-name">导入数据</div>
               <div class="setting-desc">从 JSON 备份文件恢复数据</div>
@@ -44,7 +79,7 @@
             </button>
           </div>
 
-          <div class="setting-item">
+          <div id="set-sync" class="setting-item">
             <div class="setting-info">
               <div class="setting-name">保存状态</div>
               <div class="setting-desc">上次保存：{{ lastSyncTimeStr }}</div>
@@ -55,7 +90,7 @@
             </div>
           </div>
 
-          <div class="setting-item">
+          <div id="set-cache" class="setting-item">
             <div class="setting-info">
               <div class="setting-name">清除缓存</div>
               <div class="setting-desc">清除本地存储数据（操作前请先导出备份）</div>
@@ -70,7 +105,7 @@
             </button>
           </div>
 
-          <div v-if="storageSize" class="setting-item storage-usage-item">
+          <div v-if="storageSize" id="set-usage" class="setting-item storage-usage-item">
             <div class="setting-info">
               <div class="setting-name">存储占用 <span class="total-usage">共 {{ formatBytes(usageTotal) }}</span></div>
               <div class="storage-usage-bar">
@@ -89,7 +124,7 @@
             </div>
           </div>
 
-          <div class="setting-item">
+          <div id="set-backup" class="setting-item">
             <div class="setting-info">
               <div class="setting-name">本地备份</div>
               <div class="setting-desc">生成完整备份（含数据和图片，打包为 zip），最多保留 5 份</div>
@@ -140,7 +175,7 @@
             </div>
           </div>
 
-          <div class="setting-item storage-location-item">
+          <div id="set-location" class="setting-item storage-location-item">
             <div class="setting-info">
               <div class="setting-name">
                 文件存储位置
@@ -199,7 +234,7 @@
           <div v-for="(actions, group) in shortcutStore.groupedActions" :key="group" class="shortcut-group">
             <div class="shortcut-group-title">{{ group }}</div>
             <div class="shortcut-list">
-              <div v-for="act in actions" :key="act.id" class="shortcut-item">
+              <div v-for="act in actions" :key="act.id" :id="`sc-${act.id}`" class="shortcut-item">
                 <div class="shortcut-info">
                   <div class="shortcut-name">
                     {{ act.label }}
@@ -234,19 +269,19 @@
       <section class="settings-section">
         <h2 class="section-title"><span class="title-bar bar-green"></span>关于</h2>
         <div class="settings-list">
-          <div class="setting-item">
+          <div id="set-about-version" class="setting-item">
             <div class="setting-info">
               <div class="setting-name brand-name">R-Goose Note</div>
-              <div class="setting-desc">版本 1.3.0</div>
+              <div class="setting-desc">版本 1.3.1</div>
             </div>
           </div>
-          <div class="setting-item">
+          <div id="set-about-platform" class="setting-item">
             <div class="setting-info">
               <div class="setting-name">平台支持</div>
               <div class="setting-desc">Web / Windows</div>
             </div>
           </div>
-            <div class="setting-item">
+            <div id="set-about-license" class="setting-item">
               <div class="setting-info">
                 <div class="setting-name">版权归属</div>
                 <div class="setting-desc">R-Goose Note 是一个基于 Vue 3 的笔记应用，由 R-Goose 开发。</div>
@@ -357,7 +392,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, nextTick, onUnmounted } from 'vue'
 import { useNoteStore } from '@/stores/note'
 import { usePlanStore } from '@/stores/plan'
 import { useTagStore } from '@/stores/tag'
@@ -377,6 +412,109 @@ const shortcutStore = useShortcutStore()
 shortcutStore.init()
 const showImportConfirm = ref(false)
 const showClearCacheConfirm = ref(false)
+
+// ============ 设置搜索 ============
+const searchInputRef = ref(null)
+const searchQuery = ref('')
+const showResults = ref(false)
+const highlightIndex = ref(0)
+
+// 搜索索引：将所有设置项结构化
+const settingsIndex = computed(() => {
+  const items = [
+    { id: 'set-export', name: '导出数据', group: '数据管理', desc: '将所有笔记和计划导出为 JSON 文件备份', keywords: '导出 备份 json 数据 export 下载' },
+    { id: 'set-import', name: '导入数据', group: '数据管理', desc: '从 JSON 备份文件恢复数据', keywords: '导入 恢复 json 数据 import 上传' },
+    { id: 'set-sync', name: '保存状态', group: '数据管理', desc: '上次保存时间', keywords: '保存 同步 状态 sync 时间' },
+    { id: 'set-cache', name: '清除缓存', group: '数据管理', desc: '清除本地存储数据', keywords: '清除 缓存 删除 清空 cache 重置' },
+    { id: 'set-usage', name: '存储占用', group: '数据管理', desc: '磁盘空间使用情况', keywords: '存储 占用 空间 磁盘 大小 容量 usage' },
+    { id: 'set-backup', name: '本地备份', group: '数据管理', desc: '生成完整备份打包为 zip', keywords: '备份 本地 zip 打档 backup 归档' },
+    { id: 'set-location', name: '文件存储位置', group: '数据管理', desc: '数据文件保存路径', keywords: '存储 位置 路径 文件 目录 文件夹 location 自定义' },
+  ]
+  // 快捷键项
+  for (const [group, actions] of Object.entries(shortcutStore.groupedActions)) {
+    for (const act of actions) {
+      items.push({
+        id: `sc-${act.id}`,
+        name: act.label,
+        group: `快捷键 · ${group}`,
+        desc: formatCombo(shortcutStore.getCombo(act.id)),
+        keywords: `${act.label} 快捷键 ${group} ${act.id} 键盘 hotkey`
+      })
+    }
+  }
+  // 关于项
+  items.push({ id: 'set-about-version', name: '版本信息', group: '关于', desc: 'R-Goose Note 版本', keywords: '版本 关于 应用 rgoose goose 版本号' })
+  items.push({ id: 'set-about-platform', name: '平台支持', group: '关于', desc: 'Web / Windows', keywords: '平台 支持 系统 web windows 环境' })
+  items.push({ id: 'set-about-license', name: '版权归属', group: '关于', desc: '基于 Vue 3 的笔记应用', keywords: '版权 归属 vue 作者 开发 license 开源' })
+  return items
+})
+
+// 相关度搜索
+const searchResults = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return []
+  const scored = []
+  for (const item of settingsIndex.value) {
+    const name = item.name.toLowerCase()
+    const desc = (item.desc || '').toLowerCase()
+    const keywords = item.keywords.toLowerCase()
+    let score = 0
+    if (name === q) score = 100
+    else if (name.startsWith(q)) score = 80
+    else if (name.includes(q)) score = 60
+    else if (keywords.includes(q)) score = 40
+    else if (desc.includes(q)) score = 20
+    // 多词匹配加分
+    const words = q.split(/\s+/).filter(w => w.length > 0)
+    for (const w of words) {
+      if (name.includes(w)) score += 10
+      if (keywords.includes(w)) score += 8
+      if (desc.includes(w)) score += 5
+    }
+    if (score > 0) scored.push({ ...item, score })
+  }
+  return scored.sort((a, b) => b.score - a.score).slice(0, 8)
+})
+
+function onSearchInput() {
+  highlightIndex.value = 0
+  showResults.value = searchResults.value.length > 0
+}
+
+function moveHighlight(dir) {
+  if (searchResults.value.length === 0) return
+  highlightIndex.value = (highlightIndex.value + dir + searchResults.value.length) % searchResults.value.length
+}
+
+function selectHighlighted() {
+  const r = searchResults.value[highlightIndex.value]
+  if (r) goToSetting(r)
+}
+
+function closeSearch() {
+  searchQuery.value = ''
+  showResults.value = false
+}
+
+function goToSetting(r) {
+  showResults.value = false
+  searchQuery.value = ''
+  nextTick(() => {
+    const el = document.getElementById(r.id)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.classList.add('search-highlight')
+    setTimeout(() => el.classList.remove('search-highlight'), 2500)
+  })
+}
+
+function handleDocClick(e) {
+  if (!searchInputRef.value?.contains(e.target) && !e.target.closest('.search-dropdown')) {
+    showResults.value = false
+  }
+}
+onMounted(() => { document.addEventListener('click', handleDocClick) })
+onUnmounted(() => { document.removeEventListener('click', handleDocClick) })
 const pendingImportData = ref(null)
 
 const lastSyncTimeStr = computed(() => {
@@ -825,6 +963,9 @@ function resetAllShortcuts() {
 }
 
 .view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 20px 28px;
   border-bottom: 1px solid var(--border-light);
   background: var(--bg-secondary);
@@ -835,6 +976,112 @@ function resetAllShortcuts() {
   font-size: 22px;
   font-weight: 700;
   color: var(--text-primary);
+}
+
+/* ============ 搜索框 ============ */
+.search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-lg);
+  width: 320px;
+  transition: all var(--transition-fast);
+}
+.search-box:focus-within {
+  background: var(--bg-secondary);
+  box-shadow: 0 0 0 1.5px var(--primary-color);
+}
+.search-box:focus-within svg {
+  color: var(--primary-color);
+}
+.search-box svg {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+.search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  color: var(--text-primary);
+  outline: none;
+}
+.search-input:focus-visible { outline: none; }
+
+/* 搜索下拉 */
+.search-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--bg-elevated, var(--bg-secondary));
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 36px -8px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+  z-index: 100;
+  max-height: 380px;
+  overflow-y: auto;
+}
+.search-result-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+.search-result-item:hover,
+.search-result-item.active {
+  background: var(--bg-hover);
+}
+.result-group {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+  padding: 2px 8px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.result-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.result-desc {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-left: auto;
+}
+
+/* 搜索高亮动画 */
+@keyframes searchPulse {
+  0%, 100% { box-shadow: none; }
+  30% { box-shadow: 0 0 0 2.5px var(--primary-color); background: color-mix(in srgb, var(--primary-color) 8%, transparent); }
+}
+.search-highlight {
+  animation: searchPulse 0.5s ease-in-out 3;
+  border-radius: var(--radius-md);
+}
+
+/* 下拉动画 */
+.search-dropdown-enter-active,
+.search-dropdown-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.search-dropdown-enter-from,
+.search-dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 
 .settings-content {

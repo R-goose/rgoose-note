@@ -15,11 +15,19 @@
             <span v-if="counts[f.key]" class="filter-count">{{ counts[f.key] }}</span>
           </button>
         </div>
-        <input
-          v-model="searchText"
-          class="search-input"
-          placeholder="搜索笔记名..."
-        />
+        <div class="search-box">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input
+            v-model="searchText"
+            type="text"
+            placeholder="搜索素材..."
+            class="search-input"
+            @keydown.esc="searchText = ''"
+          />
+        </div>
       </div>
     </div>
 
@@ -41,14 +49,20 @@
       >
         <div class="media-thumb">
           <img v-if="item.type === 'image' && item.url" :src="item.url" alt="" />
-          <div v-else-if="item.type === 'audio'" class="thumb-icon audio-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
-            </svg>
+          <div v-else-if="item.type === 'video' && item.thumbUrl" class="thumb-video-cover">
+            <img :src="item.thumbUrl" alt="" />
+            <span class="play-overlay">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            </span>
           </div>
           <div v-else-if="item.type === 'video'" class="thumb-icon video-icon">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               <rect x="2" y="5" width="14" height="14" rx="2"/><polygon points="23 7 16 12 23 17 23 7"/>
+            </svg>
+          </div>
+          <div v-else-if="item.type === 'audio'" class="thumb-icon audio-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
             </svg>
           </div>
           <span class="type-badge" :class="item.type">{{ typeLabel[item.type] }}</span>
@@ -57,7 +71,11 @@
           <span class="media-source-note" @click.stop="goToNote(item.noteId)" :title="item.noteTitle">
             {{ item.noteTitle }}
           </span>
-          <span class="media-source-type">{{ item.blockType === 'gallery' ? '画廊' : '单图' }}</span>
+          <span class="media-source-type">{{
+            item.type === 'image'
+              ? (item.blockType === 'gallery' ? '画廊' : '单图')
+              : (item.name || typeLabel[item.type] + '频')
+          }}</span>
         </div>
       </div>
     </div>
@@ -150,6 +168,16 @@ async function collectMedia() {
     }
   }))
 
+  // 为视频生成首帧缩略图（并行，但限制并发数）
+  const videoItems = items.filter(i => i.type === 'video' && i.url)
+  const CONCURRENCY = 3
+  for (let i = 0; i < videoItems.length; i += CONCURRENCY) {
+    const batch = videoItems.slice(i, i + CONCURRENCY)
+    await Promise.all(batch.map(async (item) => {
+      item.thumbUrl = await generateVideoThumbnail(item.url)
+    }))
+  }
+
   allItems.value = items
   loading.value = false
 }
@@ -163,8 +191,110 @@ function createItem(ref, type, note, blockType, name) {
     noteTitle: note.title || '未命名',
     blockType,
     name: name || '',
-    url: ''
+    url: '',
+    thumbUrl: ''
   }
+}
+
+// 从视频 URL 提取首帧作为缩略图
+function generateVideoThumbnail(videoUrl) {
+  return new Promise((resolve) => {
+    const video = document.createElement('video')
+    video.muted = true
+    video.playsInline = true
+    video.preload = 'auto'
+    // 必须挂载到 DOM 才能在 Electron/Chromium 中正常解码帧
+    video.style.position = 'fixed'
+    video.style.left = '-9999px'
+    video.style.top = '0'
+    video.style.width = '2px'
+    video.style.height = '2px'
+    video.style.opacity = '0'
+    video.style.pointerEvents = 'none'
+    document.body.appendChild(video)
+
+    let settled = false
+    let timer = null
+    let attempt = 0
+    // 候选取帧时间点（秒）：依次尝试，避开开头纯黑帧（第四项在 metadata 加载后补算）
+    const seekPoints = [0.5, 1, 2]
+
+    const cleanup = () => {
+      if (timer) { clearTimeout(timer); timer = null }
+      video.removeAttribute('src')
+      try { video.load() } catch {}
+      video.remove()
+    }
+    const fail = () => { if (!settled) { settled = true; cleanup(); resolve('') } }
+    const capture = () => {
+      try {
+        const w = video.videoWidth || 320
+        const h = video.videoHeight || 180
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d')
+        // 先填黑底，再绘制视频帧
+        ctx.fillStyle = '#000'
+        ctx.fillRect(0, 0, w, h)
+        ctx.drawImage(video, 0, 0, w, h)
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8)
+        // 简单黑屏检测：统计前若干像素亮度，若全黑则换下一时间点
+        const sample = ctx.getImageData(0, 0, Math.min(32, w), Math.min(32, h)).data
+        let sum = 0
+        for (let i = 0; i < sample.length; i += 4) {
+          sum += sample[i] + sample[i + 1] + sample[i + 2]
+        }
+        const avg = sum / (sample.length / 4 * 3)
+        if (avg < 8 && attempt < seekPoints.length) {
+          // 可能是黑帧，尝试下一个时间点
+          attempt++
+          trySeek()
+          return
+        }
+        settled = true
+        cleanup()
+        resolve(dataUrl)
+      } catch {
+        fail()
+      }
+    }
+    const trySeek = () => {
+      if (settled) return
+      const t = seekPoints[attempt]
+      if (t == null || isNaN(t)) { fail(); return }
+      try { video.currentTime = t } catch { fail() }
+    }
+
+    video.addEventListener('loadedmetadata', () => {
+      // duration 已知，补充一个靠后的取帧点
+      const dur = video.duration
+      if (isFinite(dur) && dur > 0) {
+        seekPoints.push(Math.min(5, dur * 0.2))
+      }
+      // 等待可以播放再 seek，避免 seeked 不触发
+      const onReady = () => {
+        if (settled) return
+        attempt = 0
+        trySeek()
+      }
+      if (video.readyState >= 2) {
+        onReady()
+      } else {
+        video.addEventListener('canplay', onReady, { once: true })
+      }
+    })
+    video.addEventListener('seeked', () => {
+      if (settled) return
+      // 给解码留一点时间，避免抓到上一帧
+      setTimeout(capture, 60)
+    })
+    video.addEventListener('error', fail)
+    timer = setTimeout(fail, 8000)
+
+    video.src = videoUrl
+    try { video.load() } catch {}
+  })
 }
 
 function previewItem(item) {
@@ -191,14 +321,16 @@ onMounted(() => collectMedia())
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 24px;
+  padding: 20px 28px;
   border-bottom: 1px solid var(--border-light);
+  background: var(--bg-secondary);
   flex-shrink: 0;
 }
 
 .view-header h1 {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -206,6 +338,7 @@ onMounted(() => collectMedia())
   display: flex;
   align-items: center;
   gap: 12px;
+  margin-left: auto;
 }
 
 .filter-tabs {
@@ -255,19 +388,34 @@ onMounted(() => collectMedia())
   color: var(--primary-color);
 }
 
-.search-input {
-  width: 180px;
-  padding: 6px 12px;
-  font-size: 13px;
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-md);
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-lg);
+  width: 280px;
+  transition: all var(--transition-fast);
+}
+.search-box:focus-within {
   background: var(--bg-secondary);
+  box-shadow: 0 0 0 1.5px var(--primary-color);
+}
+.search-box:focus-within svg {
+  color: var(--primary-color);
+}
+.search-box svg {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+.search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  font-size: 14px;
   color: var(--text-primary);
   outline: none;
-}
-
-.search-input:focus {
-  border-color: var(--primary-color);
 }
 
 .media-loading,
@@ -325,6 +473,30 @@ onMounted(() => collectMedia())
 .thumb-icon {
   color: var(--text-secondary);
   opacity: 0.5;
+}
+
+.thumb-video-cover {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.thumb-video-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.play-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+  opacity: 0.9;
+}
+.play-overlay svg {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
 }
 
 .type-badge {
