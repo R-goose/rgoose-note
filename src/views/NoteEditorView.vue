@@ -129,6 +129,13 @@
                 </svg>
                 导出为图片
               </div>
+              <div class="export-item" @click="exportAsJSON">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <polyline points="16 18 22 12 16 6"/>
+                  <polyline points="8 6 2 12 8 18"/>
+                </svg>
+                导出为 JSON
+              </div>
             </div>
           </div>
           <button
@@ -1244,6 +1251,16 @@ function autoSizeTitle() {
 }
 const canvasConfig = ref({ zoom: 1, offsetX: 0, offsetY: 0 })
 
+// 兼容旧笔记缺失 canvasConfig 字段的情况，避免 zoom 为 undefined 导致背景消失
+function normalizeCanvasConfig(cfg) {
+  const c = cfg || {}
+  return {
+    zoom: typeof c.zoom === 'number' && c.zoom > 0 ? c.zoom : 1,
+    offsetX: typeof c.offsetX === 'number' ? c.offsetX : 0,
+    offsetY: typeof c.offsetY === 'number' ? c.offsetY : 0
+  }
+}
+
 const gridSize = ref(24)
 const bgType = ref(localStorage.getItem('rgoose_bg_type') || 'grid')
 const bgImage = ref(localStorage.getItem('rgoose_bg_image') || '')
@@ -1425,7 +1442,7 @@ function restoreNoteState(stateJson) {
   if (state.tags) noteStore.setNoteTags(note.value.id, state.tags)
   if (state.canvasConfig) {
     noteStore.updateNote(note.value.id, { canvasConfig: state.canvasConfig })
-    canvasConfig.value = { ...state.canvasConfig }
+    canvasConfig.value = normalizeCanvasConfig(state.canvasConfig)
   }
   syncVersion.value++
   nextTick(() => { suppressContentHistory = false })
@@ -2129,7 +2146,7 @@ onMounted(async () => {
   await noteStore.init()
   if (note.value) {
     noteTitle.value = note.value.title
-    canvasConfig.value = { ...note.value.canvasConfig }
+    canvasConfig.value = normalizeCanvasConfig(note.value.canvasConfig)
   }
   window.addEventListener('keydown', onKeyDown)
   window.addEventListener('keyup', onKeyUp)
@@ -2175,7 +2192,7 @@ watch(() => route.params.id, (newId) => {
     undoStack.value = []
     redoStack.value = []
     noteTitle.value = n.title
-    canvasConfig.value = { ...n.canvasConfig }
+    canvasConfig.value = normalizeCanvasConfig(n.canvasConfig)
   }
 })
 
@@ -3618,6 +3635,38 @@ function exportAsImage() {
   link.download = `${note.value?.title || '笔记'}_${Date.now()}.png`
   link.href = canvas.toDataURL('image/png')
   link.click()
+}
+
+function exportAsJSON() {
+  showExportMenu.value = false
+  if (!note.value) return
+
+  const exportData = {
+    version: 1,
+    type: 'note',
+    exportedAt: Date.now(),
+    note: {
+      id: note.value.id,
+      title: note.value.title,
+      folderId: note.value.folderId,
+      tags: note.value.tags || [],
+      blocks: note.value.blocks || [],
+      connections: note.value.connections || [],
+      canvasConfig: note.value.canvasConfig || { zoom: 1, offsetX: 0, offsetY: 0 },
+      createdAt: note.value.createdAt,
+      updatedAt: note.value.updatedAt
+    }
+  }
+
+  const jsonStr = JSON.stringify(exportData, null, 2)
+  const blob = new Blob([jsonStr], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  const title = note.value.title || '未命名笔记'
+  link.download = `${title}.json`
+  link.href = url
+  link.click()
+  URL.revokeObjectURL(url)
 }
 
 function addTextBlockAt(x, y) {

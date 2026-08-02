@@ -50,6 +50,7 @@ export const usePlanStore = defineStore('plan', () => {
         plans.value = data.plans
       }
       lastSyncTime.value = getLastSyncTime()
+      requestNotificationPermission()
       checkReminders()
       startReminderCheck()
     })()
@@ -114,31 +115,49 @@ export const usePlanStore = defineStore('plan', () => {
     }
   }
 
-  // 用独立 Set 跟踪已提醒的 plan，避免污染持久化数据
-  const remindedPlanIds = new Set()
+  // 用 Set 跟踪每个 plan 的提醒阶段，避免重复提醒
+  // key 格式：`${planId}:pre` / `${planId}:due`
+  const remindedSet = new Set()
 
   function checkReminders() {
     const now = Date.now()
     plans.value.forEach(plan => {
-      if (!plan.completed && plan.reminder && plan.reminder > now - 60000 && plan.reminder <= now + 60000) {
-        if (!remindedPlanIds.has(plan.id)) {
-          showReminder(plan)
-          remindedPlanIds.add(plan.id)
-        }
+      if (plan.completed) return
+      const due = plan.dueDate
+      if (!due) return
+
+      // 阶段1：过期前 5 分钟提醒（提前预警）
+      const fiveMinBefore = due - 5 * 60 * 1000
+      if (!remindedSet.has(`${plan.id}:pre`) && now >= fiveMinBefore && now < due) {
+        showReminder(plan, '即将到期')
+        remindedSet.add(`${plan.id}:pre`)
+      }
+
+      // 阶段2：已过期提醒
+      if (!remindedSet.has(`${plan.id}:due`) && now >= due && now < due + 3600000) {
+        showReminder(plan, '已过期')
+        remindedSet.add(`${plan.id}:due`)
       }
     })
   }
 
-  function showReminder(plan) {
+  function showReminder(plan, phase) {
+    // 组合标题 + 前 15 字内容
+    const desc = (plan.description || '').replace(/<[^>]+>/g, '').trim()
+    const preview = desc ? ' - ' + desc.slice(0, 15) + (desc.length > 15 ? '…' : '') : ''
+    const text = `${plan.title}${preview}`
+
     if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification('计划提醒', {
-        body: plan.title,
-        icon: '/favicon.svg'
+      new Notification(`计划${phase}`, {
+        body: text,
+        icon: '/favicon-32.png',
+        tag: `${plan.id}-${phase}`
       })
     }
-    
+
+    // 应用内事件（供 Toast 监听）
     try {
-      const event = new CustomEvent('plan-reminder', { detail: plan })
+      const event = new CustomEvent('plan-reminder', { detail: { plan, phase, text } })
       window.dispatchEvent(event)
     } catch (e) {}
   }

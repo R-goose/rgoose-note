@@ -19,7 +19,7 @@
 
     <Teleport to="body">
       <Transition name="dtp">
-        <div v-if="open" class="dtp-panel" :style="panelStyle" @click.self="close">
+        <div v-if="open" ref="panelRef" class="dtp-panel" :style="panelStyle" @click.self="close">
           <div class="dtp-header">
             <button type="button" class="dtp-nav" @click="prevMonth">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -107,10 +107,11 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue'])
 
 const root = ref(null)
+const panelRef = ref(null)
 const open = ref(false)
 const panelStyle = ref({})
-const hour = ref('09')
-const minute = ref('00')
+const hour = ref(pad(dayjs().hour()))
+const minute = ref(pad(Math.ceil(dayjs().minute() / 5) * 5 % 60))
 const viewDate = ref(dayjs())
 
 const weekdays = ['日', '一', '二', '三', '四', '五', '六']
@@ -166,7 +167,6 @@ function stepHour(delta) {
   if (v < 0) v = 23
   if (v > 23) v = 0
   hour.value = pad(v)
-  emitValue()
 }
 
 function stepMinute(delta) {
@@ -175,7 +175,6 @@ function stepMinute(delta) {
   if (v > 59) v = 0
   if (v % 5 !== 0) v = Math.round(v / 5) * 5 % 60
   minute.value = pad(v)
-  emitValue()
 }
 
 function toggle() {
@@ -229,16 +228,13 @@ function emitValue() {
     return
   }
   let base = viewDate.value.hour(Number(hour.value)).minute(Number(minute.value)).second(0).millisecond(0)
+  // 不能早于当前时间：如果所选时间在过去，钳制到最近的 5 分钟整点
   const now = dayjs()
   if (base.isBefore(now)) {
     let m = Math.ceil(now.minute() / 5) * 5
     let h = now.hour()
-    if (m >= 60) {
-      m = 0
-      h = (h + 1) % 24
-    }
-    base = now.hour(h).minute(m).second(0).millisecond(0)
-    viewDate.value = base
+    if (m >= 60) { m = 0; h = (h + 1) % 24 }
+    base = base.hour(h).minute(m).second(0).millisecond(0)
     hour.value = pad(h)
     minute.value = pad(m)
   }
@@ -249,6 +245,11 @@ function syncFromModel() {
   if (selectedDate.value) {
     hour.value = pad(selectedDate.value.hour())
     minute.value = pad(selectedDate.value.minute())
+  } else {
+    // 没有已选值时默认当前时间
+    const now = dayjs()
+    hour.value = pad(now.hour())
+    minute.value = pad(Math.ceil(now.minute() / 5) * 5 % 60)
   }
 }
 
@@ -276,8 +277,7 @@ watch([hour, minute], () => {
 
 function handleDocClick(e) {
   if (open.value && !root.value?.contains(e.target)) {
-    const panel = document.querySelector('.dtp-panel')
-    if (!panel || !panel.contains(e.target)) close()
+    if (!panelRef.value || !panelRef.value.contains(e.target)) close()
   }
 }
 

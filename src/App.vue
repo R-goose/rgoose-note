@@ -42,10 +42,20 @@ import { useThemeStore } from '@/stores/theme'
 import { useNoteStore } from '@/stores/note'
 import { usePlanStore } from '@/stores/plan'
 import { useTagStore } from '@/stores/tag'
+import { useToast } from '@/composables/useToast'
 
 const sidebarCollapsed = ref(false)
 const isMaximized = ref(false)
 const showCmdPalette = ref(false)
+const { warning: toastWarning } = useToast()
+
+function handlePlanReminder(e) {
+  const { plan, phase, text } = e.detail
+  if (plan) {
+    const label = phase === '已过期' ? '⏰ 已过期' : '⏰ 即将到期'
+    toastWarning(`${label}：${text}`, 6000)
+  }
+}
 
 function onGlobalKeydown(e) {
   if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
@@ -99,6 +109,7 @@ onMounted(() => {
   }
   window.addEventListener('beforeunload', onBeforeUnload)
   window.addEventListener('keydown', onGlobalKeydown)
+  window.addEventListener('plan-reminder', handlePlanReminder)
 })
 
 onUnmounted(() => {
@@ -111,6 +122,7 @@ onUnmounted(() => {
     onBeforeUnload = null
   }
   window.removeEventListener('keydown', onGlobalKeydown)
+  window.removeEventListener('plan-reminder', handlePlanReminder)
 })
 </script>
 

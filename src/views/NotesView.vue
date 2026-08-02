@@ -1024,6 +1024,11 @@ onUnmounted(() => {
   background: transparent;
   font-size: 14px;
   color: var(--text-primary);
+  outline: none;
+}
+
+.search-input:focus-visible {
+  outline: none;
 }
 
 .notes-content {
@@ -1034,8 +1039,11 @@ onUnmounted(() => {
 }
 
 .notes-bg-decor {
-  position: absolute;
-  inset: 0;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 360px;
   overflow: hidden;
   pointer-events: none;
   z-index: 0;
@@ -1043,48 +1051,62 @@ onUnmounted(() => {
 
 .bg-blob {
   position: absolute;
-  bottom: -120px;
+  bottom: -140px;
   color: var(--primary-color);
   opacity: 0.16;
-  filter: blur(8px);
+  filter: blur(10px);
+  will-change: transform;
 }
 
 .bg-blob-1 {
-  left: 8%;
+  left: 6%;
   width: 340px;
   height: 340px;
-  animation: blobDrift 24s ease-in-out infinite;
+  animation: blobDrift1 22s ease-in-out infinite;
 }
 
 .bg-blob-2 {
-  right: 12%;
-  bottom: -160px;
-  width: 280px;
-  height: 280px;
+  right: 10%;
+  bottom: -180px;
+  width: 300px;
+  height: 300px;
   color: var(--secondary-color);
   opacity: 0.14;
-  animation: blobDrift 30s ease-in-out infinite reverse;
+  animation: blobDrift2 28s ease-in-out infinite;
 }
 
-@keyframes blobDrift {
+@keyframes blobDrift1 {
   0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(20px, -15px) scale(1.08); }
+  33% { transform: translate(28px, -22px) scale(1.1); }
+  66% { transform: translate(-18px, -10px) scale(0.95); }
+}
+
+@keyframes blobDrift2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  40% { transform: translate(-32px, -18px) scale(1.12); }
+  75% { transform: translate(16px, -28px) scale(0.92); }
 }
 
 .bg-rings {
   position: absolute;
-  right: 22%;
-  bottom: -50px;
+  right: 24%;
+  bottom: -40px;
   width: 200px;
   height: 200px;
   color: var(--primary-color);
   opacity: 0.22;
-  animation: ringsSpin 40s linear infinite;
+  animation: ringsSpin 36s linear infinite, ringsFloat 9s ease-in-out infinite;
+  will-change: transform;
 }
 
 @keyframes ringsSpin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+@keyframes ringsFloat {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -12px; }
 }
 
 .bg-grid-lines {
@@ -1102,6 +1124,12 @@ onUnmounted(() => {
   mask-image: linear-gradient(180deg, transparent 0%, #000 55%);
   transform: perspective(400px) rotateX(55deg);
   transform-origin: bottom center;
+  animation: gridPulse 8s ease-in-out infinite;
+}
+
+@keyframes gridPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.32; }
 }
 
 .bg-dots {
@@ -1115,6 +1143,12 @@ onUnmounted(() => {
   opacity: 0.5;
   -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 45%, transparent 100%);
   mask-image: linear-gradient(180deg, transparent 0%, #000 45%, transparent 100%);
+  animation: dotsDrift 18s linear infinite;
+}
+
+@keyframes dotsDrift {
+  from { background-position: 0 0; }
+  to { background-position: 22px 22px; }
 }
 
 .notes-content-inner {

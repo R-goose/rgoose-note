@@ -490,6 +490,9 @@ export const useNoteStore = defineStore('note', () => {
   function updateCanvasConfig(noteId, config) {
     const note = notes.value.find(n => n.id === noteId)
     if (note) {
+      if (!note.canvasConfig || typeof note.canvasConfig !== 'object') {
+        note.canvasConfig = { zoom: 1, offsetX: 0, offsetY: 0 }
+      }
       Object.assign(note.canvasConfig, config)
       note.updatedAt = getTimestamp()
       persist()
