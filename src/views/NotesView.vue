@@ -85,12 +85,18 @@
                 <path d="M0,40 C40,20 80,55 120,35 C160,15 180,45 200,30 L200,60 L0,60 Z" fill="currentColor"/>
               </svg>
               <div class="folder-card-inner">
-                <div class="folder-card-icon">
+                <div class="folder-card-icon" :class="{ 'folder-card-icon-child': folder.parentId }">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
                   </svg>
                 </div>
                 <div class="folder-card-content">
+                  <span v-if="getParentFolderName(folder)" class="folder-card-parent" :title="`位于：${getParentFolderName(folder)}`">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    <span class="folder-card-parent-name">{{ getParentFolderName(folder) }}</span>
+                  </span>
                   <h3 class="folder-card-name">{{ folder.name }}</h3>
                   <p class="folder-card-meta">
                     <span class="folder-card-count">{{ countNotesInFolder(folder.id) }}</span> 篇笔记
@@ -619,6 +625,12 @@ function enterFolder(folderId) {
 
 function countNotesInFolder(folderId) {
   return noteStore.notes.filter(n => !n.deleted && n.folderId === folderId).length
+}
+
+function getParentFolderName(folder) {
+  if (!folder || !folder.parentId) return ''
+  const parent = noteStore.folders.find(f => f.id === folder.parentId && !f.deleted)
+  return parent?.name || ''
 }
 
 const filteredNotes = computed(() => {
@@ -1194,6 +1206,33 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.folder-card-parent {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 100%;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.folder-card-parent svg {
+  flex-shrink: 0;
+  opacity: 0.75;
+}
+
+.folder-card-parent-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.folder-card-icon-child {
+  background: linear-gradient(135deg, var(--secondary-soft, var(--primary-soft)), var(--bg-tertiary));
 }
 
 .folder-card-meta {
