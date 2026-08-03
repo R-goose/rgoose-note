@@ -116,11 +116,8 @@ onMounted(() => {
   const planStore = usePlanStore()
   const tagStore = useTagStore()
   tagStore.init()
-  onBeforeUnload = () => {
-    noteStore.flushPersist()
-    planStore.flushPersist()
-    tagStore.flushPersist()
-  }
+  // v2.0: 数据实时同步到后端，不再需要 beforeunload 刷新
+  onBeforeUnload = () => {}
   window.addEventListener('beforeunload', onBeforeUnload)
   window.addEventListener('keydown', onGlobalKeydown)
   window.addEventListener('plan-reminder', handlePlanReminder)

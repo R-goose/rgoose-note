@@ -1,0 +1,29 @@
+# 构建产物
+target/
+*.jar
+*.war
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+
+# 环境变量与密钥
+.env
+*.env
+
+# 本地存储的媒体文件
+storage/images/
+storage/videos/
+storage/
+
+# 日志
+*.log
+logs/
+
+# 操作系统
+.DS_Store
+Thumbs.db

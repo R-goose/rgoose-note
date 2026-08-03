@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { generateId, getTimestamp, deepClone } from '@/utils'
-import { loadFromStore, getLastSyncTime } from '@/utils/storage'
-import { useNoteStore } from './note'
+import { plansApi } from '@/api/plans'
+import { syncApi } from '@/api/sync'
 
 // 已提醒状态持久化 key：value 是 JSON 数组 [{ key, date }]
 const REMINDED_KEY = 'rgoose_plan_reminded'
@@ -64,29 +64,20 @@ export const usePlanStore = defineStore('plan', () => {
   async function init() {
     if (initPromise) return initPromise
     initPromise = (async () => {
-      const data = await loadFromStore()
-      if (data && data.plans) {
-        plans.value = data.plans
+      try {
+        const data = await syncApi.pull(0)
+        plans.value = data.plans || []
+        lastSyncTime.value = data.serverTime || Date.now()
+      } catch (err) {
+        console.error('[planStore] 从后端加载失败:', err)
+        plans.value = []
       }
-      lastSyncTime.value = getLastSyncTime()
       // 注意：通知权限改为按需询问，init 不再自动请求
       pruneReminded()
       checkReminders()
       startReminderCheck()
     })()
     return initPromise
-  }
-
-  function persist() {
-    // 同步设置 pending 数据，避免延迟导致的竞态条件
-    const noteStore = useNoteStore()
-    noteStore.setPendingPlans(plans.value)
-    noteStore.persist()
-  }
-  function flushPersist() {
-    const noteStore = useNoteStore()
-    noteStore.setPendingPlans(plans.value)
-    noteStore.flushPersist && noteStore.flushPersist()
   }
 
   function createPlan(title, options = {}) {
@@ -106,7 +97,14 @@ export const usePlanStore = defineStore('plan', () => {
       updatedAt: now
     }
     plans.value.unshift(plan)
-    persist()
+
+    plansApi.create(plan)
+      .catch(err => {
+        console.error('创建计划失败:', err)
+        const idx = plans.value.findIndex(p => p.id === plan.id)
+        if (idx >= 0) plans.value.splice(idx, 1)
+      })
+
     return plan
   }
 
@@ -114,15 +112,23 @@ export const usePlanStore = defineStore('plan', () => {
     const plan = plans.value.find(p => p.id === id)
     if (plan) {
       Object.assign(plan, updates, { updatedAt: getTimestamp() })
-      persist()
+
+      plansApi.update(id, { ...updates, updatedAt: plan.updatedAt })
+        .catch(err => console.error('更新计划失败:', err))
     }
   }
 
   function deletePlan(id) {
     const idx = plans.value.findIndex(p => p.id === id)
     if (idx >= 0) {
+      const backup = plans.value[idx]
       plans.value.splice(idx, 1)
-      persist()
+
+      plansApi.delete(id)
+        .catch(err => {
+          console.error('删除计划失败:', err)
+          plans.value.splice(idx, 0, backup)
+        })
     }
   }
 
@@ -131,7 +137,12 @@ export const usePlanStore = defineStore('plan', () => {
     if (plan) {
       plan.completed = !plan.completed
       plan.updatedAt = getTimestamp()
-      persist()
+
+      plansApi.toggleComplete(id)
+        .catch(err => {
+          console.error('切换完成状态失败:', err)
+          plan.completed = !plan.completed
+        })
     }
   }
 
@@ -244,7 +255,6 @@ export const usePlanStore = defineStore('plan', () => {
 
   function replaceAll(newPlans) {
     plans.value = deepClone(newPlans || [])
-    persist()
   }
 
   return {
@@ -255,8 +265,6 @@ export const usePlanStore = defineStore('plan', () => {
     plansByNote,
     lastSyncTime,
     init,
-    persist,
-    flushPersist,
     createPlan,
     updatePlan,
     deletePlan,

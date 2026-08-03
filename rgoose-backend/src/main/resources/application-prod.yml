@@ -1,0 +1,9 @@
+# 生产环境配置覆盖
+spring:
+  datasource:
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:123456}
+
+app:
+  storage:
+    dir: ${STORAGE_DIR:/app/storage}

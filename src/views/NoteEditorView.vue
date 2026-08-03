@@ -2729,6 +2729,18 @@ function onWindowMouseUp() {
     saveCanvasConfig()
   }
   if (draggingBlock.value) {
+    // v2.0: 拖拽结束，将最终位置持久化到后端
+    const draggedId = draggingBlock.value
+    const wasGroupDrag = selectedBlockIds.value.length > 1
+    if (wasGroupDrag) {
+      for (const id of selectedBlockIds.value) {
+        const blk = blocks.value.find(x => x.id === id)
+        if (blk) noteStore.updateBlock(note.value.id, id, { x: blk.x, y: blk.y })
+      }
+    } else {
+      const blk = blocks.value.find(x => x.id === draggedId)
+      if (blk) noteStore.updateBlock(note.value.id, draggedId, { x: blk.x, y: blk.y })
+    }
     hasDragged.value = false
     draggingBlock.value = null
     groupDragStart.value = null
@@ -2972,13 +2984,17 @@ function onWindowMouseMove(e) {
         if (!s) continue
         const blk = blocks.value.find(x => x.id === id)
         if (blk?.locked) continue
-        noteStore.updateBlock(note.value.id, id, { x: s.x + deltaX, y: s.y + deltaY })
+        // 拖拽过程中仅更新本地状态（不触发 API），mouseup 时统一持久化
+        blk.x = s.x + deltaX
+        blk.y = s.y + deltaY
       }
     } else {
       const sx = snapVal(newX)
       const sy = snapVal(newY)
       const { x: finalX, y: finalY } = resolveCollision(draggingBlock.value, sx, sy)
-      noteStore.updateBlock(note.value.id, draggingBlock.value, { x: finalX, y: finalY })
+      // 拖拽过程中仅更新本地状态
+      const dragBlk = blocks.value.find(x => x.id === draggingBlock.value)
+      if (dragBlk) { dragBlk.x = finalX; dragBlk.y = finalY }
     }
     nextTick(() => { connectionTick.value++ })
   }

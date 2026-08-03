@@ -1,183 +1,137 @@
-const isElectron = typeof window !== 'undefined' && window.electronAPI?.isElectron === true
+/**
+ * 媒体文件存储工具
+ * 
+ * v2.0 改为后端 HTTP 方案：
+ * - saveImage: dataUrl → POST /api/images → ref
+ * - resolveImageUrl: ref → 纯字符串拼接 /api/images/{ref}（无异步）
+ * - 删除了 IndexedDB 全部封装
+ */
+import { imagesApi } from '@/api/images'
 
-const DB_NAME = 'rgoose-images'
-const DB_STORE = 'images'
-const DB_VERSION = 1
-
-let dbPromise = null
-
-function openDB() {
-  if (dbPromise) return dbPromise
-  dbPromise = new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION)
-    req.onupgradeneeded = () => {
-      const db = req.result
-      if (!db.objectStoreNames.contains(DB_STORE)) {
-        db.createObjectStore(DB_STORE)
-      }
-    }
-    req.onsuccess = () => resolve(req.result)
-    req.onerror = () => reject(req.error)
-  })
-  return dbPromise
-}
-
-function idbGet(key) {
-  return openDB().then(db => new Promise((resolve, reject) => {
-    const tx = db.transaction(DB_STORE, 'readonly')
-    const req = tx.objectStore(DB_STORE).get(key)
-    req.onsuccess = () => resolve(req.result)
-    req.onerror = () => reject(req.error)
-  }))
-}
-
-function idbPut(key, value) {
-  return openDB().then(db => new Promise((resolve, reject) => {
-    const tx = db.transaction(DB_STORE, 'readwrite')
-    tx.objectStore(DB_STORE).put(value, key)
-    tx.oncomplete = () => resolve(true)
-    tx.onerror = () => reject(tx.error)
-  }))
-}
-
-function idbDelete(key) {
-  return openDB().then(db => new Promise((resolve, reject) => {
-    const tx = db.transaction(DB_STORE, 'readwrite')
-    tx.objectStore(DB_STORE).delete(key)
-    tx.oncomplete = () => resolve(true)
-    tx.onerror = () => reject(tx.error)
-  }))
-}
-
-function idbKeys() {
-  return openDB().then(db => new Promise((resolve, reject) => {
-    const tx = db.transaction(DB_STORE, 'readonly')
-    const req = tx.objectStore(DB_STORE).getAllKeys()
-    req.onsuccess = () => resolve(req.result)
-    req.onerror = () => reject(req.error)
-  }))
-}
-
-function getExtFromDataUrl(dataUrl) {
-  const m = dataUrl.match(/^data:(?:image|audio|video)\/([\w+]+);base64/)
-  if (m) {
-    const ext = m[1].replace('+xml', '')
-    return ext === 'jpeg' ? 'jpg' : ext
-  }
-  return 'png'
-}
-
+/**
+ * 保存 dataUrl 到后端，返回 ref
+ */
 export async function saveImage(dataUrl) {
   if (!dataUrl || typeof dataUrl !== 'string') return dataUrl
   if (!/^data:(image|audio|video)\//.test(dataUrl)) return dataUrl
 
-  const ext = getExtFromDataUrl(dataUrl)
-
-  if (isElectron) {
-    const res = await window.electronAPI.saveImage(dataUrl, ext)
-    if (res?.ok) return res.path
-    console.error('saveImage failed:', res?.error)
+  try {
+    return await imagesApi.uploadFromDataUrl(dataUrl)
+  } catch (err) {
+    console.error('saveImage failed:', err)
     return dataUrl
-  } else {
-    const isMedia = /^data:(audio|video)\//.test(dataUrl)
-    const prefix = isMedia ? 'media_' : 'img_'
-    const id = `${prefix}${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`
-    await idbPut(id, dataUrl)
-    return id
   }
 }
 
-const _urlCache = new Map()
-export async function resolveImageUrl(relativePath) {
+/**
+ * 将 ref 解析为可用的 URL（纯字符串拼接，无需网络请求）
+ * 后端直接通过 GET /api/images/{ref} 返回图片
+ */
+export function resolveImageUrl(relativePath) {
   if (!relativePath || typeof relativePath !== 'string') return relativePath
+  // 已经是完整 URL（data:、http、blob:）或本地路径，直接返回
   if (relativePath.startsWith('data:') || relativePath.startsWith('http') || relativePath.startsWith('blob:')) {
     return relativePath
   }
   if (relativePath.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(relativePath)) {
     return relativePath
   }
+  // 不是 ref 格式，原样返回
   if (!relativePath.startsWith('img_') && !relativePath.startsWith('media_')) return relativePath
-
-  if (_urlCache.has(relativePath)) {
-    const cached = _urlCache.get(relativePath)
-    return cached
-  }
-
-  let url
-  if (isElectron) {
-    url = await window.electronAPI.resolveImagePath(relativePath)
-  } else {
-    const data = await idbGet(relativePath)
-    url = data || ''
-  }
-
-  _urlCache.set(relativePath, url)
-  return url
+  // 拼接后端 URL
+  return imagesApi.url(relativePath)
 }
 
+/**
+ * 同步版本（与异步版行为一致，都是纯字符串拼接）
+ */
 export function resolveImageUrlSync(relativePath) {
-  if (!relativePath || typeof relativePath !== 'string') return relativePath
-  if (relativePath.startsWith('data:') || relativePath.startsWith('http') || relativePath.startsWith('blob:')) {
-    return relativePath
-  }
-  if (isElectron && relativePath.startsWith('img_')) {
-    if (_urlCache.has(relativePath)) return _urlCache.get(relativePath)
-    return relativePath
-  }
-  if (!relativePath.startsWith('img_')) return relativePath
-  if (_urlCache.has(relativePath)) return _urlCache.get(relativePath)
-  return ''
+  return resolveImageUrl(relativePath)
 }
 
+/**
+ * 预加载图片（现在只需让浏览器缓存预热）
+ */
 export async function preloadImages(relativePaths) {
-  const valid = relativePaths.filter(p => p && typeof p === 'string' && p.startsWith('img_'))
-  await Promise.all(valid.map(p => resolveImageUrl(p)))
+  const valid = relativePaths.filter(p => p && typeof p === 'string' && (p.startsWith('img_') || p.startsWith('media_')))
+  // 触发浏览器下载缓存
+  await Promise.all(valid.map(p => {
+    const url = resolveImageUrl(p)
+    return new Promise((resolve) => {
+      const img = new Image()
+      img.onload = resolve
+      img.onerror = resolve
+      img.src = url
+    })
+  }))
 }
 
+/**
+ * 删除图片
+ */
 export async function deleteImage(relativePath) {
-  if (!relativePath || !relativePath.startsWith('img_')) return
-  _urlCache.delete(relativePath)
-  if (isElectron) {
-    await window.electronAPI.deleteImage(relativePath)
-  } else {
-    await idbDelete(relativePath)
+  if (!relativePath || (!relativePath.startsWith('img_') && !relativePath.startsWith('media_'))) return
+  try {
+    await imagesApi.delete(relativePath)
+  } catch (err) {
+    console.error('deleteImage failed:', err)
   }
 }
 
+/**
+ * 获取所有图片 ref（孤儿清理用）
+ */
 export async function getAllImageRefs() {
-  if (isElectron) {
-    return await window.electronAPI.listImages()
-  } else {
-    return await idbKeys()
+  try {
+    return await imagesApi.listRefs()
+  } catch (err) {
+    console.error('getAllImageRefs failed:', err)
+    return []
   }
 }
 
+/**
+ * 判断值是否为图片引用
+ */
 export function isImageRef(value) {
   return typeof value === 'string' && (value.startsWith('img_') || value.startsWith('media_'))
 }
 
+/**
+ * 将 ref 转为 dataUrl（导出时用）
+ */
 export async function getImageAsDataUrl(relativePath) {
   if (!relativePath || (!relativePath.startsWith('img_') && !relativePath.startsWith('media_'))) return relativePath
-  if (isElectron) {
-    return await window.electronAPI.readImage(relativePath)
-  } else {
-    return await idbGet(relativePath)
+  try {
+    const blob = await imagesApi.download(relativePath)
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result)
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
+  } catch (err) {
+    console.error('getImageAsDataUrl failed:', err)
+    return null
   }
 }
 
+/**
+ * 导入图片（从 dataUrl 保存，返回新 ref）
+ */
 export async function importImageBundle(fileName, dataUrl) {
   if (!fileName || !dataUrl) return null
-  const cleanName = fileName.startsWith('img_') ? fileName : `img_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${fileName.split('.').pop() || 'png'}`
-  if (isElectron) {
-    const ext = getExtFromDataUrl(dataUrl)
-    const res = await window.electronAPI.saveImage(dataUrl, ext)
-    return res?.ok ? res.path : cleanName
-  } else {
-    await idbPut(cleanName, dataUrl)
-    return cleanName
+  try {
+    return await imagesApi.uploadFromDataUrl(dataUrl)
+  } catch (err) {
+    console.error('importImageBundle failed:', err)
+    return null
   }
 }
 
+/**
+ * 从数据中收集所有图片 ref（用于导出/备份）
+ */
 export function collectImageRefsFromData(data) {
   const refs = new Set()
   if (!data?.notes) return refs
@@ -198,6 +152,9 @@ export function collectImageRefsFromData(data) {
   return refs
 }
 
+/**
+ * 构建 ref → dataUrl 的映射（导出时用）
+ */
 export async function buildImageBundle(refs) {
   const bundle = {}
   for (const ref of refs) {
@@ -207,6 +164,9 @@ export async function buildImageBundle(refs) {
   return bundle
 }
 
+/**
+ * 恢复图片包（导入时用）
+ */
 export async function restoreImageBundle(bundle, oldToNewMap) {
   for (const [oldRef, dataUrl] of Object.entries(bundle)) {
     const newRef = await importImageBundle(oldRef, dataUrl)
@@ -218,6 +178,9 @@ export async function restoreImageBundle(bundle, oldToNewMap) {
   }
 }
 
+/**
+ * 重映射数据中的图片引用（导入时用）
+ */
 export function remapImageRefsInData(data, refMap) {
   if (!data?.notes || Object.keys(refMap).length === 0) return data
   for (const note of data.notes) {

@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { generateId, getTimestamp, deepClone } from '@/utils'
-import { loadFromStore, getLastSyncTime } from '@/utils/storage'
-import { useNoteStore } from './note'
+import { tagsApi } from '@/api/tags'
+import { syncApi } from '@/api/sync'
 
 export const TAG_PRESET_COLORS = [
   '#6bbd8f', '#5a9e7a', '#4a90d9', '#9b7bd6',
@@ -26,25 +26,16 @@ export const useTagStore = defineStore('tag', () => {
   async function init() {
     if (initPromise) return initPromise
     initPromise = (async () => {
-      const data = await loadFromStore()
-      if (data && Array.isArray(data.tags)) {
-        tags.value = data.tags
+      try {
+        const data = await syncApi.pull(0)
+        tags.value = data.tags || []
+        lastSyncTime.value = data.serverTime || Date.now()
+      } catch (err) {
+        console.error('[tagStore] 从后端加载失败:', err)
+        tags.value = []
       }
-      lastSyncTime.value = getLastSyncTime()
     })()
     return initPromise
-  }
-
-  function persist() {
-    // 同步设置 pending 数据，避免延迟导致的竞态条件
-    const noteStore = useNoteStore()
-    noteStore.setPendingTags(tags.value)
-    noteStore.persist()
-  }
-  function flushPersist() {
-    const noteStore = useNoteStore()
-    noteStore.setPendingTags(tags.value)
-    noteStore.flushPersist && noteStore.flushPersist()
   }
 
   function getTag(id) {
@@ -65,13 +56,21 @@ export const useTagStore = defineStore('tag', () => {
       updatedAt: now
     }
     tags.value.push(tag)
-    persist()
+
+    tagsApi.create(tag)
+      .catch(err => {
+        console.error('创建标签失败:', err)
+        const idx = tags.value.findIndex(t => t.id === tag.id)
+        if (idx >= 0) tags.value.splice(idx, 1)
+      })
+
     return tag
   }
 
   function updateTag(id, updates) {
     const tag = tags.value.find(t => t.id === id)
     if (!tag) return
+    const backup = { ...tag }
     if (updates.name) {
       const trimmed = updates.name.trim()
       if (!trimmed) return
@@ -81,33 +80,48 @@ export const useTagStore = defineStore('tag', () => {
     }
     if (updates.color) tag.color = updates.color
     tag.updatedAt = getTimestamp()
-    persist()
+
+    tagsApi.update(id, { ...updates, updatedAt: tag.updatedAt })
+      .catch(err => {
+        console.error('更新标签失败:', err)
+        Object.assign(tag, backup)
+      })
   }
 
   function deleteTag(id) {
     const idx = tags.value.findIndex(t => t.id === id)
     if (idx < 0) return
+    const backup = tags.value[idx]
     tags.value.splice(idx, 1)
-    const noteStore = useNoteStore()
-    noteStore.notes.forEach(n => {
-      if (Array.isArray(n.tags) && n.tags.includes(id)) {
-        n.tags = n.tags.filter(t => t !== id)
-        n.updatedAt = getTimestamp()
-      }
+
+    // 前端同步清理 notes / folders 的 tags 引用
+    // 后端也会做这个清理，前端只需保持本地一致
+    // 使用动态 import 避免循环依赖
+    import('./note').then(({ useNoteStore }) => {
+      const noteStore = useNoteStore()
+      noteStore.notes.forEach(n => {
+        if (Array.isArray(n.tags) && n.tags.includes(id)) {
+          n.tags = n.tags.filter(t => t !== id)
+          n.updatedAt = getTimestamp()
+        }
+      })
+      noteStore.folders.forEach(f => {
+        if (Array.isArray(f.tags) && f.tags.includes(id)) {
+          f.tags = f.tags.filter(t => t !== id)
+          f.updatedAt = getTimestamp()
+        }
+      })
     })
-    noteStore.folders.forEach(f => {
-      if (Array.isArray(f.tags) && f.tags.includes(id)) {
-        f.tags = f.tags.filter(t => t !== id)
-        f.updatedAt = getTimestamp()
-      }
-    })
-    persist()
-    noteStore.persist()
+
+    tagsApi.delete(id)
+      .catch(err => {
+        console.error('删除标签失败:', err)
+        tags.value.splice(idx, 0, backup)
+      })
   }
 
   function replaceAll(newTags) {
     tags.value = deepClone(newTags || [])
-    persist()
   }
 
   return {
@@ -115,8 +129,6 @@ export const useTagStore = defineStore('tag', () => {
     sortedTags,
     lastSyncTime,
     init,
-    persist,
-    flushPersist,
     getTag,
     createTag,
     updateTag,

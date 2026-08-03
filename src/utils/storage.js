@@ -1,8 +1,21 @@
+/**
+ * 本地存储工具
+ * 
+ * v2.0 数据存储已迁移到后端（MySQL via API）
+ * 本文件保留以下用途：
+ * - localStorage 偏好设置（loadFromStorage / saveToStorage）
+ * - JSON 导入导出（exportAsJSON / importFromJSON）
+ * - 数据合并（mergeData）
+ *
+ * 已废弃（保留空壳避免编译错误，实际不再使用）：
+ * - loadFromStore / saveToStore / migrateIfNeeded — 数据 I/O 已由 API 层接管
+ */
+import { syncApi } from '@/api/sync'
+
 const STORAGE_KEY = 'rgoose_note_data'
 const LAST_SYNC_KEY = 'rgoose_note_last_sync'
-const MIGRATED_KEY = 'rgoose_data_migrated_to_file'
 
-const isElectron = typeof window !== 'undefined' && window.electronAPI?.isElectron === true
+// ==================== localStorage 偏好（保留） ====================
 
 export function loadFromStorage() {
   try {
@@ -19,7 +32,6 @@ export function loadFromStorage() {
 export function saveToStorage(data) {
   let json
   try {
-    // 直接序列化，避免 JSON.parse(JSON.stringify()) 双重开销
     json = JSON.stringify(data)
   } catch (e) {
     console.error('Failed to serialize data:', e)
@@ -30,52 +42,10 @@ export function saveToStorage(data) {
     localStorage.setItem(LAST_SYNC_KEY, String(Date.now()))
     return { ok: true }
   } catch (e) {
-    // QuotaExceededError / SecurityError 等：存储空间不足或被禁用
     const isQuota = e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22 || e.code === 1014)
     console.error('Failed to save to storage:', e)
     return { ok: false, reason: isQuota ? 'quota' : 'unknown', error: e }
   }
-}
-
-export async function loadFromStore() {
-  if (isElectron) {
-    try {
-      const data = await window.electronAPI.readDataFile()
-      if (data) return data
-    } catch (e) {
-      console.error('Failed to read data file:', e)
-    }
-  }
-  return loadFromStorage()
-}
-
-export async function saveToStore(data) {
-  if (isElectron) {
-    try {
-      // electronAPI 内部会处理序列化，这里直接传原对象
-      const ok = await window.electronAPI.writeDataFile(data)
-      if (ok) return { ok: true }
-    } catch (e) {
-      console.error('Failed to write data file:', e)
-    }
-  }
-  // 非 Electron 或文件写入失败时回退到 localStorage
-  return saveToStorage(data)
-}
-
-export async function migrateIfNeeded() {
-  if (!isElectron) return false
-  if (localStorage.getItem(MIGRATED_KEY)) return false
-
-  const fileData = await loadFromStore()
-  const localData = loadFromStorage()
-
-  if (localData && (!fileData || !fileData.notes?.length)) {
-    await saveToStore(localData)
-    console.log('[migrate] localStorage → 文件 已迁移')
-  }
-  localStorage.setItem(MIGRATED_KEY, '1')
-  return true
 }
 
 export function getLastSyncTime() {
@@ -83,17 +53,39 @@ export function getLastSyncTime() {
   return time ? parseInt(time, 10) : 0
 }
 
-export async function clearStore() {
-  if (isElectron) {
-    try {
-      await window.electronAPI.writeDataFile({ notes: [], folders: [], plans: [], updatedAt: Date.now() })
-    } catch (e) {
-      console.error('Failed to clear data file:', e)
-    }
+// ==================== 已废弃的数据 I/O（保留空壳） ====================
+
+/** @deprecated v2.0 数据加载由 store.init() → syncApi.pull() 接管 */
+export async function loadFromStore() {
+  console.warn('[deprecated] loadFromStore 已废弃，数据加载由 store.init() 接管')
+  try {
+    return await syncApi.pull(0)
+  } catch {
+    return null
   }
+}
+
+/** @deprecated v2.0 数据保存由 store 写操作 → API 接管 */
+export async function saveToStore(data) {
+  console.warn('[deprecated] saveToStore 已废弃，数据保存由 store 写操作接管')
+  try {
+    await syncApi.importAll(data)
+    return { ok: true }
+  } catch (e) {
+    console.error('saveToStore failed:', e)
+    return { ok: false, reason: 'api' }
+  }
+}
+
+/** @deprecated v2.0 无迁移需求 */
+export async function migrateIfNeeded() {
+  return false
+}
+
+export async function clearStore() {
+  // 清空 localStorage 残留数据
   localStorage.removeItem(STORAGE_KEY)
   localStorage.removeItem(LAST_SYNC_KEY)
-  localStorage.removeItem(MIGRATED_KEY)
 }
 
 export function clearStorage() {
@@ -102,15 +94,10 @@ export function clearStorage() {
 }
 
 export async function getStorageInfo() {
-  if (isElectron) {
-    try {
-      return await window.electronAPI.getStorageInfo()
-    } catch (e) {
-      return { type: 'electron-fallback', dataFile: '未知' }
-    }
-  }
-  return { type: 'web', dataFile: '浏览器本地存储 (localStorage)' }
+  return { type: 'cloud', backend: 'MySQL via Spring Boot API' }
 }
+
+// ==================== JSON 导入导出（保留） ====================
 
 export function exportAsJSON(data) {
   const jsonStr = JSON.stringify(data, null, 2)
@@ -138,6 +125,8 @@ export function importFromJSON(file) {
     reader.readAsText(file)
   })
 }
+
+// ==================== 数据合并 LWW（保留） ====================
 
 export function mergeData(localData, remoteData) {
   if (!remoteData) return localData

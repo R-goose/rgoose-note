@@ -654,11 +654,18 @@ async function confirmClearCache() {
   showClearCacheConfirm.value = false
   // 先停止计划提醒定时器，避免对清空后的数据继续跑空检测
   planStore.dispose?.()
-  await noteStore.clearCache()
-  noteStore.replaceAll([])
-  noteStore.replaceAllFolders([])
-  planStore.replaceAll([])
-  toastSuccess('本地缓存已清除')
+  try {
+    // v2.0: 调用后端清空全部数据
+    await syncApi.clearAll()
+    await noteStore.clearCache()
+    noteStore.replaceAll([])
+    noteStore.replaceAllFolders([])
+    planStore.replaceAll([])
+    tagStore.replaceAll([])
+    toastSuccess('所有数据已清除')
+  } catch (err) {
+    toastError('清除失败：' + (err?.message || '未知错误'))
+  }
   await loadStorageSize()
 }
 
@@ -825,7 +832,6 @@ async function handleImport() {
           noteSpec.blocks.forEach(b => noteStore.addBlock(created.id, b))
           const rootFolder = noteStore.ensureSystemRootFolder()
           if (rootFolder) noteStore.moveNoteToFolder(created.id, rootFolder.id)
-          noteStore.flushPersist()
           toastSuccess(`已根据 JSON 生成新笔记「${noteSpec.title}」，已放入「根目录」文件夹`)
           return
         }
@@ -885,12 +891,8 @@ async function confirmImport() {
     const importedNoteIds = new Set(noteStore.notes.filter(n => !beforeNoteIds.has(n.id)).map(n => n.id))
     const orphanCount = placeOrphanNotesIntoRoot(importedNoteIds)
 
-    noteStore.setPendingPlans(mergedData.plans || [])
-    noteStore.setPendingTags(mergedData.tags || [])
-    await saveToStore(mergedData)
-    noteStore.flushPersist()
-    planStore.flushPersist()
-    tagStore.flushPersist()
+    // v2.0: 通过后端 API 导入合并后的数据
+    await syncApi.importAll(mergedData)
 
     showImportConfirm.value = false
     pendingImportData.value = null
