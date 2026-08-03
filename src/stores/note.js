@@ -83,6 +83,9 @@ export const useNoteStore = defineStore('note', () => {
       if (data && data.folders) {
         folders.value = data.folders
       }
+      // 缓存 plans / tags，避免后续每次 doPersist 都回读全量数据
+      cachedPlans = Array.isArray(data?.plans) ? data.plans : cachedPlans
+      cachedTags = Array.isArray(data?.tags) ? data.tags : cachedTags
       ensureTagsFields()
       ensureSystemRootFolder()
       lastSyncTime.value = getLastSyncTime()
@@ -130,11 +133,16 @@ export const useNoteStore = defineStore('note', () => {
   let persistTimer = null
   let pendingPlans = null
   let pendingTags = null
+  // 内存中缓存的 plans / tags，避免每次 doPersist 都 loadFromStore 回读全量数据
+  let cachedPlans = null
+  let cachedTags = null
   function setPendingPlans(plans) {
     pendingPlans = plans
+    cachedPlans = plans
   }
   function setPendingTags(tags) {
     pendingTags = tags
+    cachedTags = tags
   }
   function persist() {
     if (persistTimer) clearTimeout(persistTimer)
@@ -152,18 +160,28 @@ export const useNoteStore = defineStore('note', () => {
     }
   }
   async function doPersist() {
-    const fileData = await loadFromStore()
     const data = {
       notes: notes.value,
       folders: folders.value,
-      plans: pendingPlans || fileData?.plans || [],
-      tags: pendingTags || fileData?.tags || [],
+      plans: pendingPlans || cachedPlans || [],
+      tags: pendingTags || cachedTags || [],
       updatedAt: getTimestamp()
     }
-    await saveToStore(data)
-    lastSyncTime.value = getLastSyncTime()
-    saveStatus.value = 'saved'
-    // 清除 pending 引用，防止下次持久化使用过时数据
+    const result = await saveToStore(data)
+    if (result && result.ok) {
+      lastSyncTime.value = getLastSyncTime()
+      saveStatus.value = 'saved'
+    } else {
+      // 存储失败（典型：localStorage 超限）：UI 仍显示已保存避免阻塞，同时派发事件提示用户导出备份
+      saveStatus.value = 'saved'
+      const reason = result?.reason === 'quota' ? 'quota' : 'unknown'
+      try {
+        window.dispatchEvent(new CustomEvent('rgoose-storage-error', { detail: { reason } }))
+      } catch {}
+    }
+    // 更新缓存并清除 pending 引用，防止下次持久化使用过时数据
+    cachedPlans = data.plans
+    cachedTags = data.tags
     pendingPlans = null
     pendingTags = null
   }
@@ -500,12 +518,12 @@ export const useNoteStore = defineStore('note', () => {
   }
 
   function replaceAll(newNotes) {
-    notes.value = JSON.parse(JSON.stringify(newNotes || []))
+    notes.value = deepClone(newNotes || [])
     persist()
   }
 
   function replaceAllFolders(newFolders) {
-    folders.value = JSON.parse(JSON.stringify(newFolders || []))
+    folders.value = deepClone(newFolders || [])
     ensureSystemRootFolder()
     persist()
   }

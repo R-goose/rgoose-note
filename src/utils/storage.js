@@ -17,13 +17,23 @@ export function loadFromStorage() {
 }
 
 export function saveToStorage(data) {
+  let json
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-    localStorage.setItem(LAST_SYNC_KEY, String(Date.now()))
-    return true
+    // 直接序列化，避免 JSON.parse(JSON.stringify()) 双重开销
+    json = JSON.stringify(data)
   } catch (e) {
+    console.error('Failed to serialize data:', e)
+    return { ok: false, reason: 'serialize' }
+  }
+  try {
+    localStorage.setItem(STORAGE_KEY, json)
+    localStorage.setItem(LAST_SYNC_KEY, String(Date.now()))
+    return { ok: true }
+  } catch (e) {
+    // QuotaExceededError / SecurityError 等：存储空间不足或被禁用
+    const isQuota = e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22 || e.code === 1014)
     console.error('Failed to save to storage:', e)
-    return false
+    return { ok: false, reason: isQuota ? 'quota' : 'unknown', error: e }
   }
 }
 
@@ -40,16 +50,17 @@ export async function loadFromStore() {
 }
 
 export async function saveToStore(data) {
-  const plain = JSON.parse(JSON.stringify(data))
   if (isElectron) {
     try {
-      const ok = await window.electronAPI.writeDataFile(plain)
-      if (ok) return true
+      // electronAPI 内部会处理序列化，这里直接传原对象
+      const ok = await window.electronAPI.writeDataFile(data)
+      if (ok) return { ok: true }
     } catch (e) {
       console.error('Failed to write data file:', e)
     }
   }
-  return saveToStorage(plain)
+  // 非 Electron 或文件写入失败时回退到 localStorage
+  return saveToStorage(data)
 }
 
 export async function migrateIfNeeded() {

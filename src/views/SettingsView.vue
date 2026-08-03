@@ -272,7 +272,7 @@
           <div id="set-about-version" class="setting-item">
             <div class="setting-info">
               <div class="setting-name brand-name">R-Goose Note</div>
-              <div class="setting-desc">版本 1.3.1</div>
+              <div class="setting-desc">版本 1.3.3</div>
             </div>
           </div>
           <div id="set-about-platform" class="setting-item">
@@ -652,9 +652,12 @@ async function handleClearCache() {
 
 async function confirmClearCache() {
   showClearCacheConfirm.value = false
+  // 先停止计划提醒定时器，避免对清空后的数据继续跑空检测
+  planStore.dispose?.()
   await noteStore.clearCache()
   noteStore.replaceAll([])
   noteStore.replaceAllFolders([])
+  planStore.replaceAll([])
   toastSuccess('本地缓存已清除')
   await loadStorageSize()
 }
@@ -767,11 +770,11 @@ async function handleExport() {
     console.error('buildImageBundle failed:', e)
   }
 
-  const payload = JSON.parse(JSON.stringify({
+  const payload = {
     ...baseData,
     images: imageBundle,
     imageCount: Object.keys(imageBundle).length
-  }))
+  }
 
   try {
     if (window.electronAPI?.exportData) {

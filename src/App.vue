@@ -47,13 +47,27 @@ import { useToast } from '@/composables/useToast'
 const sidebarCollapsed = ref(false)
 const isMaximized = ref(false)
 const showCmdPalette = ref(false)
-const { warning: toastWarning } = useToast()
+const { warning: toastWarning, error: toastError } = useToast()
 
 function handlePlanReminder(e) {
   const { plan, phase, text } = e.detail
   if (plan) {
     const label = phase === '已过期' ? '⏰ 已过期' : '⏰ 即将到期'
     toastWarning(`${label}：${text}`, 6000)
+  }
+}
+
+// 存储失败（如 localStorage 超限）提示：防抖，避免连续保存刷屏
+let lastStorageErrorAt = 0
+function handleStorageError(e) {
+  const now = Date.now()
+  if (now - lastStorageErrorAt < 10000) return
+  lastStorageErrorAt = now
+  const reason = e?.detail?.reason
+  if (reason === 'quota') {
+    toastError('本地存储空间不足，最新改动可能未保存，请先导出备份再清理数据', 8000)
+  } else {
+    toastError('数据保存失败，请稍后重试或导出备份', 6000)
   }
 }
 
@@ -110,6 +124,7 @@ onMounted(() => {
   window.addEventListener('beforeunload', onBeforeUnload)
   window.addEventListener('keydown', onGlobalKeydown)
   window.addEventListener('plan-reminder', handlePlanReminder)
+  window.addEventListener('rgoose-storage-error', handleStorageError)
 })
 
 onUnmounted(() => {
@@ -123,6 +138,7 @@ onUnmounted(() => {
   }
   window.removeEventListener('keydown', onGlobalKeydown)
   window.removeEventListener('plan-reminder', handlePlanReminder)
+  window.removeEventListener('rgoose-storage-error', handleStorageError)
 })
 </script>
 

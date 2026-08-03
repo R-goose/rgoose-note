@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { generateId, getTimestamp } from '@/utils'
+import { generateId, getTimestamp, deepClone } from '@/utils'
 import { loadFromStore, getLastSyncTime } from '@/utils/storage'
 import { useNoteStore } from './note'
 
@@ -106,7 +106,7 @@ export const useTagStore = defineStore('tag', () => {
   }
 
   function replaceAll(newTags) {
-    tags.value = JSON.parse(JSON.stringify(newTags || []))
+    tags.value = deepClone(newTags || [])
     persist()
   }
 

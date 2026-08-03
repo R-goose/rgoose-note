@@ -1,12 +1,31 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { generateId, getTimestamp } from '@/utils'
+import { generateId, getTimestamp, deepClone } from '@/utils'
 import { loadFromStore, getLastSyncTime } from '@/utils/storage'
 import { useNoteStore } from './note'
+
+// 已提醒状态持久化 key：value 是 JSON 数组 [{ key, date }]
+const REMINDED_KEY = 'rgoose_plan_reminded'
+
+function loadReminded() {
+  try {
+    const raw = localStorage.getItem(REMINDED_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+function saveReminded(list) {
+  try {
+    localStorage.setItem(REMINDED_KEY, JSON.stringify(list))
+  } catch {}
+}
 
 export const usePlanStore = defineStore('plan', () => {
   const plans = ref([])
   const lastSyncTime = ref(0)
+  // 统一的时间基准，每分钟刷新，让 computed 能感知跨午夜
+  const nowTick = ref(Date.now())
 
   const sortedPlans = computed(() => {
     return [...plans.value].sort((a, b) => {
@@ -17,7 +36,7 @@ export const usePlanStore = defineStore('plan', () => {
   })
 
   const todayPlans = computed(() => {
-    const now = new Date()
+    const now = new Date(nowTick.value)
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
     const endOfDay = startOfDay + 24 * 60 * 60 * 1000
     return plans.value.filter(p => {
@@ -28,7 +47,7 @@ export const usePlanStore = defineStore('plan', () => {
   })
 
   const overduePlans = computed(() => {
-    const now = Date.now()
+    const now = nowTick.value
     return plans.value.filter(p => {
       if (p.completed) return false
       if (!p.dueDate) return false
@@ -50,7 +69,8 @@ export const usePlanStore = defineStore('plan', () => {
         plans.value = data.plans
       }
       lastSyncTime.value = getLastSyncTime()
-      requestNotificationPermission()
+      // 注意：通知权限改为按需询问，init 不再自动请求
+      pruneReminded()
       checkReminders()
       startReminderCheck()
     })()
@@ -115,12 +135,48 @@ export const usePlanStore = defineStore('plan', () => {
     }
   }
 
-  // 用 Set 跟踪每个 plan 的提醒阶段，避免重复提醒
-  // key 格式：`${planId}:pre` / `${planId}:due`
-  const remindedSet = new Set()
+  // 已提醒状态：持久化到 localStorage，避免刷新后重复提醒
+  // 元素结构：{ key: `${planId}:${phase}`, date: 'YYYY-MM-DD' }
+  let remindedList = loadReminded()
+
+  function todayStr(ts = Date.now()) {
+    const d = new Date(ts)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+
+  // 清理已删除计划 / 非 today 的记录，避免列表无限增长
+  function pruneReminded() {
+    const today = todayStr()
+    const validKeys = new Set(plans.value.map(p => p.id))
+    const before = remindedList.length
+    remindedList = remindedList.filter(r =>
+      r.date === today && validKeys.has(r.key.split(':')[0])
+    )
+    if (remindedList.length !== before) saveReminded(remindedList)
+  }
+
+  function hasReminded(planId, phase) {
+    const today = todayStr()
+    return remindedList.some(r => r.key === `${planId}:${phase}` && r.date === today)
+  }
+
+  function markReminded(planId, phase) {
+    const key = `${planId}:${phase}`
+    const today = todayStr()
+    if (!remindedList.some(r => r.key === key && r.date === today)) {
+      remindedList.push({ key, date: today })
+      saveReminded(remindedList)
+    }
+  }
 
   function checkReminders() {
-    const now = Date.now()
+    // 刷新统一时间基准，computed 也能随之更新
+    nowTick.value = Date.now()
+    const now = nowTick.value
+    const today = todayStr(now)
+    // 跨天时清理过期记录
+    if (remindedList.some(r => r.date !== today)) pruneReminded()
+
     plans.value.forEach(plan => {
       if (plan.completed) return
       const due = plan.dueDate
@@ -128,15 +184,15 @@ export const usePlanStore = defineStore('plan', () => {
 
       // 阶段1：过期前 5 分钟提醒（提前预警）
       const fiveMinBefore = due - 5 * 60 * 1000
-      if (!remindedSet.has(`${plan.id}:pre`) && now >= fiveMinBefore && now < due) {
+      if (!hasReminded(plan.id, 'pre') && now >= fiveMinBefore && now < due) {
         showReminder(plan, '即将到期')
-        remindedSet.add(`${plan.id}:pre`)
+        markReminded(plan.id, 'pre')
       }
 
-      // 阶段2：已过期提醒
-      if (!remindedSet.has(`${plan.id}:due`) && now >= due && now < due + 3600000) {
+      // 阶段2：已过期提醒（仅触发当天，且在到期后 1 小时窗口内）
+      if (!hasReminded(plan.id, 'due') && now >= due && now < due + 3600000) {
         showReminder(plan, '已过期')
-        remindedSet.add(`${plan.id}:due`)
+        markReminded(plan.id, 'due')
       }
     })
   }
@@ -163,9 +219,21 @@ export const usePlanStore = defineStore('plan', () => {
   }
 
   let reminderInterval = null
+  let nowTickInterval = null
   function startReminderCheck() {
-    if (reminderInterval) clearInterval(reminderInterval)
+    stopReminderCheck()
+    // 每 30 秒检查提醒（同时刷新 nowTick）
     reminderInterval = setInterval(checkReminders, 30000)
+    // 兜底：每分钟刷新一次时间基准，保证 todayPlans/overduePlans 在跨午夜、长时间空闲后更新
+    nowTickInterval = setInterval(() => { nowTick.value = Date.now() }, 60000)
+  }
+  function stopReminderCheck() {
+    if (reminderInterval) { clearInterval(reminderInterval); reminderInterval = null }
+    if (nowTickInterval) { clearInterval(nowTickInterval); nowTickInterval = null }
+  }
+  // 释放所有定时器，清缓存 / 登出时调用，避免内存泄漏与对空数据持续检测
+  function dispose() {
+    stopReminderCheck()
   }
 
   function requestNotificationPermission() {
@@ -175,7 +243,7 @@ export const usePlanStore = defineStore('plan', () => {
   }
 
   function replaceAll(newPlans) {
-    plans.value = JSON.parse(JSON.stringify(newPlans || []))
+    plans.value = deepClone(newPlans || [])
     persist()
   }
 
@@ -194,6 +262,9 @@ export const usePlanStore = defineStore('plan', () => {
     deletePlan,
     toggleComplete,
     checkReminders,
+    startReminderCheck,
+    stopReminderCheck,
+    dispose,
     requestNotificationPermission,
     replaceAll
   }

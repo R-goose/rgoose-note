@@ -296,6 +296,11 @@ function savePlan() {
     noteId: form.noteId || null
   }
 
+  // 带到期时间的计划才需要通知权限，按需询问而非应用启动时弹窗
+  if (data.dueDate) {
+    planStore.requestNotificationPermission()
+  }
+
   if (editingPlan.value) {
     planStore.updatePlan(editingPlan.value.id, { ...data, title: form.title.trim() })
   } else {

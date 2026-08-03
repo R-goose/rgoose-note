@@ -1174,9 +1174,11 @@ import { useTagStore, TAG_PRESET_COLORS } from '@/stores/tag'
 import { useShortcutStore } from '@/stores/shortcut'
 import NoteBlock from '@/components/NoteBlock.vue'
 import { markdownToHtml, isLikelyMarkdown } from '@/utils/markdown'
+import { deepClone } from '@/utils'
 import CustomSelect from '@/components/CustomSelect.vue'
 import interact, { rect } from 'interactjs'
 import { useToast } from '@/composables/useToast'
+import { useClickOutside } from '@/composables/useClickOutside'
 import { saveImage, resolveImageUrl, preloadImages, isImageRef } from '@/utils/imageStore'
 
 const { error: toastError } = useToast()
@@ -2152,7 +2154,6 @@ onMounted(async () => {
   window.addEventListener('keyup', onKeyUp)
   window.addEventListener('mouseup', onWindowMouseUp)
   window.addEventListener('mousemove', onWindowMouseMove)
-  window.addEventListener('mousedown', onWindowMouseDown, true)
   window.addEventListener('blur', onWindowBlur)
   window.addEventListener('resize', autoSizeTitle)
   await nextTick()
@@ -2167,7 +2168,6 @@ onUnmounted(() => {
   window.removeEventListener('keyup', onKeyUp)
   window.removeEventListener('mouseup', onWindowMouseUp)
   window.removeEventListener('mousemove', onWindowMouseMove)
-  window.removeEventListener('mousedown', onWindowMouseDown, true)
   window.removeEventListener('blur', onWindowBlur)
   window.removeEventListener('resize', autoSizeTitle)
   flushContentHistory()
@@ -2499,7 +2499,7 @@ function onKeyDown(e) {
     copiedBlocks.value = ids
       .map(id => blocks.value.find(b => b.id === id))
       .filter(Boolean)
-      .map(b => JSON.parse(JSON.stringify(b)))
+      .map(b => deepClone(b))
     copiedBlock.value = copiedBlocks.value[copiedBlocks.value.length - 1] || null
     return
   }
@@ -2513,7 +2513,7 @@ function onKeyDown(e) {
       saveHistory()
       const newIds = []
       for (let i = 0; i < copiedBlocks.value.length; i++) {
-        const newBlockData = JSON.parse(JSON.stringify(copiedBlocks.value[i]))
+        const newBlockData = deepClone(copiedBlocks.value[i])
         newBlockData.x = centerX + (newBlockData.x || 0) - (copiedBlocks.value[0].x || 0) + Math.random() * 40 - 20
         newBlockData.y = centerY + (newBlockData.y || 0) - (copiedBlocks.value[0].y || 0) + Math.random() * 40 - 20
         delete newBlockData.id
@@ -2537,7 +2537,7 @@ function onKeyDown(e) {
       const newPrimaryId = ids.map(id => {
         const b = blocks.value.find(x => x.id === id)
         if (!b) return null
-        const newBlockData = JSON.parse(JSON.stringify(b))
+        const newBlockData = deepClone(b)
         newBlockData.x += 30
         newBlockData.y += 30
         delete newBlockData.id
@@ -2740,22 +2740,13 @@ function onWindowMouseUp() {
   }
 }
 
-function onWindowMouseDown(e) {
-  if (e.button === 2) return
-  if (contextMenu.value.show && !e.target.closest('.context-menu')) {
-    contextMenu.value.show = false
-  }
-  if (showExportMenu.value && !e.target.closest('.export-menu-wrap')) {
-    showExportMenu.value = false
-  }
-  if (showTagPicker.value && !e.target.closest('.tag-add-wrap') && !e.target.closest('.tag-picker')) {
-    showTagPicker.value = false
-    tagSearch.value = ''
-  }
-  if (showBgMenu.value && !e.target.closest('.bg-type-wrapper')) {
-    showBgMenu.value = false
-  }
-}
+// 统一管理所有 popover / dropdown 的"点击外部关闭"
+useClickOutside([
+  { selector: '.context-menu', onClose: () => { contextMenu.value.show = false } },
+  { selector: '.export-menu-wrap', onClose: () => { showExportMenu.value = false } },
+  { selector: ['.tag-add-wrap', '.tag-picker'], onClose: () => { showTagPicker.value = false; tagSearch.value = '' } },
+  { selector: '.bg-type-wrapper', onClose: () => { showBgMenu.value = false } }
+])
 
 function onWindowBlur() {
   if (contextMenu.value.show) contextMenu.value.show = false
@@ -4258,7 +4249,7 @@ function copySelectedBlock() {
     copiedBlocks.value = ids
       .map(id => blocks.value.find(b => b.id === id))
       .filter(Boolean)
-      .map(b => JSON.parse(JSON.stringify(b)))
+      .map(b => deepClone(b))
     copiedBlock.value = copiedBlocks.value[copiedBlocks.value.length - 1] || null
   }
   contextMenu.value.show = false
@@ -4272,7 +4263,7 @@ function duplicateSelectedBlock() {
   const newIds = ids.map(id => {
     const b = blocks.value.find(x => x.id === id)
     if (!b) return null
-    const newBlockData = JSON.parse(JSON.stringify(b))
+    const newBlockData = deepClone(b)
     newBlockData.x += 30
     newBlockData.y += 30
     delete newBlockData.id
@@ -4294,7 +4285,7 @@ function pasteBlockHere() {
   const baseY = copiedBlocks.value[0].y || 0
   const newIds = []
   for (const src of copiedBlocks.value) {
-    const newBlockData = JSON.parse(JSON.stringify(src))
+    const newBlockData = deepClone(src)
     newBlockData.x = contextMenu.value.canvasX - 120 + (newBlockData.x || 0) - baseX
     newBlockData.y = contextMenu.value.canvasY - 30 + (newBlockData.y || 0) - baseY
     delete newBlockData.id

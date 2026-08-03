@@ -46,6 +46,12 @@ const routes = [
     name: 'Settings',
     component: () => import('@/views/SettingsView.vue'),
     meta: { title: '设置' }
+  },
+  // 404 兜底：未知路径重定向到笔记首页
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'NotFound',
+    redirect: '/notes'
   }
 ]
 
