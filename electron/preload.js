@@ -25,6 +25,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   changeDataDir: dir => ipcRenderer.invoke('change-data-dir', dir),
   resetDataDir: () => ipcRenderer.invoke('reset-data-dir'),
 
+  // ★ 后端统一入口：所有 backend:* 通道通过此方法调用
+  backend: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
+
   windowMinimize: () => ipcRenderer.invoke('window-minimize'),
   windowToggleMaximize: () => ipcRenderer.invoke('window-toggle-maximize'),
   windowClose: () => ipcRenderer.invoke('window-close'),

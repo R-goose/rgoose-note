@@ -1,11 +1,13 @@
 /**
  * 媒体文件 API
  */
-import { request, http } from './client'
+import { request, http, isElectron } from './client'
 
 export const imagesApi = {
   /**
    * 上传文件（multipart/form-data）
+   * - Electron 环境：自动转 base64 走 IPC
+   * - 浏览器环境：走 HTTP FormData
    * @param {File|Blob} file
    * @returns {Promise<string>} ref 字符串，如 img_xxx.png
    */
@@ -42,16 +44,38 @@ export const imagesApi = {
   },
 
   /**
-   * 获取图片下载 URL（纯字符串拼接，无需网络请求）
+   * 获取图片下载 URL
+   * - Electron 环境：走自定义协议 rgoose-image://ref（主进程直接返回二进制流）
+   * - 浏览器环境：走 HTTP 相对路径 /api/images/{ref}（靠 vite 代理）
    * @param {string} ref
    * @returns {string} URL
    */
   url(ref) {
+    if (!ref) return ref
+    if (isElectron) {
+      // 自定义协议：rgoose-image://host/ref
+      // host 部分随意（不能为空），用 'local'
+      return `rgoose-image://local/${encodeURIComponent(ref)}`
+    }
     return `/api/images/${ref}`
   },
 
   /** 下载图片为 Blob */
   async download(ref) {
+    if (isElectron) {
+      // IPC 下载：返回 { buffer(base64), mimeType }
+      const result = await window.electronAPI.backend('backend:images:download', ref)
+      if (!result || result.code !== 0) {
+        throw new Error(result?.msg || '图片下载失败')
+      }
+      const { buffer, mimeType } = result.data
+      // base64 → Blob
+      const bytes = atob(buffer)
+      const arr = new Uint8Array(bytes.length)
+      for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i)
+      return new Blob([arr], { type: mimeType })
+    }
+    // HTTP 模式
     const resp = await request(`/images/${ref}`)
     return resp.blob()
   },

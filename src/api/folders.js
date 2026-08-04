@@ -31,6 +31,6 @@ export const foldersApi = {
 
   /** 获取全部文件夹（同步用） */
   listAll() {
-    return http.get('/folders', { includeDeleted: true })
+    return http.get('/folders/all')
   }
 }

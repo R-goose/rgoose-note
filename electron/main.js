@@ -1,9 +1,19 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog, shell, protocol } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const { execSync } = require('child_process')
+const backend = require('./backend')
+const imageService = require('./backend/service/imageService')
 
 let mainWindow
+
+// 注册自定义协议（必须在 app.whenReady 之前）
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'rgoose-image',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true }
+  }
+])
 
 function getConfigPath() {
   return path.join(app.getPath('userData'), 'app-config.json')
@@ -60,7 +70,7 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.cjs')
+      preload: path.join(__dirname, 'preload.js')
     }
   }
 
@@ -198,7 +208,8 @@ ipcMain.handle('get-storage-info', () => {
   return {
     type: 'electron',
     dataDir: getDataDir(),
-    dataFile: path.join(getDataDir(), 'data.json'),
+    dataFile: path.join(getDataDir(), 'rgoose.db'),
+    dbFile: path.join(getDataDir(), 'rgoose.db'),
     imagesDir: getImagesDir(),
     isCustom: !!config.customDataDir,
     defaultDir: path.join(app.getPath('userData'), 'rgoose-data')
@@ -224,13 +235,16 @@ ipcMain.handle('change-data-dir', async (_event, targetDir) => {
     }
 
     const srcDir = getDataDir()
-    const dstDataFile = path.join(targetDir, 'data.json')
+    const dstDbFile = path.join(targetDir, 'rgoose.db')
     const dstImagesDir = path.join(targetDir, 'images')
 
-    // 迁移 data.json
-    const srcDataFile = path.join(srcDir, 'data.json')
-    if (fs.existsSync(srcDataFile)) {
-      fs.copyFileSync(srcDataFile, dstDataFile)
+    // 关闭后端以释放 SQLite 文件句柄
+    backend.stop()
+
+    // 迁移 rgoose.db（及 WAL/SHM 附属文件）
+    for (const suffix of ['', '-wal', '-shm']) {
+      const src = path.join(srcDir, `rgoose.db${suffix}`)
+      if (fs.existsSync(src)) fs.copyFileSync(src, dstDbFile + suffix)
     }
     // 迁移 images/
     const srcImagesDir = getImagesDir()
@@ -246,13 +260,18 @@ ipcMain.handle('change-data-dir', async (_event, targetDir) => {
     config.customDataDir = targetDir
     saveConfig(config)
 
+    // 重启后端（指向新目录）
+    backend.start(getDataDir())
+
     // 清理旧目录（仅当旧目录是默认 userData 目录且迁移成功）
     const defaultDir = path.join(app.getPath('userData'), 'rgoose-data')
     if (path.resolve(srcDir) === path.resolve(defaultDir)) {
-      // 保留默认目录但清空其数据（避免重复）
       try {
         if (fs.existsSync(srcImagesDir)) fs.rmSync(srcImagesDir, { recursive: true, force: true })
-        if (fs.existsSync(srcDataFile)) fs.unlinkSync(srcDataFile)
+        for (const suffix of ['', '-wal', '-shm']) {
+          const f = path.join(srcDir, `rgoose.db${suffix}`)
+          if (fs.existsSync(f)) fs.unlinkSync(f)
+        }
       } catch (e) {
         // 清理失败不阻断流程
       }
@@ -261,6 +280,8 @@ ipcMain.handle('change-data-dir', async (_event, targetDir) => {
     return { ok: true, newDir: targetDir }
   } catch (e) {
     console.error('change-data-dir failed:', e)
+    // 失败时尝试重启后端
+    try { backend.start(getDataDir()) } catch (_) {}
     return { ok: false, error: e.message }
   }
 })
@@ -272,22 +293,32 @@ ipcMain.handle('reset-data-dir', async () => {
     const defaultDir = path.join(app.getPath('userData'), 'rgoose-data')
 
     if (currentDir !== defaultDir) {
-      // 把当前自定义目录数据迁回默认目录
+      // 关闭后端
+      backend.stop()
+
       if (!fs.existsSync(defaultDir)) fs.mkdirSync(defaultDir, { recursive: true })
-      const srcDataFile = path.join(currentDir, 'data.json')
-      if (fs.existsSync(srcDataFile)) {
-        fs.copyFileSync(srcDataFile, path.join(defaultDir, 'data.json'))
+      // 迁回 rgoose.db 及附属文件
+      for (const suffix of ['', '-wal', '-shm']) {
+        const src = path.join(currentDir, `rgoose.db${suffix}`)
+        if (fs.existsSync(src)) {
+          fs.copyFileSync(src, path.join(defaultDir, `rgoose.db${suffix}`))
+        }
       }
       const srcImagesDir = path.join(currentDir, 'images')
       if (fs.existsSync(srcImagesDir)) {
         fs.cpSync(srcImagesDir, path.join(defaultDir, 'images'), { recursive: true })
       }
+
+      config.customDataDir = null
+      saveConfig(config)
+
+      // 重启后端指向默认目录
+      backend.start(getDataDir())
     }
 
-    config.customDataDir = null
-    saveConfig(config)
     return { ok: true, newDir: defaultDir }
   } catch (e) {
+    try { backend.start(getDataDir()) } catch (_) {}
     return { ok: false, error: e.message }
   }
 })
@@ -412,12 +443,16 @@ ipcMain.handle('get-storage-size', async () => {
     } catch (_) {}
 
     try {
-      const dataFile = path.join(dataDir, 'data.json')
-      if (fs.existsSync(dataFile)) {
-        result.dataFileSize = fs.statSync(dataFile).size
+      // 统计 rgoose.db 及 WAL/SHM 附属文件总大小
+      const dbFile = path.join(dataDir, 'rgoose.db')
+      let dbTotal = 0
+      for (const suffix of ['', '-wal', '-shm']) {
+        const f = path.join(dataDir, `rgoose.db${suffix}`)
+        if (fs.existsSync(f)) dbTotal += fs.statSync(f).size
       }
+      result.dataFileSize = dbTotal
     } catch (e) {
-      console.error('measure data.json failed:', e)
+      console.error('measure rgoose.db failed:', e)
     }
 
     try {
@@ -518,7 +553,7 @@ ipcMain.handle('open-backups-folder', async () => {
 
 ipcMain.handle('create-backup', async () => {
   try {
-    flushDataFile()
+    backend.flush()
     const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
     const userData = app.getPath('userData')
     const zipPath = path.join(userData, `backup_${ts}.zip`)
@@ -526,9 +561,13 @@ ipcMain.handle('create-backup', async () => {
     fs.rmSync(stagingDir, { recursive: true, force: true })
     fs.mkdirSync(stagingDir, { recursive: true })
 
-    const srcData = path.join(getDataDir(), 'data.json')
+    const srcData = path.join(getDataDir(), 'rgoose.db')
     if (fs.existsSync(srcData)) {
-      fs.copyFileSync(srcData, path.join(stagingDir, 'data.json'))
+      // 备份 rgoose.db 及 WAL/SHM 附属文件
+      for (const suffix of ['', '-wal', '-shm']) {
+        const f = path.join(getDataDir(), `rgoose.db${suffix}`)
+        if (fs.existsSync(f)) fs.copyFileSync(f, path.join(stagingDir, `rgoose.db${suffix}`))
+      }
     }
     const srcImages = getImagesDir()
     if (fs.existsSync(srcImages)) {
@@ -558,7 +597,10 @@ ipcMain.handle('create-backup', async () => {
     } else {
       const backupDir = path.join(userData, `backup_${ts}`)
       fs.mkdirSync(backupDir, { recursive: true })
-      if (fs.existsSync(srcData)) fs.copyFileSync(srcData, path.join(backupDir, 'data.json'))
+      for (const suffix of ['', '-wal', '-shm']) {
+        const f = path.join(getDataDir(), `rgoose.db${suffix}`)
+        if (fs.existsSync(f)) fs.copyFileSync(f, path.join(backupDir, `rgoose.db${suffix}`))
+      }
       if (fs.existsSync(srcImages)) fs.cpSync(srcImages, path.join(backupDir, 'images'), { recursive: true })
       finalPath = backupDir
     }
@@ -610,10 +652,42 @@ ipcMain.handle('delete-backup', async (_event, backupName) => {
 })
 
 function flushDataFile() {
-  // 占位：Electron 主进程无 pending 写队列，data.json 由渲染进程原子写入
+  // 兼容旧调用：实际 flush 由 backend.flush() 完成
+  backend.flush()
 }
 
-app.whenReady().then(() => {
+// 测试模式：--test-smoke 运行后端冒烟测试后退出
+if (process.argv.includes('--test-smoke')) {
+  app.whenReady().then(() => {
+    try { require('./../test/run-smoke.cjs')((failed) => { app.exit(failed > 0 ? 1 : 0) }) }
+    catch (e) { console.error(e); app.exit(1) }
+  })
+} else {
+
+app.whenReady().then(async () => {
+  // 启动后端（SQLite + IPC + 可选 HTTP）
+  try {
+    backend.start(getDataDir())
+  } catch (e) {
+    console.error('[main] backend start failed:', e)
+  }
+
+  // 注册图片协议处理器：rgoose-image://{ref} → 返回图片二进制流
+  protocol.handle('rgoose-image', async (req) => {
+    // URL 格式：rgoose-image://host/img_xxx.png
+    // 取 pathname 部分（去掉前导 /）
+    const ref = decodeURIComponent(req.url.replace(/^rgoose-image:\/\/[^/]+\//, ''))
+    try {
+      const { buffer, mimeType } = imageService.download(ref)
+      return new Response(buffer, {
+        status: 200,
+        headers: { 'Content-Type': mimeType, 'Cache-Control': 'max-age=86400' }
+      })
+    } catch (err) {
+      return new Response('Not Found', { status: 404, headers: { 'Content-Type': 'text/plain' } })
+    }
+  })
+
   createWindow()
 
   app.on('activate', () => {
@@ -623,7 +697,10 @@ app.whenReady().then(() => {
   })
 })
 
+} // end else (非测试模式)
+
 app.on('window-all-closed', () => {
+  backend.stop()
   if (process.platform !== 'darwin') {
     app.quit()
   }

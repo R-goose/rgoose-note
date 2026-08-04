@@ -1,0 +1,5 @@
+{
+  "type": "commonjs",
+  "private": true,
+  "description": "Electron 主进程目录（CommonJS 模块）"
+}

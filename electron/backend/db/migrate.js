@@ -1,0 +1,61 @@
+/**
+ * 自动迁移：首次启动建表 + 种子数据 + 增量补列
+ * 通过 PRAGMA user_version 记录迁移版本
+ */
+
+const fs = require('fs')
+const path = require('path')
+
+const CURRENT_VER = 2
+
+/**
+ * 对已存在的 blocks 表补齐缺失列（v1 → v2）
+ * CREATE TABLE IF NOT EXISTS 不会更新已存在的表结构，需用 ALTER 补齐
+ */
+function ensureBlockColumns(db) {
+  const cols = db.prepare("PRAGMA table_info(blocks)").all().map(c => c.name)
+  const additions = [
+    { name: 'code',            type: 'TEXT' },
+    { name: 'codeLang',        type: 'TEXT' },
+    { name: 'calloutType',     type: 'TEXT' },
+    { name: 'formula',         type: 'TEXT' },
+    { name: 'tableData',       type: 'TEXT' },
+    { name: 'tableAnalysis',   type: 'INTEGER' },
+    { name: 'label',           type: 'TEXT' },
+    { name: 'value',           type: 'INTEGER' },
+    { name: 'mode',            type: 'TEXT' },
+    { name: 'date',            type: 'INTEGER' },
+    { name: 'done',            type: 'INTEGER' },
+    { name: 'desc',            type: 'TEXT' },
+    { name: 'linkedNoteId',    type: 'TEXT' },
+    { name: 'linkedBlockId',   type: 'TEXT' },
+    { name: 'linkedTextRange', type: 'TEXT' }
+  ]
+  for (const col of additions) {
+    if (!cols.includes(col.name)) {
+      // desc / date 是 SQL 保留字，必须用双引号
+      db.exec(`ALTER TABLE blocks ADD COLUMN "${col.name}" ${col.type}`)
+    }
+  }
+}
+
+function runMigrations(db) {
+  // 1. 建表脚本（幂等）
+  const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf-8')
+  db.exec(schema)
+
+  // 2. 对已存在的表补齐缺失列（兼容旧库）
+  ensureBlockColumns(db)
+
+  // 3. 种子数据（幂等，使用 ON CONFLICT）
+  const seed = fs.readFileSync(path.join(__dirname, 'seed.sql'), 'utf-8')
+  db.exec(seed)
+
+  // 4. 版本号记录
+  const ver = db.prepare('PRAGMA user_version').get()
+  if (ver.user_version < CURRENT_VER) {
+    db.prepare(`PRAGMA user_version = ${CURRENT_VER}`).run()
+  }
+}
+
+module.exports = { runMigrations, CURRENT_VER }
