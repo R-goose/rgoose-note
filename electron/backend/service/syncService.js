@@ -9,6 +9,7 @@ const blockDao = require('../dao/blockDao')
 const connectionDao = require('../dao/connectionDao')
 const planDao = require('../dao/planDao')
 const tagDao = require('../dao/tagDao')
+const imageService = require('./imageService')
 const { getDb } = require('../db/connection')
 const { now } = require('../common/utils')
 
@@ -51,11 +52,13 @@ module.exports = {
       mergeAll(noteDao, data.notes)
       mergeAll(planDao, data.plans)
       mergeAll(tagDao, data.tags)
+      mergeAll(blockDao, data.blocks)
+      mergeAll(connectionDao, data.connections)
     })
     tx()
   },
 
-  /** 清空全部业务数据（物理删除） */
+  /** 清空全部业务数据（物理删除，含图片文件） */
   clearAll() {
     const db = getDb()
     const tx = db.transaction(() => {
@@ -67,17 +70,19 @@ module.exports = {
       db.prepare('DELETE FROM folders').run()
     })
     tx()
+    // 图片元数据 + 磁盘文件在事务外清理（文件 IO 不应阻塞事务）
+    imageService.clearAll()
   }
 }
 
-/** 通用 LWW 合并：不存在则 insert，存在则 updatedAt 比较 */
+/** 通用 LWW 合并：不存在则 insert，存在则 updatedAt 比较（无 updatedAt 时直接覆盖） */
 function mergeAll(dao, list) {
   if (!Array.isArray(list)) return
   for (const incoming of list) {
     const existing = dao.getById(incoming.id)
     if (!existing) {
       dao.insert(incoming)
-    } else if (incoming.updatedAt >= existing.updatedAt) {
+    } else if (incoming.updatedAt == null || existing.updatedAt == null || incoming.updatedAt >= existing.updatedAt) {
       dao.update(incoming.id, incoming)
     }
   }

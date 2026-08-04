@@ -65,9 +65,6 @@ function register() {
   ipcMain.handle('backend:images:upload',   (_e, { base64, fileName }) => wrap(() => {
     return { ref: imageService.saveFromDataUrl(base64, fileName) }
   }))
-  ipcMain.handle('backend:images:uploadBuffer', (_e, { buffer, fileName, mimeType }) => wrap(() => {
-    return { ref: imageService.upload({ buffer: Buffer.from(buffer), originalname: fileName, mimetype: mimeType }) }
-  }))
   ipcMain.handle('backend:images:download', (_e, ref) => wrap(() => {
     const { buffer, mimeType } = imageService.download(ref)
     return { buffer: buffer.toString('base64'), mimeType }

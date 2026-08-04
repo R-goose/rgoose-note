@@ -71,6 +71,7 @@ module.exports = {
         parentId = @parentId,
         tags = @tags,
         isSystem = @isSystem,
+        deleted = @deleted,
         updatedAt = @updatedAt
       WHERE id = @id
     `).run({
@@ -79,6 +80,7 @@ module.exports = {
       parentId: folder.parentId || null,
       tags: safeStringify(folder.tags || []),
       isSystem: folder.isSystem ? 1 : 0,
+      deleted: folder.deleted ? 1 : 0,
       updatedAt: folder.updatedAt
     })
     return this.getById(id)

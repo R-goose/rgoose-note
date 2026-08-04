@@ -71,6 +71,7 @@ module.exports = {
         folderId = @folderId,
         tags = @tags,
         canvasConfig = @canvasConfig,
+        deleted = @deleted,
         updatedAt = @updatedAt
       WHERE id = @id
     `).run({
@@ -79,6 +80,7 @@ module.exports = {
       folderId: note.folderId || null,
       tags: safeStringify(note.tags || []),
       canvasConfig: note.canvasConfig != null ? safeStringify(note.canvasConfig) : null,
+      deleted: note.deleted ? 1 : 0,
       updatedAt: note.updatedAt
     })
     return this.getById(id)

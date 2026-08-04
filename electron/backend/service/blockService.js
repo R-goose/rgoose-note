@@ -5,8 +5,16 @@
 
 const blockDao = require('../dao/blockDao')
 const connectionDao = require('../dao/connectionDao')
+const noteDao = require('../dao/noteDao')
 const { getDb } = require('../db/connection')
 const { now } = require('../common/utils')
+
+/** 触碰父笔记的 updatedAt，使增量同步能感知 block 变更 */
+function touchNote(noteId) {
+  if (!noteId) return
+  const db = getDb()
+  db.prepare('UPDATE notes SET updatedAt = ? WHERE id = ?').run(now(), noteId)
+}
 
 module.exports = {
   list(noteId) {
@@ -15,20 +23,32 @@ module.exports = {
 
   create(noteId, block) {
     const ts = now()
-    return blockDao.insert({
-      ...block,
-      noteId,
-      createdAt: ts,
-      updatedAt: ts
+    const db = getDb()
+    const tx = db.transaction(() => {
+      const result = blockDao.insert({
+        ...block,
+        noteId,
+        createdAt: ts,
+        updatedAt: ts
+      })
+      touchNote(noteId)
+      return result
     })
+    return tx()
   },
 
   update(noteId, blockId, block) {
-    return blockDao.update(blockId, {
-      ...block,
-      noteId,
-      updatedAt: now()
+    const db = getDb()
+    const tx = db.transaction(() => {
+      const result = blockDao.update(blockId, {
+        ...block,
+        noteId,
+        updatedAt: now()
+      })
+      touchNote(noteId)
+      return result
     })
+    return tx()
   },
 
   /** 删除块 + 删除关联连线 */
@@ -37,6 +57,7 @@ module.exports = {
     const tx = db.transaction(() => {
       blockDao.delete(blockId)
       connectionDao.deleteByBlock(noteId, blockId)
+      touchNote(noteId)
     })
     tx()
   },
@@ -49,6 +70,7 @@ module.exports = {
       for (const block of blocks) {
         blockDao.update(block.id, { ...block, noteId, updatedAt: ts })
       }
+      touchNote(noteId)
     })
     tx()
   }

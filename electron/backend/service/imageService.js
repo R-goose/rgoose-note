@@ -127,5 +127,22 @@ module.exports = {
   /** 列出全部图片元数据 */
   listAll() {
     return imageDao.listAll()
+  },
+
+  /** 清空全部图片（磁盘文件 + 元数据表），返回删除的文件数 */
+  clearAll() {
+    const images = imageDao.listAll()
+    let deleted = 0
+    for (const img of images) {
+      try {
+        const filePath = path.join(config.dataDir, img.storagePath)
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+      } catch (e) {
+        console.warn('[imageService] 清理文件失败:', img.id, e.message)
+      }
+      imageDao.delete(img.id)
+      deleted++
+    }
+    return deleted
   }
 }

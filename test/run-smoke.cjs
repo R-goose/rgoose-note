@@ -26,6 +26,7 @@ module.exports = function runSmoke(done) {
   const { getDb, closeDb } = require(path.join(BACKEND_DIR, 'db', 'connection'))
   const { runMigrations } = require(path.join(BACKEND_DIR, 'db', 'migrate'))
   const folderDao = require(path.join(BACKEND_DIR, 'dao', 'folderDao'))
+  const noteDao = require(path.join(BACKEND_DIR, 'dao', 'noteDao'))
   const folderService = require(path.join(BACKEND_DIR, 'service', 'folderService'))
   const noteService = require(path.join(BACKEND_DIR, 'service', 'noteService'))
   const blockService = require(path.join(BACKEND_DIR, 'service', 'blockService'))
@@ -145,6 +146,32 @@ module.exports = function runSmoke(done) {
     const exported = syncService.pull(0)
     assert(exported.folders.length >= 2, '导出文件夹数 >= 2')
     assert(exported.notes.every(n => !n.deleted), '全量同步不返回已软删笔记')
+    assert(exported.blocks.length > 0, '导出包含 blocks 数据')
+    assert(exported.connections.length > 0, '导出包含 connections 数据')
+
+    console.log('=== 10b. block 变更触发父笔记 updatedAt ===')
+    const noteForTouch = noteService.create({
+      id: uuid(), title: 'updatedAt测试', folderId: 'system-root', tags: []
+    })
+    const beforeTs = noteForTouch.updatedAt
+    // 同步等待 10ms 确保 now() 返回更大值
+    const wait = Date.now() + 10; while (Date.now() < wait) {}
+    blockService.create(noteForTouch.id, {
+      id: uuid(), type: 'text', content: '新块', x: 0, y: 0, width: 200, minHeight: 60
+    })
+    const noteAfterBlock = noteDao.getById(noteForTouch.id)
+    assert(noteAfterBlock.updatedAt > beforeTs, 'block 创建后父笔记 updatedAt 更新')
+
+    console.log('=== 10c. importAll blocks/connections 合并 ===')
+    // 清空后重新导入，验证 blocks/connections 能恢复
+    const exportedBlocks = exported.blocks.length
+    const exportedConns = exported.connections.length
+    syncService.clearAll()
+    assert(syncService.pull(0).notes.length === 0, '清空后准备导入测试')
+    syncService.importAll(exported)
+    const reimported = syncService.pull(0)
+    assert(reimported.blocks.length === exportedBlocks, '导入后 blocks 数量恢复')
+    assert(reimported.connections.length === exportedConns, '导入后 connections 数量恢复')
 
     console.log('=== 11. 级联删除 ===')
     folderService.delete(folder.id)
