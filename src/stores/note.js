@@ -29,7 +29,9 @@ export const useNoteStore = defineStore('note', () => {
     if (currentFolderId.value) {
       const allChildIds = getAllChildFolderIds(currentFolderId.value)
       const allFolderIds = [currentFolderId.value, ...allChildIds]
-      list = list.filter(n => allFolderIds.includes(n.folderId))
+      // 根目录视图下，folderId 为 null 的未归类笔记也属于根目录
+      const isRoot = currentFolderId.value === SYSTEM_ROOT_FOLDER_ID
+      list = list.filter(n => allFolderIds.includes(n.folderId) || (isRoot && n.folderId == null))
     }
     return [...list].sort((a, b) => b.updatedAt - a.updatedAt)
   })
@@ -133,7 +135,20 @@ export const useNoteStore = defineStore('note', () => {
     return initPromise
   }
 
+  let _ensureRootPromise = null
+
   async function ensureSystemRootFolder() {
+    // 并发锁：防止重复创建 system-root 文件夹
+    if (_ensureRootPromise) return _ensureRootPromise
+    _ensureRootPromise = _doEnsureSystemRootFolder()
+    try {
+      return await _ensureRootPromise
+    } finally {
+      _ensureRootPromise = null
+    }
+  }
+
+  async function _doEnsureSystemRootFolder() {
     const existing = folders.value.find(f => f.id === SYSTEM_ROOT_FOLDER_ID)
     if (existing) {
       if (!existing.isSystem || existing.name !== '根目录') {

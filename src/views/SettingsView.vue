@@ -42,6 +42,7 @@
     </header>
 
     <div class="settings-content">
+     <BgDecor />
      <div class="settings-inner">
       <section class="settings-section">
         <h2 class="section-title"><span class="title-bar bar-blue"></span>数据管理</h2>
@@ -402,6 +403,7 @@ import { isAppFormatData, buildNoteFromArbitraryJSON } from '@/utils/jsonAdapter
 import { collectImageRefsFromData, buildImageBundle, restoreImageBundle, remapImageRefsInData } from '@/utils/imageStore'
 import { formatDate, formatBytes } from '@/utils'
 import { useToast } from '@/composables/useToast'
+import BgDecor from '@/components/BgDecor.vue'
 
 const { error: toastError, success: toastSuccess, info: toastInfo } = useToast()
 
@@ -830,7 +832,7 @@ async function handleImport() {
         if (noteSpec) {
           const created = noteStore.createNote(noteSpec.title)
           noteSpec.blocks.forEach(b => noteStore.addBlock(created.id, b))
-          const rootFolder = noteStore.ensureSystemRootFolder()
+          const rootFolder = await noteStore.ensureSystemRootFolder()
           if (rootFolder) noteStore.moveNoteToFolder(created.id, rootFolder.id)
           toastSuccess(`已根据 JSON 生成新笔记「${noteSpec.title}」，已放入「根目录」文件夹`)
           return
@@ -847,12 +849,12 @@ async function handleImport() {
   }
 }
 
-function placeOrphanNotesIntoRoot(importedNoteIds) {
+async function placeOrphanNotesIntoRoot(importedNoteIds) {
   if (!importedNoteIds || !importedNoteIds.length) return 0
   const folderIds = new Set(noteStore.folders.filter(f => !f.deleted).map(f => f.id))
   const orphans = noteStore.notes.filter(n => importedNoteIds.has(n.id) && (!n.folderId || !folderIds.has(n.folderId)))
   if (!orphans.length) return 0
-  const rootFolder = noteStore.ensureSystemRootFolder()
+  const rootFolder = await noteStore.ensureSystemRootFolder()
   if (!rootFolder) return 0
   orphans.forEach(n => noteStore.moveNoteToFolder(n.id, rootFolder.id))
   return orphans.length
@@ -889,10 +891,22 @@ async function confirmImport() {
     tagStore.replaceAll(mergedData.tags || [])
 
     const importedNoteIds = new Set(noteStore.notes.filter(n => !beforeNoteIds.has(n.id)).map(n => n.id))
-    const orphanCount = placeOrphanNotesIntoRoot(importedNoteIds)
+    const orphanCount = await placeOrphanNotesIntoRoot(importedNoteIds)
+
+    // 展平 blocks/connections（嵌套在 notes 中），传给后端做 LWW 合并
+    const flatBlocks = []
+    const flatConnections = []
+    for (const n of noteStore.notes) {
+      if (n.blocks) flatBlocks.push(...n.blocks)
+      if (n.connections) flatConnections.push(...n.connections)
+    }
 
     // v2.0: 通过后端 API 导入合并后的数据
-    await syncApi.importAll(mergedData)
+    await syncApi.importAll({
+      ...mergedData,
+      blocks: flatBlocks,
+      connections: flatConnections
+    })
 
     showImportConfirm.value = false
     pendingImportData.value = null
@@ -1095,9 +1109,12 @@ function resetAllShortcuts() {
   padding: 28px 32px;
   width: 100%;
   box-sizing: border-box;
+  position: relative;
 }
 
 .settings-inner {
+  position: relative;
+  z-index: 1;
   max-width: 900px;
   margin: 0 auto;
   width: 100%;

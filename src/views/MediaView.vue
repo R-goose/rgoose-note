@@ -31,7 +31,10 @@
       </div>
     </div>
 
-    <div v-if="loading" class="media-loading">加载中...</div>
+    <div class="media-content">
+      <BgDecor />
+      <div class="media-content-inner">
+        <div v-if="loading" class="media-loading">加载中...</div>
 
     <div v-else-if="filteredItems.length === 0" class="media-empty">
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.4">
@@ -79,6 +82,8 @@
         </div>
       </div>
     </div>
+      </div>
+    </div>
 
     <!-- 预览弹窗 -->
     <div v-if="previewItem_data" class="preview-overlay" @click="previewItem_data = null">
@@ -101,6 +106,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNoteStore } from '@/stores/note'
 import { resolveImageUrl, isImageRef } from '@/utils/imageStore'
+import BgDecor from '@/components/BgDecor.vue'
 
 const router = useRouter()
 const noteStore = useNoteStore()
@@ -332,6 +338,18 @@ onMounted(() => collectMedia())
   font-weight: 700;
   color: var(--text-primary);
   margin: 0;
+}
+
+.media-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px;
+  position: relative;
+}
+
+.media-content-inner {
+  position: relative;
+  z-index: 1;
 }
 
 .header-actions {

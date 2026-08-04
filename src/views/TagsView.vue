@@ -17,6 +17,8 @@
     </header>
 
     <div class="tags-content">
+      <BgDecor />
+      <div class="tags-content-inner">
       <div v-if="!tagStore.tags.length" class="empty-state">
         <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
@@ -90,6 +92,7 @@
           </div>
         </div>
       </div>
+      </div>
     </div>
 
     <Teleport to="body">
@@ -157,6 +160,7 @@ import { useRouter } from 'vue-router'
 import { useTagStore, TAG_PRESET_COLORS } from '@/stores/tag'
 import { useNoteStore } from '@/stores/note'
 import { useToast } from '@/composables/useToast'
+import BgDecor from '@/components/BgDecor.vue'
 
 const router = useRouter()
 const tagStore = useTagStore()
@@ -301,6 +305,12 @@ function filterFolders(tag) {
   flex: 1;
   overflow-y: auto;
   padding: 24px 32px 32px;
+  position: relative;
+}
+
+.tags-content-inner {
+  position: relative;
+  z-index: 1;
 }
 
 .empty-state {

@@ -14,6 +14,7 @@
     </header>
 
     <div class="dash-content">
+      <BgDecor variant="dashboard" />
       <!-- 概览卡片 -->
       <section class="overview-cards">
         <div class="stat-card stat-tasks clickable" @click="openTaskList({ type: 'all', label: '全部任务' })">
@@ -195,6 +196,7 @@ import { useRouter } from 'vue-router'
 import { useNoteStore } from '@/stores/note'
 import { usePlanStore } from '@/stores/plan'
 import { useTagStore } from '@/stores/tag'
+import BgDecor from '@/components/BgDecor.vue'
 
 const router = useRouter()
 const noteStore = useNoteStore()
@@ -511,6 +513,7 @@ const filteredTaskList = computed(() => {
 
 .dash-content {
   flex: 1; overflow-y: auto; padding: 24px 28px 32px;
+  position: relative;
   background-image:
     radial-gradient(circle at 12% 8%, rgba(74, 138, 100, 0.05), transparent 38%),
     radial-gradient(circle at 88% 4%, rgba(74, 144, 217, 0.045), transparent 36%),

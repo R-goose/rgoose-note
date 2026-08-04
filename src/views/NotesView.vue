@@ -31,33 +31,7 @@
     </header>
     
     <div class="notes-content">
-      <div class="notes-bg-decor" aria-hidden="true">
-        <svg class="bg-blob bg-blob-1" viewBox="0 0 400 400" preserveAspectRatio="xMidYMid meet">
-          <defs>
-            <radialGradient id="bgBlobG1" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stop-color="currentColor" stop-opacity="0.75"/>
-              <stop offset="100%" stop-color="currentColor" stop-opacity="0"/>
-            </radialGradient>
-          </defs>
-          <circle cx="200" cy="200" r="180" fill="url(#bgBlobG1)"/>
-        </svg>
-        <svg class="bg-blob bg-blob-2" viewBox="0 0 300 300" preserveAspectRatio="xMidYMid meet">
-          <defs>
-            <radialGradient id="bgBlobG2" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stop-color="currentColor" stop-opacity="0.7"/>
-              <stop offset="100%" stop-color="currentColor" stop-opacity="0"/>
-            </radialGradient>
-          </defs>
-          <circle cx="150" cy="150" r="140" fill="url(#bgBlobG2)"/>
-        </svg>
-        <svg class="bg-rings" viewBox="0 0 200 200" fill="none">
-          <circle cx="100" cy="100" r="40" stroke="currentColor" stroke-width="1"/>
-          <circle cx="100" cy="100" r="65" stroke="currentColor" stroke-width="1" opacity="0.6"/>
-          <circle cx="100" cy="100" r="90" stroke="currentColor" stroke-width="1" opacity="0.3"/>
-        </svg>
-        <div class="bg-grid-lines"></div>
-        <div class="bg-dots"></div>
-      </div>
+      <BgDecor />
       <div class="notes-content-inner">
       <div v-if="!noteStore.currentFolderId" class="all-folders-view">
         <div v-if="activeTagFilter || activeFolderTagFilter" class="tag-filter-bar">
@@ -78,6 +52,7 @@
               v-for="folder in filteredFolders"
               :key="folder.id"
               class="folder-card"
+              :style="folderStyle(folder.id)"
               @click="enterFolder(folder.id)"
               @contextmenu.prevent="onFolderContextMenu($event, folder)"
             >
@@ -114,15 +89,15 @@
               v-for="note in filteredNotes"
               :key="note.id"
               class="note-card"
+              :style="noteStyle(note)"
               @click="openNote(note.id)"
               @contextmenu.prevent="onNoteContextMenu($event, note)"
             >
               <div class="note-card-media" :class="{ 'has-cover': getNoteCover(note) }">
                 <img v-if="getNoteCover(note)" :src="getNoteCover(note)" alt="" loading="lazy" />
-                <svg v-else class="note-card-media-deco" viewBox="0 0 100 60" preserveAspectRatio="none">
-                  <path d="M0,35 C20,15 35,45 55,28 C75,12 90,38 100,25 L100,60 L0,60 Z" fill="currentColor" opacity="0.5"/>
-                  <path d="M0,45 C25,30 45,50 70,38 C85,30 95,42 100,36 L100,60 L0,60 Z" fill="currentColor" opacity="0.3"/>
-                </svg>
+                <div v-else class="note-card-title-cover">
+                  <span>{{ (note.title || '无标题').slice(0, 6) }}</span>
+                </div>
                 <span class="note-card-blocks">{{ note.blocks?.length || 0 }}</span>
               </div>
               <div class="note-card-body">
@@ -173,15 +148,15 @@
           v-for="note in filteredNotes"
           :key="note.id"
           class="note-card"
+          :style="noteStyle(note)"
           @click="openNote(note.id)"
           @contextmenu.prevent="onNoteContextMenu($event, note)"
         >
           <div class="note-card-media" :class="{ 'has-cover': getNoteCover(note) }">
             <img v-if="getNoteCover(note)" :src="getNoteCover(note)" alt="" loading="lazy" />
-            <svg v-else class="note-card-media-deco" viewBox="0 0 100 60" preserveAspectRatio="none">
-              <path d="M0,35 C20,15 35,45 55,28 C75,12 90,38 100,25 L100,60 L0,60 Z" fill="currentColor" opacity="0.5"/>
-              <path d="M0,45 C25,30 45,50 70,38 C85,30 95,42 100,36 L100,60 L0,60 Z" fill="currentColor" opacity="0.3"/>
-            </svg>
+            <div v-else class="note-card-title-cover">
+              <span>{{ (note.title || '无标题').slice(0, 6) }}</span>
+            </div>
             <span class="note-card-blocks">{{ note.blocks?.length || 0 }}</span>
             <div class="note-card-actions">
               <button class="note-action" @click.stop="duplicateNote(note)" title="复制">
@@ -484,6 +459,7 @@ import { useTagStore, TAG_PRESET_COLORS } from '@/stores/tag'
 import { useToast } from '@/composables/useToast'
 import { formatDate as formatDateUtil } from '@/utils'
 import { resolveImageUrl, isImageRef } from '@/utils/imageStore'
+import BgDecor from '@/components/BgDecor.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -627,6 +603,34 @@ function countNotesInFolder(folderId) {
   return noteStore.notes.filter(n => !n.deleted && n.folderId === folderId).length
 }
 
+/** 根据笔记数量计算气泡尺寸和不规则圆角 */
+function folderStyle(folderId) {
+  const count = countNotesInFolder(folderId)
+  const t = Math.min(1, Math.log2(count + 1) / 5) // 0~1，32篇到上限
+
+  // 气泡尺寸：宽高协调，笔记越多越大
+  const base = 120 + t * 90                              // 120~210px 基准边长
+  // hash 决定每个文件夹的宽高比偏移，让气泡有胖有瘦
+  const hash = folderId.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
+  const wRatio = 1 + ((hash % 5) - 2) * 0.06             // 0.88~1.08
+  const hRatio = 1 + ((hash >> 4) % 5 - 2) * 0.06        // 0.88~1.08
+  const width = Math.round(base * wRatio)
+  const height = Math.round(base * hRatio)
+
+  // 被风吹的不规则圆角：高百分比(40~60%)，四角不同
+  const wind = (seed) => 42 + ((hash >> seed) % 7) * 3   // 42~60
+  const r1 = wind(0), r2 = wind(2), r3 = wind(5), r4 = wind(8)
+  // 垂直半径也各不同，增强不规则感
+  const rv1 = wind(1), rv2 = wind(3), rv3 = wind(6), rv4 = wind(9)
+
+  return {
+    '--fw': `${width}px`,
+    '--fh': `${height}px`,
+    '--fr': `${r1}% ${r2}% ${r3}% ${r4}% / ${rv1}% ${rv2}% ${rv3}% ${rv4}%`,
+    '--folder-t': t.toFixed(2)
+  }
+}
+
 function getParentFolderName(folder) {
   if (!folder || !folder.parentId) return ''
   const parent = noteStore.folders.find(f => f.id === folder.parentId && !f.deleted)
@@ -750,6 +754,42 @@ function getNotePreview(note) {
   const div = document.createElement('div')
   div.innerHTML = firstTextBlock.content
   return div.textContent?.slice(0, 80) || '空白笔记'
+}
+
+/** 计算笔记内容大小，返回 CSS 变量控制卡片尺寸/圆角/装饰 */
+function noteStyle(note) {
+  // 估算笔记内容量：blocks 数量 + 各块 content 长度
+  let size = 0
+  if (note.blocks?.length) {
+    for (const b of note.blocks) {
+      if (b.content) size += b.content.length
+      size += 50 // 每个块的基础大小
+    }
+  }
+  // 归一化到 0~1，约 3000 字到达上限
+  const t = Math.min(1, size / 3000)
+
+  // 尺寸：区分度比文件夹小，244~300px
+  const hash = note.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
+  const wRatio = 1 + ((hash % 5) - 2) * 0.03   // 微小宽高比差异
+  const hRatio = 1 + ((hash >> 4) % 5 - 2) * 0.03
+  const baseW = 244 + t * 56                    // 244~300px
+  const baseH = 300 + t * 50                    // 300~350px
+
+  // 圆角：轻微不规则
+  const r = 14 + t * 6                          // 14~20px 基础
+  const d = 3                                   // 偏移小
+  const r1 = r + (hash % 4 - 1) * d
+  const r2 = r + ((hash >> 3) % 4 - 1) * d
+  const r3 = r + ((hash >> 6) % 4 - 1) * d
+  const r4 = r + ((hash >> 9) % 4 - 1) * d
+
+  return {
+    '--note-w': `${Math.round(baseW * wRatio)}px`,
+    '--note-h': `${Math.round(baseH * hRatio)}px`,
+    '--note-r': `${r1}px ${r2}px ${r3}px ${r4}px`,
+    '--note-t': t.toFixed(2)
+  }
 }
 
 function noteMatchesKeyword(note, kw) {
@@ -1038,119 +1078,6 @@ onUnmounted(() => {
   position: relative;
 }
 
-.notes-bg-decor {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 360px;
-  overflow: hidden;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.bg-blob {
-  position: absolute;
-  bottom: -140px;
-  color: var(--primary-color);
-  opacity: 0.16;
-  filter: blur(10px);
-  will-change: transform;
-}
-
-.bg-blob-1 {
-  left: 6%;
-  width: 340px;
-  height: 340px;
-  animation: blobDrift1 22s ease-in-out infinite;
-}
-
-.bg-blob-2 {
-  right: 10%;
-  bottom: -180px;
-  width: 300px;
-  height: 300px;
-  color: var(--secondary-color);
-  opacity: 0.14;
-  animation: blobDrift2 28s ease-in-out infinite;
-}
-
-@keyframes blobDrift1 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(28px, -22px) scale(1.1); }
-  66% { transform: translate(-18px, -10px) scale(0.95); }
-}
-
-@keyframes blobDrift2 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  40% { transform: translate(-32px, -18px) scale(1.12); }
-  75% { transform: translate(16px, -28px) scale(0.92); }
-}
-
-.bg-rings {
-  position: absolute;
-  right: 24%;
-  bottom: -40px;
-  width: 200px;
-  height: 200px;
-  color: var(--primary-color);
-  opacity: 0.22;
-  animation: ringsSpin 36s linear infinite, ringsFloat 9s ease-in-out infinite;
-  will-change: transform;
-}
-
-@keyframes ringsSpin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-@keyframes ringsFloat {
-  0%, 100% { translate: 0 0; }
-  50% { translate: 0 -12px; }
-}
-
-.bg-grid-lines {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 240px;
-  background-image:
-    linear-gradient(to right, color-mix(in srgb, var(--primary-color) 45%, transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in srgb, var(--primary-color) 45%, transparent) 1px, transparent 1px);
-  background-size: 44px 44px;
-  opacity: 0.5;
-  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 55%);
-  mask-image: linear-gradient(180deg, transparent 0%, #000 55%);
-  transform: perspective(400px) rotateX(55deg);
-  transform-origin: bottom center;
-  animation: gridPulse 8s ease-in-out infinite;
-}
-
-@keyframes gridPulse {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 0.32; }
-}
-
-.bg-dots {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 200px;
-  background-image: radial-gradient(color-mix(in srgb, var(--primary-color) 60%, transparent) 1.4px, transparent 1.4px);
-  background-size: 22px 22px;
-  opacity: 0.5;
-  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 45%, transparent 100%);
-  mask-image: linear-gradient(180deg, transparent 0%, #000 45%, transparent 100%);
-  animation: dotsDrift 18s linear infinite;
-}
-
-@keyframes dotsDrift {
-  from { background-position: 0 0; }
-  to { background-position: 22px 22px; }
-}
-
 .notes-content-inner {
   position: relative;
   z-index: 1;
@@ -1179,8 +1106,8 @@ onUnmounted(() => {
 }
 
 .folder-card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 14px;
 }
 
@@ -1189,20 +1116,25 @@ onUnmounted(() => {
   overflow: hidden;
   padding: 18px;
   background: var(--bg-secondary);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--primary-color) calc(var(--folder-t, 0) * 8%), var(--border-light));
   cursor: pointer;
   transition: all var(--transition-normal);
+  /* 气泡尺寸和不规则圆角由 CSS 变量驱动 */
+  width: var(--fw, 140px);
+  height: var(--fh, 140px);
+  border-radius: var(--fr, 45% 50% 42% 48% / 48% 42% 50% 44%);
 }
 
 .folder-card-wave {
   position: absolute;
   right: -10px;
   bottom: -10px;
-  width: 130px;
-  height: 50px;
+  /* 笔记越多装饰越大：130px → 200px */
+  width: calc(130px + var(--folder-t, 0) * 70px);
+  height: calc(50px + var(--folder-t, 0) * 30px);
   color: var(--primary-color);
-  opacity: 0.08;
+  /* 笔记越多装饰越深：0.08 → 0.22 */
+  opacity: calc(0.08 + var(--folder-t, 0) * 0.14);
   transition: opacity var(--transition-normal), transform var(--transition-normal);
   pointer-events: none;
 }
@@ -1210,21 +1142,26 @@ onUnmounted(() => {
 .folder-card-inner {
   position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 13px;
+  justify-content: center;
+  gap: 8px;
+  height: 100%;
+  text-align: center;
 }
 
 .folder-card-icon {
   flex-shrink: 0;
-  width: 40px;
-  height: 40px;
+  /* 笔记越多图标越大：40px → 52px */
+  width: calc(40px + var(--folder-t, 0) * 12px);
+  height: calc(40px + var(--folder-t, 0) * 12px);
   border-radius: 50%;
   background: linear-gradient(135deg, var(--primary-soft), var(--primary-softer));
   color: var(--primary-color);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-color) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-color) calc(18% + var(--folder-t, 0) * 15%), transparent);
   transition: all var(--transition-normal);
 }
 
@@ -1278,6 +1215,8 @@ onUnmounted(() => {
 .folder-card-count {
   color: var(--primary-dark);
   font-weight: 600;
+  /* 笔记越多数字越大：inherit → 16px */
+  font-size: calc(1em + var(--folder-t, 0) * 0.25rem);
 }
 
 .folder-card-dot {
@@ -1312,8 +1251,8 @@ onUnmounted(() => {
 }
 
 .notes-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(244px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 16px;
 }
 
@@ -1321,9 +1260,10 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  width: var(--note-w, 244px);
   background: var(--bg-secondary);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--primary-color) calc(var(--note-t, 0) * 6%), var(--border-light));
+  border-radius: var(--note-r, 14px);
   cursor: pointer;
   transition: all var(--transition-normal);
 }
@@ -1337,7 +1277,7 @@ onUnmounted(() => {
 .note-card-media {
   position: relative;
   width: 100%;
-  height: 132px;
+  height: calc(130px + var(--note-t, 0) * 20px);
   overflow: hidden;
   background: linear-gradient(135deg, var(--primary-soft), var(--bg-tertiary));
 }
@@ -1366,12 +1306,29 @@ onUnmounted(() => {
   transition: transform 0.4s var(--transition-normal);
 }
 
-.note-card-media-deco {
+.note-card-media-deco,
+.note-card-title-cover {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  color: var(--primary-color);
+}
+
+/* 无封面时：展示标题放大版 */
+.note-card-title-cover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--primary-soft), var(--bg-tertiary));
+  color: color-mix(in srgb, var(--primary-color) 50%, var(--text-secondary));
+  font-size: calc(2rem + var(--note-t, 0) * 0.5rem);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  opacity: 0.4;
+  overflow: hidden;
+  word-break: break-all;
+  text-align: center;
+  padding: 8px;
 }
 
 .note-card:hover .note-card-media img {
