@@ -18,17 +18,24 @@ module.exports = {
   insert(image) {
     const db = getDb()
     db.prepare(`
-      INSERT INTO images (id, fileName, mimeType, sizeBytes, storagePath, createdAt)
-      VALUES (@id, @fileName, @mimeType, @sizeBytes, @storagePath, @createdAt)
+      INSERT INTO images (id, fileName, displayName, mimeType, sizeBytes, storagePath, createdAt)
+      VALUES (@id, @fileName, @displayName, @mimeType, @sizeBytes, @storagePath, @createdAt)
     `).run({
       id: image.id,
       fileName: image.fileName,
+      displayName: image.displayName || null,
       mimeType: image.mimeType,
       sizeBytes: image.sizeBytes || 0,
       storagePath: image.storagePath,
       createdAt: image.createdAt
     })
     return this.getById(image.id)
+  },
+
+  updateDisplayName(id, displayName) {
+    const db = getDb()
+    db.prepare('UPDATE images SET displayName = ? WHERE id = ?').run(displayName, id)
+    return this.getById(id)
   },
 
   delete(id) {

@@ -71,6 +71,17 @@ function register() {
   }))
   ipcMain.handle('backend:images:delete',   (_e, ref) => wrap(() => imageService.delete(ref)))
   ipcMain.handle('backend:images:listRefs', () => wrap(() => imageService.listRefs()))
+  ipcMain.handle('backend:images:listAllWithMeta', () => wrap(() => imageService.listAllWithMeta()))
+  ipcMain.handle('backend:images:rename', (_e, { ref, displayName }) => wrap(() => imageService.rename(ref, displayName)))
+
+  // ---------- 远程图片下载（绕过 CORS） ----------
+  ipcMain.handle('backend:images:fetchRemote', async (_e, url) => {
+    const response = await fetch(url)
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    const arrayBuffer = await response.arrayBuffer()
+    const mimeType = response.headers.get('content-type') || 'image/png'
+    return { base64: Buffer.from(arrayBuffer).toString('base64'), mimeType }
+  })
 
   // ---------- Sync / Data ----------
   ipcMain.handle('backend:sync:pull',       (_e, since) => wrap(() => syncService.pull(since || 0)))

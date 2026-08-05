@@ -85,6 +85,22 @@ export const imagesApi = {
     return http.del(`/images/${encodeURIComponent(ref)}`)
   },
 
+  /** 重命名素材（更新 displayName） */
+  rename(ref, displayName) {
+    if (isElectron) {
+      return window.electronAPI.backend('backend:images:rename', { ref, displayName })
+    }
+    return http.patch(`/images/${encodeURIComponent(ref)}/rename`, { displayName })
+  },
+
+  /** 列出全部 ref 及元数据（含 displayName） */
+  listAllWithMeta() {
+    if (isElectron) {
+      return window.electronAPI.backend('backend:images:listAllWithMeta').then(r => r.data || [])
+    }
+    return http.get('/images/meta')
+  },
+
   /** 列出全部 ref（孤儿清理用） */
   listRefs() {
     return http.get('/images')

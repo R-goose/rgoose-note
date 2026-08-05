@@ -30,6 +30,7 @@
     </div>
     <ToastContainer />
     <CommandPalette :show="showCmdPalette" @close="showCmdPalette = false" />
+    <AIFloatingButton />
   </div>
 </template>
 
@@ -38,6 +39,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import Sidebar from '@/components/Sidebar.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
+import AIFloatingButton from '@/components/AIFloatingButton.vue'
 import { useThemeStore } from '@/stores/theme'
 import { useNoteStore } from '@/stores/note'
 import { usePlanStore } from '@/stores/plan'

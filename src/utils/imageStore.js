@@ -10,13 +10,20 @@ import { imagesApi } from '@/api/images'
 
 /**
  * 保存 dataUrl 到后端，返回 ref
+ * @param {string} dataUrl
+ * @param {string} [displayName] - 可选的自定义显示名称
  */
-export async function saveImage(dataUrl) {
+export async function saveImage(dataUrl, displayName) {
   if (!dataUrl || typeof dataUrl !== 'string') return dataUrl
   if (!/^data:(image|audio|video)\//.test(dataUrl)) return dataUrl
 
   try {
-    return await imagesApi.uploadFromDataUrl(dataUrl)
+    const ref = await imagesApi.uploadFromDataUrl(dataUrl)
+    // 如果提供了 displayName，保存到后端
+    if (displayName && ref) {
+      await renameMedia(ref, displayName)
+    }
+    return ref
   } catch (err) {
     console.error('saveImage failed:', err)
     return dataUrl
@@ -86,6 +93,30 @@ export async function getAllImageRefs() {
     return await imagesApi.listRefs()
   } catch (err) {
     console.error('getAllImageRefs failed:', err)
+    return []
+  }
+}
+
+/**
+ * 重命名素材（更新后端 displayName）
+ */
+export async function renameMedia(ref, displayName) {
+  if (!ref || (!ref.startsWith('img_') && !ref.startsWith('media_'))) return
+  try {
+    await imagesApi.rename(ref, displayName)
+  } catch (err) {
+    console.error('renameMedia failed:', err)
+  }
+}
+
+/**
+ * 获取所有素材的元数据（含 displayName）
+ */
+export async function getAllImageMeta() {
+  try {
+    return await imagesApi.listAllWithMeta()
+  } catch (err) {
+    console.error('getAllImageMeta failed:', err)
     return []
   }
 }

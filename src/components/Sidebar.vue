@@ -302,6 +302,40 @@
         </div>
         <div v-if="!recentNotes.length" class="empty-mini">暂无笔记</div>
       </div>
+
+      <!-- 浏览历史 -->
+      <div class="section-header" style="margin-top: 12px;">
+        <div class="section-title-wrapper">
+          <span>浏览历史</span>
+        </div>
+        <button v-if="routeHistory.length" class="btn-icon-small btn-history-clear" @click="clearHistory" title="清空">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
+        </button>
+      </div>
+      <div class="history-list">
+        <button
+          v-for="(h, i) in routeHistory"
+          :key="h.path + h.ts"
+          class="history-item"
+          :class="{ active: route.fullPath === h.path }"
+          @click="goToHistory(h.path)"
+        >
+          <span class="history-dot" :style="{ background: h.color }"></span>
+          <svg class="history-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <template v-if="h.icon === 'note'"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></template>
+            <template v-else-if="h.icon === 'dashboard'"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></template>
+            <template v-else-if="h.icon === 'tag'"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></template>
+            <template v-else-if="h.icon === 'media'"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></template>
+            <template v-else-if="h.icon === 'plan'"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></template>
+            <template v-else-if="h.icon === 'settings'"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></template>
+          </svg>
+          <span class="history-title">{{ h.title }}</span>
+          <span class="history-time">{{ h.timeLabel }}</span>
+        </button>
+        <div v-if="!routeHistory.length" class="empty-mini">暂无浏览记录</div>
+      </div>
     </div>
     
     <div v-if="!collapsed" class="sidebar-footer">
@@ -1108,6 +1142,74 @@ function closeFolderTagPicker() {
   folderTagPicker.value.search = ''
 }
 
+// ===== 浏览历史 =====
+const HISTORY_KEY = 'route_history'
+const routeHistory = ref([])
+const routeMeta = {
+  Dashboard: { color: '#8b5cf6', icon: 'dashboard', label: '仪表盘' },
+  Notes: { color: '#5a9e7a', icon: 'note', label: '笔记' },
+  NoteEditor: { color: '#3b82f6', icon: 'note', label: '编辑笔记' },
+  Tags: { color: '#ec4899', icon: 'tag', label: '标签' },
+  Media: { color: '#06b6d4', icon: 'media', label: '素材库' },
+  Plans: { color: '#f59e0b', icon: 'plan', label: '计划' },
+  Settings: { color: '#6b7280', icon: 'settings', label: '设置' }
+}
+
+function timeLabel(ts) {
+  const diff = Date.now() - ts
+  if (diff < 60000) return '刚刚'
+  if (diff < 3600000) return Math.floor(diff / 60000) + '分钟前'
+  if (diff < 86400000) return Math.floor(diff / 3600000) + '小时前'
+  return Math.floor(diff / 86400000) + '天前'
+}
+
+function loadHistory() {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        parsed.forEach(r => { r.timeLabel = timeLabel(r.ts) })
+        return parsed
+      }
+    }
+  } catch { /* ignore */ }
+  return []
+}
+
+function saveHistory() {
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(routeHistory.value)) } catch { /* ignore */ }
+}
+
+function trackRoute(to) {
+  const name = to.name
+  if (!name || name === 'NotFound') return
+  // 获取笔记标题
+  let title = to.meta?.title || routeMeta[name]?.label || to.path
+  if (name === 'NoteEditor') {
+    const note = noteStore.notes.find(n => n.id === to.params.id && !n.deleted)
+    if (note) title = note.title || '无标题笔记'
+  }
+  const meta = routeMeta[name] || { color: '#999', icon: 'note' }
+  const entry = { path: to.fullPath, title, name, ts: Date.now(), color: meta.color, icon: meta.icon, timeLabel: '刚刚' }
+  routeHistory.value = routeHistory.value.filter(r => r.path !== entry.path)
+  routeHistory.value.unshift(entry)
+  if (routeHistory.value.length > 7) routeHistory.value.pop()
+  routeHistory.value.forEach(r => { r.timeLabel = timeLabel(r.ts) })
+  saveHistory()
+}
+
+function goToHistory(path) {
+  if (route.fullPath !== path) router.push(path)
+}
+
+function clearHistory() {
+  routeHistory.value = []
+  saveHistory()
+}
+
+let historyTimer = null
+
 onMounted(async () => {
   await noteStore.init()
   await planStore.init()
@@ -1115,12 +1217,19 @@ onMounted(async () => {
   document.addEventListener('click', hideFolderContextMenu)
   document.addEventListener('click', handleFolderSelectDocClick)
   document.addEventListener('click', closeFolderModalTagDropdown)
+
+  // 浏览历史
+  routeHistory.value = loadHistory()
+  trackRoute(router.currentRoute.value)
+  router.afterEach((to) => { trackRoute(to) })
+  historyTimer = setInterval(() => { routeHistory.value.forEach(r => { r.timeLabel = timeLabel(r.ts) }) }, 60000)
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', hideFolderContextMenu)
   document.removeEventListener('click', handleFolderSelectDocClick)
   document.removeEventListener('click', closeFolderModalTagDropdown)
+  if (historyTimer) clearInterval(historyTimer)
 })
 
 function closeFolderModalTagDropdown(e) {
@@ -2223,5 +2332,81 @@ function closeFolderModalTagDropdown(e) {
   text-align: center;
   font-size: 12px;
   color: var(--text-tertiary);
+}
+
+/* ===== 浏览历史 ===== */
+.btn-history-clear {
+  opacity: 0.4;
+  transition: opacity var(--transition-fast);
+}
+.btn-history-clear:hover {
+  opacity: 1;
+  color: #ef4444;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 12px;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  width: 100%;
+  text-align: left;
+}
+
+.history-item:hover {
+  background: var(--bg-hover);
+}
+
+.history-item.active {
+  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+}
+
+.history-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.history-icon {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+}
+
+.history-item.active .history-icon {
+  color: var(--primary-color);
+}
+
+.history-title {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-item.active .history-title {
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.history-time {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 </style>

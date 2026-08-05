@@ -1,7 +1,7 @@
 {
   "name": "r-goose-note",
   "private": true,
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "R-Goose Note - 画布式笔记应用",
   "type": "module",
   "scripts": {
@@ -12,7 +12,7 @@
     "test:smoke": "node_modules\\electron\\dist\\electron.exe --no-sandbox . --test-smoke",
     "kill:app": "powershell -Command \"Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'R-Goose Note.exe' -or $_.Name -eq 'electron.exe' -or $_.ExecutablePath -like 'E:\\大师的\\release\\win-unpacked\\*' -or $_.ExecutablePath -like 'E:\\大师的\\release-build*\\win-unpacked\\*' -or ($_.Name -eq 'electron.exe' -and $_.CommandLine -like '*E:\\大师的*') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }\"",
     "clean:release": "powershell -Command \"Get-ChildItem 'release-build*' -Directory -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue; if (Test-Path 'release\\builder-effective-config.yaml') { Remove-Item 'release\\builder-effective-config.yaml' -Force -ErrorAction SilentlyContinue }\"",
-    "electron:dev": "vite build && concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && set VITE_DEV_SERVER_URL=http://localhost:5173&& electron .\"",
     "electron:build": "npm run kill:app && vite build && powershell -Command \"$out='release-build-' + (Get-Date -Format 'yyyyMMdd-HHmmss'); node node_modules/electron-builder/cli.js --projectDir . --config.directories.output=$out\"",
     "electron:build:mirror": "npm run kill:app && vite build && powershell -Command \"$env:ELECTRON_MIRROR='https://npmmirror.com/mirrors/electron/'; $env:ELECTRON_BUILDER_BINARIES_MIRROR='https://npmmirror.com/mirrors/electron-builder-binaries/'; Remove-Item Env:ELECTRON_BUILDER_BINARIES_CUSTOM_DIR -ErrorAction SilentlyContinue; $out='release-build-' + (Get-Date -Format 'yyyyMMdd-HHmmss'); node node_modules/electron-builder/cli.js --projectDir . --config.directories.output=$out\""
   },

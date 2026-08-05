@@ -137,6 +137,7 @@ CREATE TABLE IF NOT EXISTS tags (
 CREATE TABLE IF NOT EXISTS images (
   id           TEXT    PRIMARY KEY,
   fileName     TEXT    NOT NULL,
+  displayName  TEXT,
   mimeType     TEXT    NOT NULL,
   sizeBytes    INTEGER NOT NULL DEFAULT 0,
   storagePath  TEXT    NOT NULL,

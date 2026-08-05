@@ -105,6 +105,12 @@ function createRouter() {
     res.json(ok({ ref }))
   })
   app.get('/api/images', (_req, res) => res.json(ok(imageService.listRefs())))
+  app.get('/api/images/meta', (_req, res) => res.json(ok(imageService.listAllWithMeta())))
+  app.patch('/api/images/:ref/rename', (req, res) => {
+    const { displayName } = req.body || {}
+    imageService.rename(req.params.ref, displayName)
+    res.json(ok())
+  })
   app.get('/api/images/:ref', (req, res) => {
     try {
       const { buffer, mimeType } = imageService.download(req.params.ref)
@@ -117,6 +123,23 @@ function createRouter() {
   app.delete('/api/images/:ref', (req, res) => {
     imageService.delete(req.params.ref)
     res.json(ok())
+  })
+
+  // ---------- Proxy (绕过 CORS 下载远程图片) ----------
+  app.get('/api/proxy-image', async (req, res) => {
+    try {
+      const url = req.query.url
+      if (!url) return res.status(400).json({ error: 'missing url' })
+      const response = await fetch(url)
+      if (!response.ok) return res.status(response.status).json({ error: `remote ${response.status}` })
+      const arrayBuffer = await response.arrayBuffer()
+      const contentType = response.headers.get('content-type') || 'image/png'
+      res.set('Content-Type', contentType)
+      res.set('Cache-Control', 'public, max-age=86400')
+      res.send(Buffer.from(arrayBuffer))
+    } catch (err) {
+      handleError(err, req, res)
+    }
   })
 
   // ---------- Sync / Data ----------

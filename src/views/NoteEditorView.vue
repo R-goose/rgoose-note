@@ -762,6 +762,49 @@
       class="hidden-file-input"
       @change="onGalleryFileSelect"
     />
+
+    <!-- 来源选择弹窗 -->
+    <Teleport to="body">
+      <div v-if="sourcePicker.show" class="modal-overlay" @click.self="sourcePicker.show = false">
+        <div class="modal-content source-picker-modal">
+          <div class="modal-header">
+            <h3>{{ sourcePickerTitle }}</h3>
+            <button class="btn btn-ghost btn-icon" @click="sourcePicker.show = false">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div class="source-picker-options">
+            <button class="source-option" @click="pickFromSystem">
+              <div class="source-option-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              </div>
+              <div class="source-option-text">
+                <span class="source-option-title">从系统文件</span>
+                <span class="source-option-desc">从电脑中选择文件</span>
+              </div>
+            </button>
+            <button class="source-option" @click="pickFromLibrary">
+              <div class="source-option-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              </div>
+              <div class="source-option-text">
+                <span class="source-option-title">从素材库</span>
+                <span class="source-option-desc">从已有素材中选择</span>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 素材库选择器 -->
+    <MediaPicker
+      :show="mediaPicker.show"
+      :multiple="mediaPicker.multiple"
+      :media-type="mediaPicker.mediaType"
+      @close="mediaPicker.show = false"
+      @select="onMediaPickerSelect"
+    />
     
     <div v-if="showNoteLinkModal" class="modal-overlay" @click.self="closeNoteLinkModal">
       <div class="modal-content note-link-modal">
@@ -1173,6 +1216,7 @@ import { usePlanStore } from '@/stores/plan'
 import { useTagStore, TAG_PRESET_COLORS } from '@/stores/tag'
 import { useShortcutStore } from '@/stores/shortcut'
 import NoteBlock from '@/components/NoteBlock.vue'
+import MediaPicker from '@/components/MediaPicker.vue'
 import { markdownToHtml, isLikelyMarkdown } from '@/utils/markdown'
 import { deepClone } from '@/utils'
 import CustomSelect from '@/components/CustomSelect.vue'
@@ -1528,6 +1572,13 @@ const galleryInputRef = ref(null)
 const currentGalleryBlockId = ref(null)
 const blockSelectionRanges = ref({})
 
+// ===== 来源选择弹窗（系统文件 / 素材库） =====
+const sourcePicker = ref({ show: false, mode: '' })
+// mode: 'image' | 'gallery' | 'audio' | 'video'
+
+// ===== 素材库选择器 =====
+const mediaPicker = ref({ show: false, mediaType: 'image', multiple: false })
+
 const showNoteLinkModal = ref(false)
 const noteLinkSearch = ref('')
 const expandedLinkId = ref(null)
@@ -1555,6 +1606,50 @@ const showExportMenu = ref(false)
 
 const newBlockOffset = ref(0)
 const draggingNewBlock = ref(false)
+
+/**
+ * 在期望位置附近找一个不与现有块重叠的空位。
+ * @param {number} x - 期望的 x 坐标（画布坐标）
+ * @param {number} y - 期望的 y 坐标（画布坐标）
+ * @param {number} w - 块宽度
+ * @param {number} h - 块高度
+ * @returns {{x:number,y:number}}
+ */
+function findFreePosition(x, y, w = 280, h = 200) {
+  const gap = 40
+  const blocks = note.value?.blocks || []
+  const occupied = blocks.map(b => ({
+    x1: b.x, y1: b.y,
+    x2: b.x + (b.width || 240),
+    y2: b.y + (b.height || b.minHeight || 120)
+  }))
+
+  function overlaps(px, py) {
+    return occupied.some(o =>
+      px < o.x2 + gap && px + w + gap > o.x1 &&
+      py < o.y2 + gap && py + h + gap > o.y1
+    )
+  }
+
+  // 如果期望位置就是空的，直接用
+  if (!overlaps(x, y)) return { x, y }
+
+  // 螺旋向外搜索
+  const step = 80
+  const maxRadius = 2000
+  for (let r = step; r < maxRadius; r += step) {
+    for (let dy = -r; dy <= r; dy += step) {
+      for (let dx = -r; dx <= r; dx += step) {
+        // 只搜外圈
+        if (Math.abs(dx) < r && Math.abs(dy) < r) continue
+        const px = x + dx
+        const py = y + dy
+        if (!overlaps(px, py)) return { x: px, y: py }
+      }
+    }
+  }
+  return { x, y }
+}
 const isReadOnly = ref(localStorage.getItem('note-readonly') === 'true')
 
 const showTagPicker = ref(false)
@@ -2004,6 +2099,28 @@ const contextMenuStyle = computed(() => ({
   top: `${contextMenu.value.y}px`
 }))
 
+// 菜单渲染后自动修正位置，保证完整可见
+watch(() => [contextMenu.value.x, contextMenu.value.y], async () => {
+  if (!contextMenu.value.show) return
+  await nextTick()
+  const el = document.querySelector('.context-menu')
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  let { x, y } = contextMenu.value
+  // 右边溢出 → 向左偏移
+  if (x + rect.width > vw - 8) {
+    x = Math.max(8, vw - rect.width - 8)
+  }
+  // 底部溢出 → 向上偏移
+  if (y + rect.height > vh - 8) {
+    y = Math.max(8, vh - rect.height - 8)
+  }
+  contextMenu.value.x = x
+  contextMenu.value.y = y
+})
+
 const SHORTCUT_DISPLAY = { Ctrl: 'Ctrl', Shift: 'Shift', Alt: 'Alt', Up: '↑', Down: '↓', Left: '←', Right: '→', Space: '空格', Del: 'Del', Esc: 'Esc', Enter: 'Enter' }
 function sc(actionId) {
   const combo = shortcutStore.getCombo(actionId)
@@ -2147,6 +2264,7 @@ function getBlockMinimapColor(block) {
 onMounted(async () => {
   await noteStore.init()
   if (note.value) {
+    noteStore.setCurrentNote(route.params.id)
     noteTitle.value = note.value.title
     canvasConfig.value = normalizeCanvasConfig(note.value.canvasConfig)
   }
@@ -2183,6 +2301,7 @@ watch(() => note.value?.id, () => nextTick(autoSizeTitle))
 watch(() => route.params.id, (newId) => {
   const n = noteStore.notes.find(n => n.id === newId && !n.deleted)
   if (n) {
+    noteStore.setCurrentNote(newId)
     flushContentHistory()
     pendingContentSnapshot = null
     if (contentHistoryTimer) {
@@ -3824,9 +3943,144 @@ function addTodoBlockFromKanban() {
   addTodoBlockAt(centerX, centerY)
 }
 
+// ===== 来源选择 + 素材库选择器 =====
+const sourcePickerTitle = computed(() => {
+  const m = { image: '添加图片', gallery: '添加图片', audio: '添加音频', video: '添加视频' }
+  return m[sourcePicker.value.mode] || '选择来源'
+})
+
+function showImageSourcePicker() {
+  sourcePicker.value = { show: true, mode: 'image' }
+}
+
+function showGallerySourcePicker() {
+  sourcePicker.value = { show: true, mode: 'gallery' }
+}
+
+function showMediaSourcePicker() {
+  sourcePicker.value = { show: true, mode: pendingMediaType.value || 'audio' }
+}
+
+function pickFromSystem() {
+  const mode = sourcePicker.value.mode
+  sourcePicker.value.show = false
+  if (mode === 'image') {
+    fileInputRef.value?.click()
+  } else if (mode === 'gallery') {
+    galleryInputRef.value?.click()
+  } else if (mode === 'audio' || mode === 'video') {
+    mediaInputRef.value?.click()
+  }
+}
+
+function pickFromLibrary() {
+  const mode = sourcePicker.value.mode
+  sourcePicker.value.show = false
+  if (mode === 'gallery') {
+    mediaPicker.value = { show: true, mediaType: 'image', multiple: true }
+  } else {
+    mediaPicker.value = { show: true, mediaType: mode, multiple: false }
+  }
+}
+
+function onMediaPickerSelect(ref) {
+  const mode = mediaPicker.value.multiple ? 'gallery' : sourcePicker.value.mode || 'image'
+  mediaPicker.value.show = false
+
+  if (mode === 'image') {
+    applyImageRef(ref)
+  } else if (mode === 'gallery') {
+    applyGalleryRefs(Array.isArray(ref) ? ref : [ref])
+  } else if (mode === 'audio' || mode === 'video') {
+    applyMediaRef(ref, mode)
+  }
+}
+
+// 把已有的 imgRef 应用到目标（复用 onImageFileSelect 的后半段逻辑）
+function applyImageRef(imgRef) {
+  let centerX, centerY
+  if (contextMenu.value.canvasXForImage !== undefined) {
+    centerX = contextMenu.value.canvasXForImage
+    centerY = contextMenu.value.canvasYForImage
+    contextMenu.value.canvasXForImage = undefined
+    contextMenu.value.canvasYForImage = undefined
+  } else {
+    centerX = -canvasConfig.value.offsetX / canvasConfig.value.zoom + 300 + newBlockOffset.value
+    centerY = -canvasConfig.value.offsetY / canvasConfig.value.zoom + 200 + newBlockOffset.value
+    newBlockOffset.value += 30
+  }
+
+  if (note.value) {
+    saveHistory()
+    if (currentImageBlockId.value) {
+      const block = note.value.blocks.find(b => b.id === currentImageBlockId.value)
+      if (block?.type === 'image') {
+        noteStore.updateBlock(note.value.id, currentImageBlockId.value, { imageUrl: imgRef })
+        focusBlock(currentImageBlockId.value)
+      } else if (block) {
+        const imgX = block.x + (block.width || 240) + 60
+        const imgY = block.y
+        const newImageBlock = noteStore.addBlock(note.value.id, {
+          x: imgX, y: imgY, type: 'image', imageUrl: imgRef, width: 280, minHeight: 200
+        })
+        noteStore.addConnection(note.value.id, block.id, newImageBlock.id, 'bezier', { dash: 'dashed', color: '#9aa0a6', width: '2' })
+        focusBlock(newImageBlock.id)
+      }
+      currentImageBlockId.value = null
+    } else {
+      const pos = findFreePosition(centerX, centerY, 280, 200)
+      const block = noteStore.addBlock(note.value.id, {
+        x: pos.x, y: pos.y, type: 'image', imageUrl: imgRef, width: 280, minHeight: 200
+      })
+      focusAndCenterBlock(block.id)
+    }
+  }
+}
+
+function applyGalleryRefs(refs) {
+  const blockId = currentGalleryBlockId.value
+  if (!blockId || !note.value) return
+  const block = note.value.blocks.find(b => b.id === blockId)
+  if (!block || block.type !== 'gallery') return
+  saveHistory()
+  noteStore.updateBlock(note.value.id, blockId, {
+    images: [...(block.images || []), ...refs]
+  })
+  currentGalleryBlockId.value = null
+}
+
+function applyMediaRef(mediaRef, mediaType) {
+  if (!note.value) return
+  saveHistory()
+  if (currentMediaBlockId.value) {
+    noteStore.updateBlock(note.value.id, currentMediaBlockId.value, {
+      mediaUrl: mediaRef,
+      mediaName: mediaRef
+    })
+    focusBlock(currentMediaBlockId.value)
+  } else {
+    const basePos = pendingMediaPos.value || {
+      x: -canvasConfig.value.offsetX / canvasConfig.value.zoom + 300 + newBlockOffset.value,
+      y: -canvasConfig.value.offsetY / canvasConfig.value.zoom + 200 + newBlockOffset.value
+    }
+    const w = mediaType === 'video' ? 400 : 320
+    const h = mediaType === 'video' ? 240 : 80
+    const pos = findFreePosition(basePos.x, basePos.y, w, h)
+    newBlockOffset.value += 30
+    noteStore.addBlock(note.value.id, {
+      x: pos.x, y: pos.y, type: mediaType,
+      mediaUrl: mediaRef, mediaName: mediaRef,
+      width: w, minHeight: h
+    })
+  }
+  currentMediaBlockId.value = null
+  pendingMediaType.value = null
+  pendingMediaPos.value = null
+}
+
 function addImageBlock() {
   currentImageBlockId.value = null
-  fileInputRef.value?.click()
+  showImageSourcePicker()
 }
 
 function onImageFileSelect(e) {
@@ -3883,9 +4137,10 @@ function onImageFileSelect(e) {
         }
         currentImageBlockId.value = null
       } else {
+        const pos = findFreePosition(centerX, centerY, 280, 200)
         const block = noteStore.addBlock(note.value.id, {
-          x: centerX,
-          y: centerY,
+          x: pos.x,
+          y: pos.y,
           type: 'image',
           imageUrl: imgRef,
           width: 280,
@@ -3914,7 +4169,7 @@ function saveBlockSelection(blockId, range) {
 function handleAddImageToBlock(blockId) {
   focusBlock(blockId)
   currentImageBlockId.value = blockId
-  fileInputRef.value?.click()
+  showImageSourcePicker()
 }
 
 function handleAddMediaToBlock({ blockId, mediaType }) {
@@ -3922,7 +4177,7 @@ function handleAddMediaToBlock({ blockId, mediaType }) {
   currentMediaBlockId.value = blockId
   pendingMediaType.value = mediaType
   pendingMediaPos.value = null
-  mediaInputRef.value?.click()
+  showMediaSourcePicker()
 }
 
 function addMediaBlockAtContext(mediaType) {
@@ -3930,7 +4185,7 @@ function addMediaBlockAtContext(mediaType) {
   pendingMediaType.value = mediaType
   pendingMediaPos.value = { x: contextMenu.value.canvasX - 160, y: contextMenu.value.canvasY - 60 }
   contextMenu.value.show = false
-  mediaInputRef.value?.click()
+  showMediaSourcePicker()
 }
 
 function onMediaFileSelect(e) {
@@ -3959,10 +4214,13 @@ function onMediaFileSelect(e) {
       })
       focusBlock(currentMediaBlockId.value)
     } else {
-      const pos = pendingMediaPos.value || {
+      const basePos = pendingMediaPos.value || {
         x: -canvasConfig.value.offsetX / canvasConfig.value.zoom + 300 + newBlockOffset.value,
         y: -canvasConfig.value.offsetY / canvasConfig.value.zoom + 200 + newBlockOffset.value
       }
+      const w = mediaType === 'video' ? 400 : 320
+      const h = mediaType === 'video' ? 240 : 80
+      const pos = findFreePosition(basePos.x, basePos.y, w, h)
       newBlockOffset.value += 30
       noteStore.addBlock(note.value.id, {
         x: pos.x,
@@ -3970,8 +4228,8 @@ function onMediaFileSelect(e) {
         type: mediaType,
         mediaUrl: mediaRef,
         mediaName: file.name,
-        width: mediaType === 'video' ? 400 : 320,
-        minHeight: mediaType === 'video' ? 240 : 80
+        width: w,
+        minHeight: h
       })
     }
 
@@ -3999,14 +4257,14 @@ function addGalleryBlockAtContext() {
   // 立即触发选图
   nextTick(() => {
     currentGalleryBlockId.value = block.id
-    galleryInputRef.value?.click()
+    showGallerySourcePicker()
   })
 }
 
 function handleAddGalleryImage(blockId) {
   focusBlock(blockId)
   currentGalleryBlockId.value = blockId
-  galleryInputRef.value?.click()
+  showGallerySourcePicker()
 }
 
 function onGalleryFileSelect(e) {
@@ -4326,7 +4584,7 @@ function addImageBlockAtContext() {
   contextMenu.value.canvasXForImage = contextMenu.value.canvasX - 140
   contextMenu.value.canvasYForImage = contextMenu.value.canvasY - 100
   contextMenu.value.show = false
-  fileInputRef.value?.click()
+  showImageSourcePicker()
 }
 
 function onBlockDragStart(blockId, clientX, clientY, e) {
@@ -6435,6 +6693,66 @@ function deleteSelectedConnection() {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* 来源选择弹窗 */
+.source-picker-modal {
+  width: 400px;
+  max-width: 90vw;
+  padding: 0;
+  overflow: hidden;
+}
+.source-picker-modal .modal-header {
+  padding: 20px 24px 16px;
+  margin-bottom: 0;
+}
+.source-picker-options {
+  padding: 0 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.source-option {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  background: var(--bg-primary);
+  cursor: pointer;
+  transition: all .15s;
+  text-align: left;
+}
+.source-option:hover {
+  border-color: var(--primary-color);
+  background: var(--bg-hover);
+  transform: translateY(-1px);
+}
+.source-option-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--primary-soft);
+  color: var(--primary-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.source-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.source-option-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.source-option-desc {
+  font-size: 12px;
+  color: var(--text-tertiary);
 }
 </style>
 

@@ -57,7 +57,7 @@ function generateRef(mimeType, originalName) {
   return `${prefix}${ts}_${rand}.${ext}`
 }
 
-function saveBytes(data, mimeType, originalName) {
+function saveBytes(data, mimeType, originalName, displayName) {
   const ref = generateRef(mimeType, originalName)
   ensureImagesDir()
   const filePath = path.join(getImagesDir(), ref)
@@ -66,6 +66,7 @@ function saveBytes(data, mimeType, originalName) {
   imageDao.insert({
     id: ref,
     fileName: ref,
+    displayName: displayName || null,
     mimeType: mimeType || 'application/octet-stream',
     sizeBytes: data.length,
     storagePath: 'images/' + ref,
@@ -77,13 +78,13 @@ function saveBytes(data, mimeType, originalName) {
 module.exports = {
   /** 上传文件（Buffer 形式），返回 ref */
   upload(file) {
-    // file: { buffer, originalname, mimetype }
+    // file: { buffer, originalname, mimetype, displayName }
     const data = file.buffer || file.data
-    return saveBytes(data, file.mimetype || file.mimeType, file.originalname || file.name)
+    return saveBytes(data, file.mimetype || file.mimeType, file.originalname || file.name, file.displayName)
   },
 
   /** 从 dataUrl 保存（导入场景），返回 ref */
-  saveFromDataUrl(dataUrl, fileName) {
+  saveFromDataUrl(dataUrl, fileName, displayName) {
     const commaIdx = dataUrl.indexOf(',')
     if (commaIdx < 0) throw badRequest('无效的 dataUrl')
     const meta = dataUrl.substring(0, commaIdx)
@@ -91,7 +92,7 @@ module.exports = {
     const semicolon = meta.indexOf(';')
     const mimeType = semicolon > 0 ? meta.substring(5, semicolon) : meta.substring(5)
     const data = Buffer.from(base64, 'base64')
-    return saveBytes(data, mimeType, fileName)
+    return saveBytes(data, mimeType, fileName, displayName)
   },
 
   /** 下载文件，返回 { buffer, mimeType } */
@@ -127,6 +128,21 @@ module.exports = {
   /** 列出全部图片元数据 */
   listAll() {
     return imageDao.listAll()
+  },
+
+  /** 重命名（更新 displayName） */
+  rename(ref, displayName) {
+    return imageDao.updateDisplayName(ref, displayName)
+  },
+
+  /** 列出全部 ref 及元数据 */
+  listAllWithMeta() {
+    return imageDao.listAll().map(img => ({
+      id: img.id,
+      displayName: img.displayName || null,
+      mimeType: img.mimeType,
+      createdAt: img.createdAt
+    }))
   },
 
   /** 清空全部图片（磁盘文件 + 元数据表），返回删除的文件数 */

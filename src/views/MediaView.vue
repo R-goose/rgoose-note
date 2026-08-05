@@ -1,7 +1,37 @@
 <template>
   <div class="media-view">
     <div class="view-header">
-      <h1>素材库</h1>
+      <div class="header-left">
+        <!-- 面包屑导航 -->
+        <div class="media-breadcrumb">
+          <span class="breadcrumb-item" @click="enterFolder(null)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            素材库
+          </span>
+          <template v-for="f in breadcrumb" :key="f.id">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="breadcrumb-sep"><polyline points="9 18 15 12 9 6"/></svg>
+            <span class="breadcrumb-item" @click="enterFolder(f.id)">{{ f.name }}</span>
+          </template>
+        </div>
+        <!-- 新建文件夹按钮 -->
+        <button class="btn-new-folder" @click="showNewFolderInput = true" title="创建文件夹">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+          <span>创建文件夹</span>
+        </button>
+        <!-- 新建文件夹输入框 -->
+        <div v-if="showNewFolderInput" class="new-folder-input-wrap">
+          <input
+            ref="newFolderInputRef"
+            v-model="newFolderName"
+            type="text"
+            class="new-folder-input"
+            placeholder="文件夹名称"
+            @keydown.enter="confirmNewFolder"
+            @keydown.esc="cancelNewFolder"
+            @blur="confirmNewFolder"
+          />
+        </div>
+      </div>
       <div class="header-actions">
         <div class="filter-tabs">
           <button
@@ -36,52 +66,96 @@
       <div class="media-content-inner">
         <div v-if="loading" class="media-loading">加载中...</div>
 
-    <div v-else-if="filteredItems.length === 0" class="media-empty">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.4">
-        <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
-      </svg>
-      <p>{{ allItems.length === 0 ? '还没有任何媒体素材' : '没有匹配的素材' }}</p>
-    </div>
+        <template v-else>
+          <!-- 文件夹区域 -->
+          <div v-if="childFolders.length > 0" class="folder-card-grid-section">
+            <div class="folder-card-grid">
+              <article
+                v-for="folder in childFolders"
+                :key="folder.id"
+                class="folder-card"
+                :style="folderStyle(folder.id)"
+                @click="enterFolder(folder.id)"
+                @contextmenu.prevent="showFolderContextMenu($event, folder)"
+              >
+                <svg class="folder-card-wave" viewBox="0 0 200 60" preserveAspectRatio="none" aria-hidden="true">
+                  <path d="M0,40 C40,20 80,55 120,35 C160,15 180,45 200,30 L200,60 L0,60 Z" fill="currentColor"/>
+                </svg>
+                <div class="folder-card-inner">
+                  <div class="folder-card-icon" :class="{ 'folder-card-icon-child': folder.parentId }">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                    </svg>
+                  </div>
+                  <div class="folder-card-content">
+                    <h3 class="folder-card-name">{{ folder.name }}</h3>
+                    <p class="folder-card-meta">
+                      <span class="folder-card-count">{{ getFolderItemCount(folder.id) }}</span> 项素材
+                    </p>
+                  </div>
+                  <span class="folder-card-dot"></span>
+                </div>
+              </article>
+            </div>
+          </div>
 
-    <div v-else class="media-grid">
-      <div
-        v-for="item in filteredItems"
-        :key="item.id"
-        class="media-card"
-        @click="previewItem(item)"
-      >
-        <div class="media-thumb">
-          <img v-if="item.type === 'image' && item.url" :src="item.url" alt="" />
-          <div v-else-if="item.type === 'video' && item.thumbUrl" class="thumb-video-cover">
-            <img :src="item.thumbUrl" alt="" />
-            <span class="play-overlay">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-            </span>
-          </div>
-          <div v-else-if="item.type === 'video'" class="thumb-icon video-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="2" y="5" width="14" height="14" rx="2"/><polygon points="23 7 16 12 23 17 23 7"/>
+          <!-- 空状态 -->
+          <div v-if="filteredItems.length === 0 && childFolders.length === 0" class="media-empty">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.4">
+              <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
             </svg>
+            <p>{{ allItems.length === 0 ? '还没有任何媒体素材' : '没有匹配的素材' }}</p>
           </div>
-          <div v-else-if="item.type === 'audio'" class="thumb-icon audio-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
-            </svg>
+
+          <!-- 素材网格 -->
+          <div v-if="filteredItems.length > 0" class="media-grid">
+            <div
+              v-for="item in filteredItems"
+              :key="item.id"
+              class="media-card"
+              @click="previewItem(item)"
+              @contextmenu.prevent="showContextMenu($event, item)"
+            >
+              <div class="media-thumb">
+                <img v-if="item.type === 'image' && item.url" :src="item.url" alt="" />
+                <div v-else-if="item.type === 'video' && item.thumbUrl" class="thumb-video-cover">
+                  <img :src="item.thumbUrl" alt="" />
+                  <span class="play-overlay">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                  </span>
+                </div>
+                <div v-else-if="item.type === 'video'" class="thumb-icon video-icon">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="5" width="14" height="14" rx="2"/><polygon points="23 7 16 12 23 17 23 7"/>
+                  </svg>
+                </div>
+                <div v-else-if="item.type === 'audio'" class="thumb-icon audio-icon">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+                  </svg>
+                </div>
+                <span class="type-badge" :class="item.type">{{ typeLabel[item.type] }}</span>
+              </div>
+              <div class="media-info">
+                <span v-if="item.displayName" class="media-source-note standalone-display" :title="item.displayName">
+                  {{ item.displayName }}
+                </span>
+                <span v-else-if="item.noteId" class="media-source-note" @click.stop="goToNote(item.noteId)" :title="item.noteTitle">
+                  {{ item.noteTitle }}
+                </span>
+                <span v-else class="media-source-note standalone" title="独立素材">
+                  {{ item.noteTitle }}
+                </span>
+                <span class="media-source-type">{{
+                  item.blockType === 'standalone' ? (getFolderNameByRef(item.ref) || '素材库') :
+                  item.type === 'image'
+                    ? (item.blockType === 'gallery' ? '画廊' : '单图')
+                    : (item.name || typeLabel[item.type] + '频')
+                }}</span>
+              </div>
+            </div>
           </div>
-          <span class="type-badge" :class="item.type">{{ typeLabel[item.type] }}</span>
-        </div>
-        <div class="media-info">
-          <span class="media-source-note" @click.stop="goToNote(item.noteId)" :title="item.noteTitle">
-            {{ item.noteTitle }}
-          </span>
-          <span class="media-source-type">{{
-            item.type === 'image'
-              ? (item.blockType === 'gallery' ? '画廊' : '单图')
-              : (item.name || typeLabel[item.type] + '频')
-          }}</span>
-        </div>
-      </div>
-    </div>
+        </template>
       </div>
     </div>
 
@@ -93,23 +167,204 @@
         <video v-else-if="previewItem_data.type === 'video'" :src="previewItem_data.url" controls autoplay class="preview-video"></video>
         <div class="preview-meta">
           <span>{{ previewItem_data.noteTitle }}</span>
-          <button class="btn btn-secondary" @click="goToNote(previewItem_data.noteId)">打开笔记</button>
+          <button v-if="previewItem_data.noteId" class="btn btn-secondary" @click="goToNote(previewItem_data.noteId)">打开笔记</button>
           <button class="btn btn-ghost" @click="previewItem_data = null">关闭</button>
         </div>
       </div>
     </div>
+
+    <!-- 素材右键菜单 -->
+    <Teleport to="body">
+      <div v-if="contextMenu.show" class="media-context-menu" :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }" @click.stop>
+        <button v-if="contextMenu.item && contextMenu.item.noteId" class="ctx-item" @click="goToNote(contextMenu.item.noteId)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          打开笔记
+        </button>
+        <button class="ctx-item" @click="showMoveDialog">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          移动到文件夹
+        </button>
+        <button class="ctx-item" @click="startRenameMedia">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          重命名
+        </button>
+        <button class="ctx-item ctx-danger" @click="askDelete">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          删除素材
+        </button>
+      </div>
+    </Teleport>
+
+    <!-- 文件夹右键菜单 -->
+    <Teleport to="body">
+      <div v-if="folderContextMenu.show" class="media-context-menu" :style="{ left: folderContextMenu.x + 'px', top: folderContextMenu.y + 'px' }" @click.stop>
+        <button class="ctx-item" @click="startRenameFolder">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          重命名
+        </button>
+        <button class="ctx-item ctx-danger" @click="askDeleteFolder">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          删除文件夹
+        </button>
+      </div>
+    </Teleport>
+
+    <!-- 移动到文件夹弹窗 -->
+    <Teleport to="body">
+      <div v-if="moveState.show" class="modal-overlay" @click.self="moveState.show = false">
+        <div class="modal-content move-modal">
+          <h3 class="move-title">移动到文件夹</h3>
+          <div class="move-folder-list">
+            <button class="move-folder-item" :class="{ active: moveState.targetId === null }" @click="moveState.targetId = null">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              根目录
+            </button>
+            <button
+              v-for="f in allFoldersFlat"
+              :key="f.id"
+              class="move-folder-item"
+              :class="{ active: moveState.targetId === f.id }"
+              @click="moveState.targetId = f.id"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              {{ f.displayName }}
+            </button>
+          </div>
+          <div class="confirm-actions">
+            <button class="btn btn-secondary" @click="moveState.show = false">取消</button>
+            <button class="btn btn-primary" @click="confirmMove">移动</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 重命名弹窗 -->
+    <Teleport to="body">
+      <div v-if="renameState.show" class="modal-overlay" @click.self="renameState.show = false">
+        <div class="modal-content confirm-modal">
+          <div class="confirm-header" style="margin-bottom:16px">
+            <div>
+              <h3>重命名文件夹</h3>
+            </div>
+          </div>
+          <input
+            ref="renameInputRef"
+            v-model="renameState.name"
+            type="text"
+            class="rename-input"
+            placeholder="文件夹名称"
+            @keydown.enter="confirmRename"
+            @keydown.esc="renameState.show = false"
+          />
+          <div class="confirm-actions">
+            <button class="btn btn-secondary" @click="renameState.show = false">取消</button>
+            <button class="btn btn-primary" @click="confirmRename">确定</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 素材重命名弹窗 -->
+    <Teleport to="body">
+      <div v-if="mediaRenameState.show" class="modal-overlay" @click.self="mediaRenameState.show = false">
+        <div class="modal-content confirm-modal">
+          <div class="confirm-header" style="margin-bottom:16px">
+            <div>
+              <h3>重命名素材</h3>
+            </div>
+          </div>
+          <input
+            ref="mediaRenameInputRef"
+            v-model="mediaRenameState.name"
+            type="text"
+            class="rename-input"
+            placeholder="素材名称"
+            @keydown.enter="confirmRenameMedia"
+            @keydown.esc="mediaRenameState.show = false"
+          />
+          <div class="confirm-actions">
+            <button class="btn btn-secondary" @click="mediaRenameState.show = false">取消</button>
+            <button class="btn btn-primary" @click="confirmRenameMedia">确定</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 删除文件夹确认弹窗 -->
+    <Teleport to="body">
+      <div v-if="deleteFolderState.show" class="modal-overlay" @click.self="deleteFolderState.show = false">
+        <div class="modal-content confirm-modal">
+          <div class="confirm-header">
+            <div class="confirm-icon warning">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </div>
+            <div>
+              <h3>删除文件夹</h3>
+              <p>确定删除「{{ deleteFolderState.name }}」吗？文件夹内的素材将移回根目录，不会被删除。</p>
+            </div>
+          </div>
+          <div class="confirm-actions">
+            <button class="btn btn-secondary" @click="deleteFolderState.show = false">取消</button>
+            <button class="btn btn-primary" @click="confirmDeleteFolder">删除</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 删除确认弹窗 -->
+    <Teleport to="body">
+      <div v-if="deleteState.show" class="modal-overlay" @click.self="deleteState.show = false">
+        <div class="modal-content confirm-modal">
+          <div class="confirm-header">
+            <div class="confirm-icon warning">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </div>
+            <div>
+              <h3>删除素材</h3>
+              <p>确定删除此素材吗？{{ deleteState.fromNote ? '该素材将从笔记中移除并删除文件。' : '此操作不可撤销。' }}</p>
+            </div>
+          </div>
+          <div class="confirm-actions">
+            <button class="btn btn-secondary" @click="deleteState.show = false">取消</button>
+            <button class="btn btn-primary" @click="confirmDelete">删除</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNoteStore } from '@/stores/note'
-import { resolveImageUrl, isImageRef } from '@/utils/imageStore'
+import { resolveImageUrl, isImageRef, getAllImageRefs, deleteImage, renameMedia, getAllImageMeta } from '@/utils/imageStore'
+import { useMediaFolders } from '@/composables/useMediaFolders'
 import BgDecor from '@/components/BgDecor.vue'
 
 const router = useRouter()
 const noteStore = useNoteStore()
+const {
+  folders: mediaFolders,
+  currentFolderId,
+  childFolders,
+  breadcrumb,
+  createFolder,
+  renameFolder,
+  deleteFolder,
+  enterFolder,
+  getMediaFolder,
+  setMediaFolder,
+  getFolderItemCount
+} = useMediaFolders()
 
 const loading = ref(true)
 const allItems = ref([])
@@ -134,6 +389,11 @@ const counts = computed(() => {
 
 const filteredItems = computed(() => {
   let items = allItems.value
+  // 按当前文件夹筛选（只显示当前文件夹内的素材）
+  items = items.filter(i => {
+    const fid = getMediaFolder(i.ref)
+    return (fid || null) === (currentFolderId.value || null)
+  })
   if (activeFilter.value !== 'all') {
     items = items.filter(i => i.type === activeFilter.value)
   }
@@ -144,9 +404,81 @@ const filteredItems = computed(() => {
   return items
 })
 
+// 所有文件夹的扁平列表（用于移动弹窗，带路径前缀）
+const allFoldersFlat = computed(() => {
+  return mediaFolders.value.map(f => {
+    // 构建路径名
+    const path = []
+    let cur = f
+    while (cur) {
+      path.unshift(cur.name)
+      cur = mediaFolders.value.find(x => x.id === cur.parentId)
+    }
+    return { id: f.id, displayName: path.join(' / ') }
+  })
+})
+
+// ===== 新建文件夹 =====
+const showNewFolderInput = ref(false)
+const newFolderName = ref('')
+const newFolderInputRef = ref(null)
+
+watch(showNewFolderInput, (v) => {
+  if (v) {
+    newFolderName.value = ''
+    nextTick(() => newFolderInputRef.value?.focus())
+  }
+})
+
+function confirmNewFolder() {
+  const name = newFolderName.value.trim()
+  if (name) {
+    createFolder(name)
+  }
+  showNewFolderInput.value = false
+  newFolderName.value = ''
+}
+
+function cancelNewFolder() {
+  showNewFolderInput.value = false
+  newFolderName.value = ''
+}
+
+/** 根据素材引用获取文件夹名称 */
+function getFolderNameByRef(ref) {
+  const folderId = getMediaFolder(ref)
+  const folder = mediaFolders.value.find(f => f.id === folderId)
+  return folder ? folder.name : ''
+}
+
+/** 根据素材数量计算气泡尺寸和不规则圆角 */
+function folderStyle(folderId) {
+  const count = getFolderItemCount(folderId)
+  const t = Math.min(1, Math.log2(count + 1) / 5)
+
+  const base = 120 + t * 90
+  const hash = folderId.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
+  const wRatio = 1 + ((hash % 5) - 2) * 0.06
+  const hRatio = 1 + ((hash >> 4) % 5 - 2) * 0.06
+  const width = Math.round(base * wRatio)
+  const height = Math.round(base * hRatio)
+
+  const wind = (seed) => 42 + ((hash >> seed) % 7) * 3
+  const r1 = wind(0), r2 = wind(2), r3 = wind(5), r4 = wind(8)
+  const rv1 = wind(1), rv2 = wind(3), rv3 = wind(6), rv4 = wind(9)
+
+  return {
+    '--fw': `${width}px`,
+    '--fh': `${height}px`,
+    '--fr': `${r1}% ${r2}% ${r3}% ${r4}% / ${rv1}% ${rv2}% ${rv3}% ${rv4}%`,
+    '--folder-t': t.toFixed(2)
+  }
+}
+
 async function collectMedia() {
   loading.value = true
   const items = []
+  const referencedRefs = new Set()
   const notes = noteStore.notes || []
 
   for (const note of notes) {
@@ -155,15 +487,32 @@ async function collectMedia() {
     for (const block of blocks) {
       if (block.type === 'image' && block.imageUrl) {
         items.push(createItem(block.imageUrl, 'image', note, 'image'))
+        if (isImageRef(block.imageUrl)) referencedRefs.add(block.imageUrl)
       } else if ((block.type === 'audio' || block.type === 'video') && block.mediaUrl) {
         items.push(createItem(block.mediaUrl, block.type, note, block.type, block.mediaName))
+        if (isImageRef(block.mediaUrl)) referencedRefs.add(block.mediaUrl)
       } else if (block.type === 'gallery' && Array.isArray(block.images)) {
         block.images.forEach(img => {
-          if (img) items.push(createItem(img, 'image', note, 'gallery'))
+          if (img) {
+            items.push(createItem(img, 'image', note, 'gallery'))
+            if (isImageRef(img)) referencedRefs.add(img)
+          }
         })
       }
     }
   }
+
+  // 加载后端存储的独立图片（未被笔记引用的）
+  try {
+    const [allRefs, allMeta] = await Promise.all([getAllImageRefs(), getAllImageMeta()])
+    const metaMap = {}
+    for (const m of allMeta) metaMap[m.id] = m.displayName
+    for (const ref of allRefs) {
+      if (!referencedRefs.has(ref)) {
+        items.push(createStandaloneItem(ref, metaMap[ref]))
+      }
+    }
+  } catch { /* ignore */ }
 
   // resolve URLs
   await Promise.all(items.map(async (item) => {
@@ -197,6 +546,21 @@ function createItem(ref, type, note, blockType, name) {
     noteTitle: note.title || '未命名',
     blockType,
     name: name || '',
+    url: '',
+    thumbUrl: ''
+  }
+}
+
+function createStandaloneItem(ref, displayName) {
+  return {
+    id: `standalone_${ref}`,
+    ref,
+    type: ref.startsWith('media_') ? 'audio' : 'image',
+    noteId: null,
+    noteTitle: displayName || '素材库',
+    displayName: displayName || '',
+    blockType: 'standalone',
+    name: ref,
     url: '',
     thumbUrl: ''
   }
@@ -308,11 +672,174 @@ function previewItem(item) {
 }
 
 function goToNote(noteId) {
+  if (!noteId) return
   previewItem_data.value = null
+  contextMenu.value.show = false
   router.push(`/note/${noteId}`)
 }
 
-onMounted(() => collectMedia())
+// ===== 右键菜单 =====
+const contextMenu = ref({ show: false, x: 0, y: 0, item: null })
+
+function showContextMenu(e, item) {
+  contextMenu.value = { show: true, x: e.clientX, y: e.clientY, item }
+}
+
+function hideContextMenu() {
+  contextMenu.value.show = false
+}
+
+async function deleteMediaItem() {
+  const item = contextMenu.value.item
+  if (!item) return
+  hideContextMenu()
+
+  if (item.blockType === 'standalone' && isImageRef(item.ref)) {
+    // 独立素材：直接从后端删除
+    await deleteImage(item.ref)
+  } else if (item.noteId && isImageRef(item.ref)) {
+    // 笔记中的素材：从笔记 block 中移除
+    const note = noteStore.notes.find(n => n.id === item.noteId)
+    if (note && note.blocks) {
+      noteStore.deleteBlock(note.id, item.id.split('_')[0] || '')
+    }
+    await deleteImage(item.ref)
+  }
+
+  // 重新加载列表
+  await collectMedia()
+}
+
+// ===== 删除确认弹窗 =====
+const deleteState = ref({ show: false, item: null, fromNote: false })
+
+function askDelete() {
+  const item = contextMenu.value.item
+  if (!item) return
+  hideContextMenu()
+  deleteState.value = { show: true, item, fromNote: !!item.noteId }
+}
+
+async function confirmDelete() {
+  const item = deleteState.value.item
+  deleteState.value.show = false
+  if (!item) return
+  contextMenu.value.item = item
+  await deleteMediaItem()
+}
+
+// ===== 文件夹右键菜单 =====
+const folderContextMenu = ref({ show: false, x: 0, y: 0, folder: null })
+
+function showFolderContextMenu(e, folder) {
+  folderContextMenu.value = { show: true, x: e.clientX, y: e.clientY, folder }
+}
+
+function hideFolderContextMenu() {
+  folderContextMenu.value.show = false
+}
+
+// ===== 重命名文件夹 =====
+const renameState = ref({ show: false, id: null, name: '' })
+const renameInputRef = ref(null)
+
+function startRenameFolder() {
+  const folder = folderContextMenu.value.folder
+  if (!folder) return
+  hideFolderContextMenu()
+  renameState.value = { show: true, id: folder.id, name: folder.name }
+  nextTick(() => renameInputRef.value?.focus())
+}
+
+function confirmRename() {
+  const name = renameState.value.name.trim()
+  if (name && renameState.value.id) {
+    renameFolder(renameState.value.id, name)
+  }
+  renameState.value.show = false
+}
+
+// ===== 删除文件夹 =====
+const deleteFolderState = ref({ show: false, id: null, name: '' })
+
+function askDeleteFolder() {
+  const folder = folderContextMenu.value.folder
+  if (!folder) return
+  hideFolderContextMenu()
+  deleteFolderState.value = { show: true, id: folder.id, name: folder.name }
+}
+
+function confirmDeleteFolder() {
+  if (deleteFolderState.value.id) {
+    deleteFolder(deleteFolderState.value.id)
+  }
+  deleteFolderState.value.show = false
+}
+
+// ===== 移动到文件夹 =====
+const moveState = ref({ show: false, item: null, targetId: null })
+
+function showMoveDialog() {
+  const item = contextMenu.value.item
+  if (!item) return
+  hideContextMenu()
+  moveState.value = { show: true, item, targetId: getMediaFolder(item.ref) }
+}
+
+function confirmMove() {
+  const item = moveState.value.item
+  if (item) {
+    setMediaFolder(item.ref, moveState.value.targetId)
+  }
+  moveState.value.show = false
+}
+
+// ===== 素材重命名 =====
+const mediaRenameState = ref({ show: false, item: null, name: '' })
+const mediaRenameInputRef = ref(null)
+
+function startRenameMedia() {
+  const item = contextMenu.value.item
+  if (!item) return
+  hideContextMenu()
+  mediaRenameState.value = { show: true, item, name: item.displayName || item.noteTitle || '' }
+  nextTick(() => mediaRenameInputRef.value?.focus())
+}
+
+async function confirmRenameMedia() {
+  const name = mediaRenameState.value.name.trim()
+  const item = mediaRenameState.value.item
+  mediaRenameState.value.show = false
+  if (!name || !item || !isImageRef(item.ref)) return
+
+  await renameMedia(item.ref, name)
+  // 更新本地数据
+  const found = allItems.value.find(i => i.ref === item.ref)
+  if (found) {
+    found.displayName = name
+    if (!found.noteId) found.noteTitle = name
+  }
+}
+
+function hideAllMenus() {
+  hideContextMenu()
+  hideFolderContextMenu()
+}
+
+function onMediaLibraryChanged() {
+  collectMedia()
+}
+
+onMounted(() => {
+  collectMedia()
+  document.addEventListener('click', hideAllMenus)
+  window.addEventListener('media-library-changed', onMediaLibraryChanged)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', hideAllMenus)
+  window.removeEventListener('media-library-changed', onMediaLibraryChanged)
+})
 </script>
 
 <style scoped>
@@ -333,12 +860,232 @@ onMounted(() => collectMedia())
   flex-shrink: 0;
 }
 
-.view-header h1 {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin: 0;
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
+
+/* 面包屑 */
+.media-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.breadcrumb-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background .15s;
+}
+.breadcrumb-item:hover { background: var(--bg-hover); }
+.breadcrumb-item svg { opacity: .6; }
+.breadcrumb-sep { opacity: .3; }
+
+/* 新建文件夹按钮 */
+.btn-new-folder {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border: none;
+  border-radius: 7px;
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .15s;
+}
+.btn-new-folder:hover {
+  background: var(--primary-color);
+  color: #fff;
+}
+
+/* 新建文件夹输入框 */
+.new-folder-input-wrap {
+  display: flex;
+  align-items: center;
+}
+.new-folder-input {
+  padding: 5px 10px;
+  font-size: 13px;
+  border: 1px solid var(--primary-color);
+  border-radius: 6px;
+  outline: none;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  width: 160px;
+}
+
+/* 文件夹气泡卡片 */
+.folder-card-grid-section {
+  margin-bottom: 24px;
+}
+.folder-card-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.folder-card {
+  position: relative;
+  overflow: hidden;
+  padding: 18px;
+  background: var(--bg-secondary);
+  border: 1px solid color-mix(in srgb, var(--primary-color) calc(var(--folder-t, 0) * 8%), var(--border-light));
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  width: var(--fw, 140px);
+  height: var(--fh, 140px);
+  border-radius: var(--fr, 45% 50% 42% 48% / 48% 42% 50% 44%);
+}
+.folder-card-wave {
+  position: absolute;
+  right: -10px;
+  bottom: -10px;
+  width: calc(130px + var(--folder-t, 0) * 70px);
+  height: calc(50px + var(--folder-t, 0) * 30px);
+  color: var(--primary-color);
+  opacity: calc(0.08 + var(--folder-t, 0) * 0.14);
+  transition: opacity var(--transition-normal), transform var(--transition-normal);
+  pointer-events: none;
+}
+.folder-card-inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 100%;
+  text-align: center;
+}
+.folder-card-icon {
+  flex-shrink: 0;
+  width: calc(40px + var(--folder-t, 0) * 12px);
+  height: calc(40px + var(--folder-t, 0) * 12px);
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary-soft), var(--primary-softer));
+  color: var(--primary-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-color) calc(18% + var(--folder-t, 0) * 15%), transparent);
+  transition: all var(--transition-normal);
+}
+.folder-card-icon-child {
+  background: linear-gradient(135deg, var(--secondary-soft, var(--primary-soft)), var(--bg-tertiary));
+}
+.folder-card-content {
+  flex: 1;
+  min-width: 0;
+}
+.folder-card-name {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.folder-card-meta {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.folder-card-count {
+  color: var(--primary-dark);
+  font-weight: 600;
+  font-size: calc(1em + var(--folder-t, 0) * 0.25rem);
+}
+.folder-card-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border-color);
+  transition: all var(--transition-normal);
+}
+.folder-card:hover {
+  border-color: color-mix(in srgb, var(--primary-color) 35%, var(--border-color));
+  box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--primary-color) 35%, rgba(0, 0, 0, 0.1));
+  transform: translateY(-2px);
+}
+.folder-card:hover .folder-card-wave {
+  opacity: 0.16;
+  transform: translate(-4px, -4px) scale(1.08);
+}
+.folder-card:hover .folder-card-icon {
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+  color: #fff;
+  box-shadow: 0 4px 10px -2px color-mix(in srgb, var(--primary-color) 50%, transparent);
+}
+.folder-card:hover .folder-card-dot {
+  background: var(--primary-color);
+  transform: scale(1.3);
+}
+
+/* 移动到文件夹弹窗 */
+.move-modal {
+  width: 420px;
+  max-width: 90vw;
+  padding: 24px;
+}
+.move-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+.move-folder-list {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.move-folder-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all .1s;
+  text-align: left;
+}
+.move-folder-item:hover { background: var(--bg-hover); }
+.move-folder-item.active {
+  border-color: var(--primary-color);
+  background: rgba(99,102,241,.08);
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+/* 重命名输入框 */
+.rename-input {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  outline: none;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  margin-bottom: 16px;
+}
+.rename-input:focus { border-color: var(--primary-color); }
 
 .media-content {
   flex: 1;
@@ -553,10 +1300,61 @@ onMounted(() => collectMedia())
   color: var(--primary-color);
 }
 
+.media-source-note.standalone {
+  cursor: default;
+  color: var(--text-tertiary);
+}
+
+.media-source-note.standalone:hover {
+  color: var(--text-tertiary);
+}
+
+.media-source-note.standalone-display {
+  cursor: default;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.media-source-note.standalone-display:hover {
+  color: var(--text-primary);
+}
+
 .media-source-type {
   font-size: 11px;
   color: var(--text-secondary);
 }
+
+/* 右键菜单 */
+.media-context-menu {
+  position: fixed;
+  z-index: 10000;
+  min-width: 140px;
+  background: var(--bg-secondary, #fff);
+  border: 1px solid var(--border-color, #e0e0e0);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px -6px rgba(0,0,0,.18);
+  padding: 5px;
+  animation: ctx-in .12s ease;
+}
+@keyframes ctx-in { from{opacity:0;transform:scale(.95)} to{opacity:1;transform:scale(1)} }
+
+.ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background .1s;
+}
+.ctx-item:hover { background: var(--bg-hover, #f5f5f5); }
+.ctx-danger { color: #ef4444; }
+.ctx-danger:hover { background: rgba(239,68,68,.1); }
 
 /* 预览弹窗 */
 .preview-overlay {

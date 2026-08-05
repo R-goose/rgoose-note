@@ -268,6 +268,51 @@
       </section>
 
       <section class="settings-section">
+        <h2 class="section-title"><span class="title-bar bar-yellow"></span>AI 设置</h2>
+        <div class="settings-list">
+          <div id="set-ai-key" class="setting-item">
+            <div class="setting-info">
+              <div class="setting-name">API Key</div>
+              <div class="setting-desc">智谱 AI 接口密钥（免费注册：<a href="https://open.bigmodel.cn" target="_blank" style="color: var(--primary-color)">open.bigmodel.cn</a>）</div>
+            </div>
+            <input
+              v-model="aiApiKey"
+              type="password"
+              class="ai-key-input"
+              placeholder="粘贴你的 API Key"
+              @change="saveAiSettings"
+            />
+          </div>
+          <div class="setting-item">
+            <div class="setting-info">
+              <div class="setting-name">文本对话模型</div>
+              <div class="setting-desc">GLM-4.7-Flash 为永久免费</div>
+            </div>
+            <input
+              v-model="aiModel"
+              type="text"
+              class="ai-key-input"
+              placeholder="glm-4.7-flash"
+              @change="saveAiSettings"
+            />
+          </div>
+          <div class="setting-item">
+            <div class="setting-info">
+              <div class="setting-name">图片生成模型</div>
+              <div class="setting-desc">CogView-3-Flash 为永久免费</div>
+            </div>
+            <input
+              v-model="aiImageModel"
+              type="text"
+              class="ai-key-input"
+              placeholder="cogview-3-flash"
+              @change="saveAiSettings"
+            />
+          </div>
+        </div>
+      </section>
+
+      <section class="settings-section">
         <h2 class="section-title"><span class="title-bar bar-green"></span>关于</h2>
         <div class="settings-list">
           <div id="set-about-version" class="setting-item">
@@ -414,6 +459,18 @@ const shortcutStore = useShortcutStore()
 shortcutStore.init()
 const showImportConfirm = ref(false)
 const showClearCacheConfirm = ref(false)
+
+// ============ AI 设置 ============
+const aiApiKey = ref(localStorage.getItem('ai_api_key') || '')
+const aiModel = ref(localStorage.getItem('ai_model') || 'glm-4-flash')
+const aiImageModel = ref(localStorage.getItem('ai_image_model') || 'cogview-3-flash')
+
+function saveAiSettings() {
+  localStorage.setItem('ai_api_key', aiApiKey.value.trim())
+  localStorage.setItem('ai_model', aiModel.value.trim() || 'glm-4-flash')
+  localStorage.setItem('ai_image_model', aiImageModel.value.trim() || 'cogview-3-flash')
+  toastSuccess('AI 设置已保存')
+}
 
 // ============ 设置搜索 ============
 const searchInputRef = ref(null)
@@ -1318,6 +1375,29 @@ function resetAllShortcuts() {
 
 .setting-item:last-child {
   border-bottom: none;
+}
+
+.ai-key-input {
+  flex-shrink: 0;
+  width: 240px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.ai-key-input:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 15%, transparent);
+}
+
+.ai-key-input::placeholder {
+  color: var(--text-tertiary);
 }
 
 .setting-info {

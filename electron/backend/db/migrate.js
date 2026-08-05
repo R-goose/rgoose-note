@@ -39,6 +39,14 @@ function ensureBlockColumns(db) {
   }
 }
 
+/** 对 images 表补齐 displayName 列（旧库兼容） */
+function ensureImageColumns(db) {
+  const cols = db.prepare("PRAGMA table_info(images)").all().map(c => c.name)
+  if (!cols.includes('displayName')) {
+    db.exec(`ALTER TABLE images ADD COLUMN displayName TEXT`)
+  }
+}
+
 function runMigrations(db) {
   // 1. 建表脚本（幂等）
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf-8')
@@ -46,6 +54,7 @@ function runMigrations(db) {
 
   // 2. 对已存在的表补齐缺失列（兼容旧库）
   ensureBlockColumns(db)
+  ensureImageColumns(db)
 
   // 3. 种子数据（幂等，使用 ON CONFLICT）
   const seed = fs.readFileSync(path.join(__dirname, 'seed.sql'), 'utf-8')
