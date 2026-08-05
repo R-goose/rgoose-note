@@ -88,6 +88,7 @@
             <span class="ai-calc-history-eq">= {{ h.result }}</span>
           </div>
         </div>
+        <div class="ai-calc-keyboard-hint">支持键盘输入 · 数字 / + - * / · Enter=计算 · Esc=清空</div>
       </div>
 
       <!-- 对话面板 -->
@@ -213,7 +214,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, nextTick, onMounted, watch } from 'vue'
+import { ref, reactive, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { saveImage } from '@/utils/imageStore'
 import { useToast } from '@/composables/useToast'
 
@@ -348,7 +349,39 @@ onMounted(() => {
   pos.y = window.innerHeight - 72 - margin
   chatPos.x = window.innerWidth - chatSize.w - margin
   chatPos.y = window.innerHeight - chatSize.h - margin
+  window.addEventListener('keydown', onCalcKeydown)
 })
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onCalcKeydown)
+})
+
+// ===== 计算器键盘输入 =====
+function onCalcKeydown(e) {
+  if (!chatOpen.value || panelMode.value !== 'calc') return
+  // 输入框聚焦时不拦截
+  const tag = document.activeElement?.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return
+
+  const k = e.key
+  // 数字
+  if (k >= '0' && k <= '9') { calcInput(k); e.preventDefault(); return }
+  // 运算符（键盘 * / 映射为 × ÷）
+  if (k === '+') { calcInput('+'); e.preventDefault(); return }
+  if (k === '-') { calcInput('-'); e.preventDefault(); return }
+  if (k === '*') { calcInput('×'); e.preventDefault(); return }
+  if (k === '/') { calcInput('÷'); e.preventDefault(); return }
+  if (k === '%') { calcInput('%'); e.preventDefault(); return }
+  if (k === '.') { calcInput('.'); e.preventDefault(); return }
+  // 小括号
+  if (k === '(' || k === ')') { calcInput(k); e.preventDefault(); return }
+  // 等号 / 回车 = 计算
+  if (k === '=' || k === 'Enter') { calcEquals(); e.preventDefault(); return }
+  // 退格 = 删除
+  if (k === 'Backspace') { calcBack(); e.preventDefault(); return }
+  // Esc / Delete = 清空
+  if (k === 'Escape' || k === 'Delete') { calcClear(); e.preventDefault(); return }
+}
 
 function onFloatClick() {
   if (moved) { moved = false; return }
@@ -851,4 +884,5 @@ function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').r
 .ai-calc-history-item:hover { background: var(--bg-hover, #f2f2f2); }
 .ai-calc-history-expr { color: var(--text-secondary); }
 .ai-calc-history-eq { font-weight: 600; color: var(--primary-color); }
+.ai-calc-keyboard-hint { margin-top: 10px; font-size: 10px; color: var(--text-tertiary); text-align: center; opacity: .7; }
 </style>
