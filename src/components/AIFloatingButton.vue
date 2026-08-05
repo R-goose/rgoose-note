@@ -223,8 +223,8 @@ const ACTIVE_KEY = 'ai_active_convo'
 const SIZE_KEY = 'ai_chat_size'
 const MIN_W = 340
 const MIN_H = 380
-const DEFAULT_W = 440
-const DEFAULT_H = 560
+const DEFAULT_W = 880
+const DEFAULT_H = 840
 
 function loadSize() {
   try {
