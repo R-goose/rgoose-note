@@ -1634,18 +1634,30 @@ function resetAllShortcuts() {
 .import-folder-dropdown,
 .import-folder-input {
   width: 100%;
-  padding: 8px 10px;
+  box-sizing: border-box;
+  padding: 9px 32px 9px 12px;
   font-size: 13px;
-  border: 1px solid var(--border-color, #e2e2e2);
-  border-radius: 8px;
-  background: var(--bg-primary, #fff);
+  font-family: inherit;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-secondary);
   color: var(--text-primary);
   outline: none;
-  transition: border-color .15s;
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+.import-folder-input {
+  padding-right: 12px;
+  cursor: text;
+}
+.import-folder-dropdown:hover,
+.import-folder-input:hover {
+  border-color: var(--primary-light);
 }
 .import-folder-dropdown:focus,
 .import-folder-input:focus {
-  border-color: var(--primary-color, #3b82f6);
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px var(--primary-soft);
 }
 
 @media (max-width: 768px) {
