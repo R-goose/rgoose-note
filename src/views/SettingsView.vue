@@ -318,7 +318,7 @@
           <div id="set-about-version" class="setting-item">
             <div class="setting-info">
               <div class="setting-name brand-name">R-Goose Note</div>
-              <div class="setting-desc">版本 1.5.5</div>
+              <div class="setting-desc">版本 1.5.6</div>
             </div>
           </div>
           <div id="set-about-platform" class="setting-item">
@@ -374,12 +374,11 @@
           </div>
 
           <div v-if="importTargetMode === 'folder'" class="import-folder-select">
-            <select v-model="importTargetFolderId" class="import-folder-dropdown">
-              <option :value="null">— 请选择文件夹 —</option>
-              <option v-for="f in noteStore.folders.filter(f => !f.deleted)" :key="f.id" :value="f.id">
-                {{ f.name }}
-              </option>
-            </select>
+            <CustomSelect
+              v-model="importTargetFolderId"
+              :options="importFolderOptions"
+              :trigger-style="{ width: '100%' }"
+            />
           </div>
 
           <div v-if="importTargetMode === 'new'" class="import-folder-select">
@@ -481,6 +480,7 @@ import { collectImageRefsFromData, buildImageBundle, restoreImageBundle, remapIm
 import { formatDate, formatBytes } from '@/utils'
 import { useToast } from '@/composables/useToast'
 import BgDecor from '@/components/BgDecor.vue'
+import CustomSelect from '@/components/CustomSelect.vue'
 
 const { error: toastError, success: toastSuccess, info: toastInfo } = useToast()
 
@@ -493,6 +493,10 @@ const showImportConfirm = ref(false)
 const importTargetMode = ref('merge') // 'merge' | 'folder' | 'new'
 const importTargetFolderId = ref(null)
 const importNewFolderName = ref('')
+const importFolderOptions = computed(() => [
+  { label: '— 请选择文件夹 —', value: '__none__' },
+  ...noteStore.folders.filter(f => !f.deleted).map(f => ({ label: f.name, value: f.id }))
+])
 const showClearCacheConfirm = ref(false)
 
 // ============ AI 设置 ============
@@ -932,7 +936,7 @@ async function handleImport() {
       }
       pendingImportData.value = data
       importTargetMode.value = 'merge'
-      importTargetFolderId.value = null
+      importTargetFolderId.value = '__none__'
       importNewFolderName.value = ''
       showImportConfirm.value = true
     } else {
@@ -959,7 +963,7 @@ async function confirmImport() {
   if (!pendingImportData.value) return
 
   // 校验目标选项
-  if (importTargetMode.value === 'folder' && !importTargetFolderId.value) {
+  if (importTargetMode.value === 'folder' && (!importTargetFolderId.value || importTargetFolderId.value === '__none__')) {
     toastError('请选择要导入到的文件夹')
     return
   }
@@ -1631,11 +1635,10 @@ function resetAllShortcuts() {
 .import-folder-select {
   margin-top: 12px;
 }
-.import-folder-dropdown,
 .import-folder-input {
   width: 100%;
   box-sizing: border-box;
-  padding: 9px 32px 9px 12px;
+  padding: 9px 12px;
   font-size: 13px;
   font-family: inherit;
   border: 1px solid var(--border-color);
@@ -1643,18 +1646,12 @@ function resetAllShortcuts() {
   background-color: var(--bg-secondary);
   color: var(--text-primary);
   outline: none;
-  cursor: pointer;
+  cursor: text;
   transition: border-color var(--transition-fast);
 }
-.import-folder-input {
-  padding-right: 12px;
-  cursor: text;
-}
-.import-folder-dropdown:hover,
 .import-folder-input:hover {
   border-color: var(--primary-light);
 }
-.import-folder-dropdown:focus,
 .import-folder-input:focus {
   border-color: var(--primary-color);
   box-shadow: 0 0 0 3px var(--primary-soft);
