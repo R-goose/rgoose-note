@@ -325,6 +325,7 @@
           <span class="history-dot" :style="{ background: h.color }"></span>
           <svg class="history-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <template v-if="h.icon === 'note'"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></template>
+            <template v-else-if="h.icon === 'folder'"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></template>
             <template v-else-if="h.icon === 'dashboard'"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></template>
             <template v-else-if="h.icon === 'tag'"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></template>
             <template v-else-if="h.icon === 'media'"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></template>
@@ -1148,7 +1149,7 @@ const HISTORY_KEY = 'route_history'
 const routeHistory = ref([])
 const routeMeta = {
   Dashboard: { color: '#8b5cf6', icon: 'dashboard', label: '仪表盘' },
-  Notes: { color: '#5a9e7a', icon: 'note', label: '笔记' },
+  Notes: { color: '#5a9e7a', icon: 'folder', label: '笔记' },
   NoteEditor: { color: '#3b82f6', icon: 'note', label: '编辑笔记' },
   Tags: { color: '#ec4899', icon: 'tag', label: '标签' },
   Media: { color: '#06b6d4', icon: 'media', label: '素材库' },
