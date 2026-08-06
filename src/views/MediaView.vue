@@ -155,21 +155,18 @@
                 <span class="type-badge" :class="item.type">{{ typeLabel[item.type] }}</span>
               </div>
               <div class="media-info">
-                <span v-if="item.displayName" class="media-source-note standalone-display" :title="item.displayName">
-                  {{ item.displayName }}
-                </span>
-                <span v-else-if="item.noteId" class="media-source-note" @click.stop="goToNote(item.noteId)" :title="item.noteTitle">
-                  {{ item.noteTitle }}
-                </span>
-                <span v-else class="media-source-note standalone" title="独立素材">
-                  {{ item.noteTitle }}
-                </span>
-                <span class="media-source-type">{{
-                  item.blockType === 'standalone' ? (getFolderNameByRef(item.ref) || '素材库') :
-                  item.type === 'image'
-                    ? (item.blockType === 'gallery' ? '画廊' : '单图')
-                    : (item.name || typeLabel[item.type] + '频')
-                }}</span>
+                <span class="media-name" :title="itemName(item)">{{ itemName(item) }}</span>
+                <span
+                  v-if="itemFolderName(item)"
+                  class="media-folder"
+                  :title="'所属文件夹：' + itemFolderName(item)"
+                >{{ itemFolderName(item) }}</span>
+                <span
+                  v-if="item.noteId"
+                  class="media-note-link"
+                  @click.stop="goToNote(item.noteId)"
+                  :title="'来源笔记：' + (item.noteTitle || '未命名')"
+                >{{ item.noteTitle || '未命名' }}</span>
                 <div v-if="itemTagNames(item).length" class="media-tags">
                   <span
                     v-for="t in itemTagNames(item)"
@@ -592,6 +589,23 @@ function getFolderNameByRef(ref) {
   const folderId = getMediaFolder(ref)
   const folder = mediaFolders.value.find(f => f.id === folderId)
   return folder ? folder.name : ''
+}
+
+/** 素材名称 */
+function itemName(item) {
+  if (item.displayName) return item.displayName
+  if (item.name) return item.name
+  if (item.type === 'audio') return typeLabel.audio + '频'
+  if (item.type === 'video') return typeLabel.video + '频'
+  return '未命名素材'
+}
+
+/** 素材所属文件夹名称（笔记内素材无文件夹） */
+function itemFolderName(item) {
+  if (item.blockType === 'standalone') {
+    return getFolderNameByRef(item.ref)
+  }
+  return ''
 }
 
 /** 根据素材数量计算气泡尺寸和不规则圆角 */
@@ -1431,43 +1445,33 @@ onUnmounted(() => {
   gap: 2px;
 }
 
-.media-source-note {
+.media-name {
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  cursor: pointer;
 }
 
-.media-source-note:hover {
-  color: var(--primary-color);
-}
-
-.media-source-note.standalone {
-  cursor: default;
-  color: var(--text-tertiary);
-}
-
-.media-source-note.standalone:hover {
-  color: var(--text-tertiary);
-}
-
-.media-source-note.standalone-display {
-  cursor: default;
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-.media-source-note.standalone-display:hover {
-  color: var(--text-primary);
-}
-
-.media-source-type {
+.media-folder {
   font-size: 11px;
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+
+.media-note-link {
+  font-size: 11px;
+  color: var(--primary-color);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+.media-note-link:hover { opacity: .7; }
 
 /* 右键菜单 */
 .media-context-menu {
