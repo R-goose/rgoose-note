@@ -615,7 +615,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useNoteStore } from '@/stores/note'
 import { usePlanStore } from '@/stores/plan'
@@ -1215,6 +1215,20 @@ function clearHistory() {
   routeHistory.value = []
   saveHistory()
 }
+
+// 笔记被删除时，同步移除浏览历史中对应条目
+watch(() => noteStore.notes, (notes) => {
+  if (!routeHistory.value.length) return
+  const deletedIds = new Set(notes.filter(n => n.deleted).map(n => n.id))
+  if (!deletedIds.size) return
+  const before = routeHistory.value.length
+  routeHistory.value = routeHistory.value.filter(h => {
+    if (h.name !== 'NoteEditor') return true
+    const noteId = h.path.split('/note/')[1]
+    return !noteId || !deletedIds.has(noteId)
+  })
+  if (routeHistory.value.length !== before) saveHistory()
+}, { deep: true })
 
 let historyTimer = null
 
