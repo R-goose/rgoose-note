@@ -318,7 +318,7 @@
           <div id="set-about-version" class="setting-item">
             <div class="setting-info">
               <div class="setting-name brand-name">R-Goose Note</div>
-              <div class="setting-desc">版本 1.5.3</div>
+              <div class="setting-desc">版本 1.5.4</div>
             </div>
           </div>
           <div id="set-about-platform" class="setting-item">
@@ -351,14 +351,46 @@
               </svg>
             </div>
             <div>
-              <h3>确认导入数据</h3>
-              <p>导入的数据会与当前数据合并，重复内容会被保留。</p>
-            </div>
+            <h3>确认导入数据</h3>
+            <p>导入的数据会与当前数据合并，重复内容会被保留。</p>
           </div>
-          <div class="confirm-actions">
-            <button class="btn btn-secondary" @click="cancelImport">取消</button>
-            <button class="btn btn-primary" @click="confirmImport">确认导入</button>
+        </div>
+
+        <div class="import-target-section">
+          <label class="import-target-label">导入位置</label>
+          <div class="import-target-options">
+            <label class="import-target-radio">
+              <input type="radio" value="merge" v-model="importTargetMode" />
+              <span>合并到原结构</span>
+            </label>
+            <label class="import-target-radio">
+              <input type="radio" value="folder" v-model="importTargetMode" />
+              <span>导入到指定文件夹</span>
+            </label>
+            <label class="import-target-radio">
+              <input type="radio" value="new" v-model="importTargetMode" />
+              <span>创建为新文件夹</span>
+            </label>
           </div>
+
+          <div v-if="importTargetMode === 'folder'" class="import-folder-select">
+            <select v-model="importTargetFolderId" class="import-folder-dropdown">
+              <option :value="null">— 请选择文件夹 —</option>
+              <option v-for="f in noteStore.folders.filter(f => !f.deleted)" :key="f.id" :value="f.id">
+                {{ f.name }}
+              </option>
+            </select>
+          </div>
+
+          <div v-if="importTargetMode === 'new'" class="import-folder-select">
+            <input v-model="importNewFolderName" class="import-folder-input" placeholder="输入新文件夹名称" />
+          </div>
+        </div>
+
+        <div class="confirm-actions">
+          <button class="btn btn-secondary" @click="cancelImport">取消</button>
+          <button class="btn btn-primary" @click="confirmImport">确认导入</button>
+        </div>
         </div>
       </div>
     </Teleport>
@@ -458,6 +490,9 @@ const tagStore = useTagStore()
 const shortcutStore = useShortcutStore()
 shortcutStore.init()
 const showImportConfirm = ref(false)
+const importTargetMode = ref('merge') // 'merge' | 'folder' | 'new'
+const importTargetFolderId = ref(null)
+const importNewFolderName = ref('')
 const showClearCacheConfirm = ref(false)
 
 // ============ AI 设置 ============
@@ -896,6 +931,9 @@ async function handleImport() {
         }
       }
       pendingImportData.value = data
+      importTargetMode.value = 'merge'
+      importTargetFolderId.value = null
+      importNewFolderName.value = ''
       showImportConfirm.value = true
     } else {
       toastError('导入失败：文件格式无效')
@@ -919,6 +957,16 @@ async function placeOrphanNotesIntoRoot(importedNoteIds) {
 
 async function confirmImport() {
   if (!pendingImportData.value) return
+
+  // 校验目标选项
+  if (importTargetMode.value === 'folder' && !importTargetFolderId.value) {
+    toastError('请选择要导入到的文件夹')
+    return
+  }
+  if (importTargetMode.value === 'new' && !importNewFolderName.value.trim()) {
+    toastError('请输入新文件夹名称')
+    return
+  }
 
   try {
     const importData = pendingImportData.value
@@ -948,7 +996,24 @@ async function confirmImport() {
     tagStore.replaceAll(mergedData.tags || [])
 
     const importedNoteIds = new Set(noteStore.notes.filter(n => !beforeNoteIds.has(n.id)).map(n => n.id))
-    const orphanCount = await placeOrphanNotesIntoRoot(importedNoteIds)
+
+    let toastMsg = '数据导入完成'
+    let orphanCount = 0
+
+    if (importTargetMode.value === 'merge') {
+      orphanCount = await placeOrphanNotesIntoRoot(importedNoteIds)
+      toastMsg = orphanCount > 0 ? `数据导入完成，${orphanCount} 篇无父级的笔记已放入「根目录」文件夹` : '数据导入完成'
+    } else if (importTargetMode.value === 'folder') {
+      const importedNotes = noteStore.notes.filter(n => importedNoteIds.has(n.id))
+      importedNotes.forEach(n => noteStore.moveNoteToFolder(n.id, importTargetFolderId.value))
+      const folderName = noteStore.folders.find(f => f.id === importTargetFolderId.value)?.name || ''
+      toastMsg = `数据导入完成，${importedNotes.length} 篇笔记已导入到「${folderName}」`
+    } else if (importTargetMode.value === 'new') {
+      const newFolder = noteStore.createFolder(importNewFolderName.value.trim())
+      const importedNotes = noteStore.notes.filter(n => importedNoteIds.has(n.id))
+      importedNotes.forEach(n => noteStore.moveNoteToFolder(n.id, newFolder.id))
+      toastMsg = `数据导入完成，${importedNotes.length} 篇笔记已放入新文件夹「${newFolder.name}」`
+    }
 
     // 展平 blocks/connections（嵌套在 notes 中），传给后端做 LWW 合并
     const flatBlocks = []
@@ -967,7 +1032,7 @@ async function confirmImport() {
 
     showImportConfirm.value = false
     pendingImportData.value = null
-    toastSuccess(orphanCount > 0 ? `数据导入完成，${orphanCount} 篇无父级的笔记已放入「根目录」文件夹` : '数据导入完成')
+    toastSuccess(toastMsg)
   } catch (err) {
     toastError('导入失败：' + (err?.message || '未知错误'))
   }
@@ -1529,6 +1594,58 @@ function resetAllShortcuts() {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+/* ===== 导入目标选择 ===== */
+.import-target-section {
+  margin: 16px 0;
+  padding: 14px 16px;
+  background: var(--bg-tertiary, #f7f7f8);
+  border-radius: 10px;
+  border: 1px solid var(--border-light, rgba(0,0,0,.06));
+}
+.import-target-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+.import-target-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.import-target-radio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.import-target-radio input[type="radio"] {
+  accent-color: var(--primary-color, #3b82f6);
+  cursor: pointer;
+}
+.import-folder-select {
+  margin-top: 12px;
+}
+.import-folder-dropdown,
+.import-folder-input {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 13px;
+  border: 1px solid var(--border-color, #e2e2e2);
+  border-radius: 8px;
+  background: var(--bg-primary, #fff);
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color .15s;
+}
+.import-folder-dropdown:focus,
+.import-folder-input:focus {
+  border-color: var(--primary-color, #3b82f6);
 }
 
 @media (max-width: 768px) {
