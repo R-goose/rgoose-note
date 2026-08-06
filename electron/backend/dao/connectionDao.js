@@ -42,11 +42,12 @@ module.exports = {
 
   insert(conn) {
     const db = getDb()
+    const ts = conn.updatedAt || conn.createdAt || 0
     db.prepare(`
       INSERT INTO connections (
-        id, noteId, "from", "to", shape, dash, arrow, dir, color, width, label, createdAt
+        id, noteId, "from", "to", shape, dash, arrow, dir, color, width, label, createdAt, updatedAt
       ) VALUES (
-        @id, @noteId, @from, @to, @shape, @dash, @arrow, @dir, @color, @width, @label, @createdAt
+        @id, @noteId, @from, @to, @shape, @dash, @arrow, @dir, @color, @width, @label, @createdAt, @updatedAt
       )
     `).run({
       id: conn.id,
@@ -60,7 +61,8 @@ module.exports = {
       color: conn.color || '#6bbd8f',
       width: String(conn.width || '2'),
       label: conn.label ?? null,
-      createdAt: conn.createdAt
+      createdAt: conn.createdAt,
+      updatedAt: ts
     })
     return this.getById(conn.id)
   },
@@ -80,7 +82,8 @@ module.exports = {
         dir = @dir,
         color = @color,
         width = @width,
-        label = @label
+        label = @label,
+        updatedAt = @updatedAt
       WHERE id = @id
     `).run({
       id,
@@ -92,7 +95,8 @@ module.exports = {
       dir: merged.dir || 'forward',
       color: merged.color || '#6bbd8f',
       width: String(merged.width || '2'),
-      label: merged.label ?? null
+      label: merged.label ?? null,
+      updatedAt: merged.updatedAt || 0
     })
     return this.getById(id)
   },

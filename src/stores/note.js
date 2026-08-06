@@ -259,9 +259,14 @@ export const useNoteStore = defineStore('note', () => {
     const allChildFolderIds = getAllChildFolderIds(folderId)
     const allFolderIds = [folderId, ...allChildFolderIds]
 
+    // 备份用于回滚
+    const folderBackups = new Map()
+    const noteBackups = new Map()
+
     allFolderIds.forEach(id => {
       const f = folders.value.find(item => item.id === id)
       if (f) {
+        folderBackups.set(id, { deleted: f.deleted, updatedAt: f.updatedAt })
         f.deleted = true
         f.updatedAt = now
       }
@@ -269,18 +274,35 @@ export const useNoteStore = defineStore('note', () => {
 
     notes.value.forEach(note => {
       if (allFolderIds.includes(note.folderId)) {
+        noteBackups.set(note.id, { deleted: note.deleted, updatedAt: note.updatedAt })
         note.deleted = true
         note.updatedAt = now
       }
     })
 
+    const prevCurrentFolderId = currentFolderId.value
     if (currentFolderId.value === folderId || allFolderIds.includes(currentFolderId.value)) {
       currentFolderId.value = parentId
     }
 
     markSaving()
     foldersApi.delete(folderId)
-      .catch(err => console.error('删除文件夹失败:', err))
+      .catch(err => {
+        console.error('删除文件夹失败:', err)
+        // 回滚所有文件夹
+        folderBackups.forEach((bak, id) => {
+          const f = folders.value.find(item => item.id === id)
+          if (f) { f.deleted = bak.deleted; f.updatedAt = bak.updatedAt }
+        })
+        // 回滚所有笔记
+        noteBackups.forEach((bak, noteId) => {
+          const n = notes.value.find(item => item.id === noteId)
+          if (n) { n.deleted = bak.deleted; n.updatedAt = bak.updatedAt }
+        })
+        // 回滚 currentFolderId
+        currentFolderId.value = prevCurrentFolderId
+        toastError('删除失败：文件夹未能同步，请重试')
+      })
       .finally(markSaved)
   }
 
@@ -379,7 +401,9 @@ export const useNoteStore = defineStore('note', () => {
   function deleteNote(id) {
     const note = notes.value.find(n => n.id === id)
     if (!note) return
-    const wasDeleted = note.deleted
+    const backup = { deleted: note.deleted, updatedAt: note.updatedAt }
+    const prevCurrentNoteId = currentNoteId.value
+
     note.deleted = true
     note.updatedAt = getTimestamp()
     if (currentNoteId.value === id) {
@@ -390,7 +414,10 @@ export const useNoteStore = defineStore('note', () => {
     notesApi.delete(id)
       .catch(err => {
         console.error('删除笔记失败:', err)
-        note.deleted = wasDeleted
+        note.deleted = backup.deleted
+        note.updatedAt = backup.updatedAt
+        if (prevCurrentNoteId === id) currentNoteId.value = prevCurrentNoteId
+        toastError('删除失败：笔记未能同步，请重试')
       })
       .finally(markSaved)
   }
@@ -549,6 +576,7 @@ export const useNoteStore = defineStore('note', () => {
     )
     if (exists) return null
 
+    const ts = getTimestamp()
     const connection = {
       id: generateId(),
       from,
@@ -560,7 +588,8 @@ export const useNoteStore = defineStore('note', () => {
       color: '#6bbd8f',
       width: '2',
       label: '',
-      createdAt: getTimestamp(),
+      createdAt: ts,
+      updatedAt: ts,
       ...overrides
     }
     note.connections.push(connection)
@@ -583,11 +612,12 @@ export const useNoteStore = defineStore('note', () => {
     if (note) {
       const conn = note.connections.find(c => c.id === connectionId)
       if (conn) {
-        Object.assign(conn, updates)
-        note.updatedAt = getTimestamp()
+        const ts = getTimestamp()
+        Object.assign(conn, updates, { updatedAt: ts })
+        note.updatedAt = ts
 
         markSaving()
-        connectionsApi.update(noteId, connectionId, { ...updates })
+        connectionsApi.update(noteId, connectionId, { ...updates, updatedAt: ts })
           .catch(err => console.error('更新连线失败:', err))
           .finally(markSaved)
       }

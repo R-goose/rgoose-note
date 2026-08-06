@@ -47,6 +47,14 @@ function ensureImageColumns(db) {
   }
 }
 
+/** 对已存在的 connections 表补齐 updatedAt 列（旧库兼容） */
+function ensureConnectionColumns(db) {
+  const cols = db.prepare("PRAGMA table_info(connections)").all().map(c => c.name)
+  if (!cols.includes('updatedAt')) {
+    db.exec(`ALTER TABLE connections ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0`)
+  }
+}
+
 function runMigrations(db) {
   // 1. 建表脚本（幂等）
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf-8')
@@ -55,6 +63,7 @@ function runMigrations(db) {
   // 2. 对已存在的表补齐缺失列（兼容旧库）
   ensureBlockColumns(db)
   ensureImageColumns(db)
+  ensureConnectionColumns(db)
 
   // 3. 种子数据（幂等，使用 ON CONFLICT）
   const seed = fs.readFileSync(path.join(__dirname, 'seed.sql'), 'utf-8')

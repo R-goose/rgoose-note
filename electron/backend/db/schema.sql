@@ -100,6 +100,7 @@ CREATE TABLE IF NOT EXISTS connections (
   width         TEXT    NOT NULL DEFAULT '2',
   label         TEXT,
   createdAt     INTEGER NOT NULL,
+  updatedAt     INTEGER NOT NULL DEFAULT 0,
   UNIQUE (noteId, "from", "to")
 );
 CREATE INDEX IF NOT EXISTS idx_connections_note ON connections(noteId);

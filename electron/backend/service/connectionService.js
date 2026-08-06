@@ -24,18 +24,20 @@ module.exports = {
     const existing = connectionDao.getByFromTo(noteId, conn.from, conn.to)
     if (existing) return existing
 
+    const ts = now()
     const result = connectionDao.insert({
       ...conn,
       id: conn.id || uuid(),
       noteId,
-      createdAt: now()
+      createdAt: ts,
+      updatedAt: ts
     })
     touchNote(noteId)
     return result
   },
 
   update(noteId, connId, conn) {
-    const result = connectionDao.update(connId, { ...conn, noteId })
+    const result = connectionDao.update(connId, { ...conn, noteId, updatedAt: now() })
     touchNote(noteId)
     return result
   },
