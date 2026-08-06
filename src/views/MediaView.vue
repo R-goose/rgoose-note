@@ -131,7 +131,7 @@
               v-for="item in filteredItems"
               :key="item.id"
               class="media-card"
-              @click="previewItem(item)"
+              @click="onCardClick($event, item)"
               @contextmenu.prevent="showContextMenu($event, item)"
             >
               <div class="media-thumb">
@@ -155,18 +155,20 @@
                 <span class="type-badge" :class="item.type">{{ typeLabel[item.type] }}</span>
               </div>
               <div class="media-info">
-                <span class="media-name" :title="itemName(item)">{{ itemName(item) }}</span>
-                <span
-                  v-if="itemFolderName(item)"
-                  class="media-folder"
-                  :title="'所属文件夹：' + itemFolderName(item)"
-                >{{ itemFolderName(item) }}</span>
-                <span
-                  v-if="item.noteId"
-                  class="media-note-link"
-                  @click.stop="goToNote(item.noteId)"
-                  :title="'来源笔记：' + (item.noteTitle || '未命名')"
-                >{{ item.noteTitle || '未命名' }}</span>
+                <span class="media-name" :title="'素材名称：' + itemName(item)">{{ itemName(item) }}</span>
+                <span v-if="itemFolderName(item)" class="media-folder" :title="'所在素材文件夹：' + itemFolderName(item)">📁 {{ itemFolderName(item) }}</span>
+                <div v-if="item.notes.length" class="media-note-list">
+                  <span class="media-note-label">在{{ item.notes.length }}个笔记中使用</span>
+                  <div class="media-note-items">
+                    <span
+                      v-for="n in item.notes"
+                      :key="n.id"
+                      class="media-note-chip"
+                      @click.stop="goToNote(n.id)"
+                      :title="'跳转到笔记：' + n.title"
+                    >{{ n.title }}</span>
+                  </div>
+                </div>
                 <div v-if="itemTagNames(item).length" class="media-tags">
                   <span
                     v-for="t in itemTagNames(item)"
@@ -219,6 +221,29 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
           删除素材
         </button>
+      </div>
+    </Teleport>
+
+    <!-- 点击素材卡片弹出菜单 -->
+    <Teleport to="body">
+      <div v-if="cardMenu.show" class="media-context-menu" :style="{ left: cardMenu.x + 'px', top: cardMenu.y + 'px' }" @click.stop>
+        <button class="ctx-item" @click="previewItem(cardMenu.item); hideCardMenu()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          查看素材
+        </button>
+        <div v-if="cardMenu.item?.notes?.length" class="ctx-sep"></div>
+        <template v-if="cardMenu.item?.notes?.length">
+          <div class="ctx-label">跳转到笔记：</div>
+          <button
+            v-for="n in cardMenu.item.notes"
+            :key="n.id"
+            class="ctx-item"
+            @click="goToNote(n.id)"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            {{ n.title }}
+          </button>
+        </template>
       </div>
     </Teleport>
 
@@ -482,8 +507,9 @@ const filteredItems = computed(() => {
   if (searchText.value.trim()) {
     const q = searchText.value.trim().toLowerCase()
     items = items.filter(i =>
-      (i.noteTitle || '').toLowerCase().includes(q) ||
       (i.displayName || '').toLowerCase().includes(q) ||
+      (i.name || '').toLowerCase().includes(q) ||
+      (i.notes || []).some(n => (n.title || '').toLowerCase().includes(q)) ||
       (Array.isArray(i.tags) && i.tags.some(tid => (tagStore.getTag(tid)?.name || '').toLowerCase().includes(q)))
     )
   }
@@ -594,18 +620,23 @@ function getFolderNameByRef(ref) {
 /** 素材名称 */
 function itemName(item) {
   if (item.displayName) return item.displayName
-  if (item.name) return item.name
+  if (item.name && !item.ref.endsWith(item.name)) return item.name
   if (item.type === 'audio') return typeLabel.audio + '频'
   if (item.type === 'video') return typeLabel.video + '频'
   return '未命名素材'
 }
 
-/** 素材所属文件夹名称（笔记内素材无文件夹） */
+/** 素材所属文件夹名称（独立素材才有） */
 function itemFolderName(item) {
   if (item.blockType === 'standalone') {
     return getFolderNameByRef(item.ref)
   }
   return ''
+}
+
+/** 素材被引用的笔记标题列表 */
+function itemNoteNames(item) {
+  return (item.notes || []).map(n => n.title)
 }
 
 /** 根据素材数量计算气泡尺寸和不规则圆角 */
@@ -634,45 +665,76 @@ function folderStyle(folderId) {
 
 async function collectMedia() {
   loading.value = true
-  const items = []
-  const referencedRefs = new Set()
   const notes = noteStore.notes || []
+
+  // 1. 扫描所有笔记，按 ref 聚合，收集所有引用该素材的笔记
+  const refMap = new Map() // ref → { type, blockType, name, notes: [{id, title}] }
+  const referencedRefs = new Set()
 
   for (const note of notes) {
     if (note.deleted) continue
     const blocks = note.blocks || []
     for (const block of blocks) {
+      const collected = []
       if (block.type === 'image' && block.imageUrl) {
-        items.push(createItem(block.imageUrl, 'image', note, 'image'))
-        if (isImageRef(block.imageUrl)) referencedRefs.add(block.imageUrl)
+        collected.push({ ref: block.imageUrl, type: 'image', blockType: 'image', name: '' })
       } else if ((block.type === 'audio' || block.type === 'video') && block.mediaUrl) {
-        items.push(createItem(block.mediaUrl, block.type, note, block.type, block.mediaName))
-        if (isImageRef(block.mediaUrl)) referencedRefs.add(block.mediaUrl)
+        collected.push({ ref: block.mediaUrl, type: block.type, blockType: block.type, name: block.mediaName || '' })
       } else if (block.type === 'gallery' && Array.isArray(block.images)) {
         block.images.forEach(img => {
-          if (img) {
-            items.push(createItem(img, 'image', note, 'gallery'))
-            if (isImageRef(img)) referencedRefs.add(img)
-          }
+          if (img) collected.push({ ref: img, type: 'image', blockType: 'gallery', name: '' })
         })
+      }
+      for (const c of collected) {
+        if (isImageRef(c.ref)) referencedRefs.add(c.ref)
+        if (!refMap.has(c.ref)) {
+          refMap.set(c.ref, { type: c.type, blockType: c.blockType, name: c.name, notes: [] })
+        }
+        const entry = refMap.get(c.ref)
+        if (!entry.notes.some(n => n.id === note.id)) {
+          entry.notes.push({ id: note.id, title: note.title || '未命名' })
+        }
       }
     }
   }
 
-  // 加载后端存储的独立图片（未被笔记引用的）
+  // 2. 加载后端独立素材元数据
+  let metaMap = {}
   try {
     const [allRefs, allMeta] = await Promise.all([getAllImageRefs(), getAllImageMeta()])
-    const metaMap = {}
     for (const m of allMeta) metaMap[m.id] = { displayName: m.displayName, tags: m.tags }
+    // 独立素材也加入 refMap
     for (const ref of allRefs) {
-      if (!referencedRefs.has(ref)) {
-        const meta = metaMap[ref]
-        items.push(createStandaloneItem(ref, meta?.displayName, meta?.tags))
+      if (!refMap.has(ref)) {
+        refMap.set(ref, {
+          type: ref.startsWith('media_') ? 'audio' : 'image',
+          blockType: 'standalone',
+          name: ref,
+          notes: []
+        })
       }
     }
   } catch { /* ignore */ }
 
-  // resolve URLs
+  // 3. 构建统一的 items 列表（每个 ref 一条）
+  const items = []
+  for (const [ref, info] of refMap) {
+    const meta = metaMap[ref]
+    items.push({
+      id: ref,
+      ref,
+      type: info.type,
+      blockType: info.blockType,
+      name: info.name,
+      displayName: meta?.displayName || '',
+      tags: meta?.tags || [],
+      notes: info.notes,
+      url: '',
+      thumbUrl: ''
+    })
+  }
+
+  // 4. resolve URLs
   await Promise.all(items.map(async (item) => {
     if (isImageRef(item.ref)) {
       item.url = await resolveImageUrl(item.ref)
@@ -681,7 +743,7 @@ async function collectMedia() {
     }
   }))
 
-  // 为视频生成首帧缩略图（并行，但限制并发数）
+  // 5. 为视频生成首帧缩略图
   const videoItems = items.filter(i => i.type === 'video' && i.url)
   const CONCURRENCY = 3
   for (let i = 0; i < videoItems.length; i += CONCURRENCY) {
@@ -834,7 +896,19 @@ function goToNote(noteId) {
   if (!noteId) return
   previewItem_data.value = null
   contextMenu.value.show = false
+  cardMenu.value.show = false
   router.push(`/note/${noteId}`)
+}
+
+// ===== 点击卡片弹出菜单（查看素材 / 跳转笔记） =====
+const cardMenu = ref({ show: false, x: 0, y: 0, item: null })
+
+function onCardClick(e, item) {
+  cardMenu.value = { show: true, x: e.clientX, y: e.clientY, item }
+}
+
+function hideCardMenu() {
+  cardMenu.value.show = false
 }
 
 // ===== 右键菜单 =====
@@ -853,19 +927,24 @@ async function deleteMediaItem() {
   if (!item) return
   hideContextMenu()
 
-  if (item.blockType === 'standalone' && isImageRef(item.ref)) {
-    // 独立素材：直接从后端删除
-    await deleteImage(item.ref)
-  } else if (item.noteId && isImageRef(item.ref)) {
-    // 笔记中的素材：从笔记 block 中移除
-    const note = noteStore.notes.find(n => n.id === item.noteId)
-    if (note && note.blocks) {
-      noteStore.deleteBlock(note.id, item.id.split('_')[0] || '')
+  if (isImageRef(item.ref)) {
+    // 从所有引用该素材的笔记中移除
+    for (const n of (item.notes || [])) {
+      const note = noteStore.notes.find(x => x.id === n.id)
+      if (note && note.blocks) {
+        for (const b of note.blocks) {
+          const isMatch =
+            (b.type === 'image' && b.imageUrl === item.ref) ||
+            ((b.type === 'audio' || b.type === 'video') && b.mediaUrl === item.ref) ||
+            (b.type === 'gallery' && Array.isArray(b.images) && b.images.includes(item.ref))
+          if (isMatch) noteStore.deleteBlock(note.id, b.id)
+        }
+      }
     }
+    // 删除文件
     await deleteImage(item.ref)
   }
 
-  // 重新加载列表
   await collectMedia()
 }
 
@@ -876,7 +955,7 @@ function askDelete() {
   const item = contextMenu.value.item
   if (!item) return
   hideContextMenu()
-  deleteState.value = { show: true, item, fromNote: !!item.noteId }
+  deleteState.value = { show: true, item, fromNote: (item.notes?.length || 0) > 0 }
 }
 
 async function confirmDelete() {
@@ -961,7 +1040,7 @@ function startRenameMedia() {
   const item = contextMenu.value.item
   if (!item) return
   hideContextMenu()
-  mediaRenameState.value = { show: true, item, name: item.displayName || item.noteTitle || '' }
+  mediaRenameState.value = { show: true, item, name: item.displayName || itemName(item) }
   nextTick(() => mediaRenameInputRef.value?.focus())
 }
 
@@ -969,20 +1048,22 @@ async function confirmRenameMedia() {
   const name = mediaRenameState.value.name.trim()
   const item = mediaRenameState.value.item
   mediaRenameState.value.show = false
-  if (!name || !item || !isImageRef(item.ref)) return
+  if (!name || !item) return
 
-  await renameMedia(item.ref, name)
-  // 更新本地数据
+  // 只更新后端 displayName，不触碰 noteTitle
+  if (isImageRef(item.ref)) {
+    await renameMedia(item.ref, name)
+  }
   const found = allItems.value.find(i => i.ref === item.ref)
   if (found) {
     found.displayName = name
-    if (!found.noteId) found.noteTitle = name
   }
 }
 
 function hideAllMenus() {
   hideContextMenu()
   hideFolderContextMenu()
+  hideCardMenu()
 }
 
 function onMediaLibraryChanged() {
@@ -1462,16 +1543,33 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-.media-note-link {
-  font-size: 11px;
+.media-note-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+}
+.media-note-label {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+.media-note-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.media-note-chip {
+  font-size: 10px;
   color: var(--primary-color);
   cursor: pointer;
+  max-width: 80px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   transition: opacity 0.15s;
 }
-.media-note-link:hover { opacity: .7; }
+.media-note-chip:hover { opacity: .7; }
 
 /* 右键菜单 */
 .media-context-menu {
@@ -1504,6 +1602,8 @@ onUnmounted(() => {
 .ctx-item:hover { background: var(--bg-hover, #f5f5f5); }
 .ctx-danger { color: #ef4444; }
 .ctx-danger:hover { background: rgba(239,68,68,.1); }
+.ctx-sep { height: 1px; background: var(--border-color); margin: 4px 0; }
+.ctx-label { font-size: 10px; color: var(--text-tertiary); padding: 2px 10px; }
 
 /* 预览弹窗 */
 .preview-overlay {
