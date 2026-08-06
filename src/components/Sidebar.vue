@@ -332,6 +332,7 @@
             <template v-else-if="h.icon === 'settings'"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></template>
           </svg>
           <span class="history-title">{{ h.title }}</span>
+          <span v-if="h.folderName" class="history-folder">{{ h.folderName }}</span>
           <span class="history-time">{{ h.timeLabel }}</span>
         </button>
         <div v-if="!routeHistory.length" class="empty-mini">暂无浏览记录</div>
@@ -1184,14 +1185,21 @@ function saveHistory() {
 function trackRoute(to) {
   const name = to.name
   if (!name || name === 'NotFound') return
-  // 获取笔记标题
+  // 获取笔记标题和所属文件夹
   let title = to.meta?.title || routeMeta[name]?.label || to.path
+  let folderName = ''
   if (name === 'NoteEditor') {
     const note = noteStore.notes.find(n => n.id === to.params.id && !n.deleted)
-    if (note) title = note.title || '无标题笔记'
+    if (note) {
+      title = note.title || '无标题笔记'
+      if (note.folderId) {
+        const folder = noteStore.folders.find(f => f.id === note.folderId && !f.deleted)
+        if (folder) folderName = folder.name
+      }
+    }
   }
   const meta = routeMeta[name] || { color: '#999', icon: 'note' }
-  const entry = { path: to.fullPath, title, name, ts: Date.now(), color: meta.color, icon: meta.icon, timeLabel: '刚刚' }
+  const entry = { path: to.fullPath, title, folderName, name, ts: Date.now(), color: meta.color, icon: meta.icon, timeLabel: '刚刚' }
   routeHistory.value = routeHistory.value.filter(r => r.path !== entry.path)
   routeHistory.value.unshift(entry)
   if (routeHistory.value.length > 7) routeHistory.value.pop()
@@ -2401,6 +2409,19 @@ function closeFolderModalTagDropdown(e) {
 .history-item.active .history-title {
   color: var(--primary-color);
   font-weight: 600;
+}
+
+.history-folder {
+  flex-shrink: 0;
+  max-width: 70px;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  background: var(--bg-tertiary);
+  padding: 1px 6px;
+  border-radius: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .history-time {
