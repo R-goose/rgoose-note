@@ -67,6 +67,9 @@ module.exports = {
 
   update(id, conn) {
     const db = getDb()
+    const existing = this.getById(id)
+    if (!existing) return null
+    const merged = { ...existing, ...conn, id }
     db.prepare(`
       UPDATE connections SET
         "from" = @from,
@@ -81,15 +84,15 @@ module.exports = {
       WHERE id = @id
     `).run({
       id,
-      from: conn.from,
-      to: conn.to,
-      shape: conn.shape || 'straight',
-      dash: conn.dash || 'solid',
-      arrow: conn.arrow || 'standard',
-      dir: conn.dir || 'forward',
-      color: conn.color || '#6bbd8f',
-      width: String(conn.width || '2'),
-      label: conn.label ?? null
+      from: merged.from,
+      to: merged.to,
+      shape: merged.shape || 'straight',
+      dash: merged.dash || 'solid',
+      arrow: merged.arrow || 'standard',
+      dir: merged.dir || 'forward',
+      color: merged.color || '#6bbd8f',
+      width: String(merged.width || '2'),
+      label: merged.label ?? null
     })
     return this.getById(id)
   },

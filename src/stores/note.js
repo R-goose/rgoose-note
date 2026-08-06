@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { generateId, getTimestamp, deepClone } from '@/utils'
+import { useToast } from '@/composables/useToast'
 import { syncApi } from '@/api/sync'
 import { foldersApi } from '@/api/folders'
 import { notesApi } from '@/api/notes'
@@ -17,6 +18,7 @@ export const useNoteStore = defineStore('note', () => {
   const lastFolderId = ref(null)
   const lastSyncTime = ref(0)
   const saveStatus = ref('saved') // 'saved' | 'saving'
+  const { error: toastError } = useToast()
 
   // ==================== 计算属性（只读，不改动） ====================
 
@@ -494,12 +496,19 @@ export const useNoteStore = defineStore('note', () => {
     if (note) {
       const block = note.blocks.find(b => b.id === blockId)
       if (block) {
+          const oldValues = {}
+        Object.keys(updates).forEach(k => { oldValues[k] = block[k] })
+
         Object.assign(block, updates, { updatedAt: getTimestamp() })
         note.updatedAt = getTimestamp()
 
         markSaving()
         blocksApi.update(noteId, blockId, { ...updates, updatedAt: block.updatedAt })
-          .catch(err => console.error('更新块失败:', err))
+          .catch(err => {
+            console.error('更新块失败:', err)
+            Object.assign(block, oldValues, { updatedAt: getTimestamp() })
+            toastError('保存失败：块位置/内容未能同步，请检查后端服务')
+          })
           .finally(markSaved)
       }
     }

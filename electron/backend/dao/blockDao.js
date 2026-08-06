@@ -148,7 +148,10 @@ module.exports = {
 
   update(id, block) {
     const db = getDb()
-    db.prepare(UPDATE_SQL).run({ ...buildParams(block), id })
+    const existing = this.getById(id)
+    if (!existing) return null
+    const merged = { ...existing, ...block, id }
+    db.prepare(UPDATE_SQL).run(buildParams(merged))
     return this.getById(id)
   },
 

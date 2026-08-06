@@ -65,6 +65,9 @@ module.exports = {
 
   update(id, note) {
     const db = getDb()
+    const existing = this.getById(id)
+    if (!existing) return null
+    const merged = { ...existing, ...note, id }
     db.prepare(`
       UPDATE notes SET
         title = @title,
@@ -76,12 +79,12 @@ module.exports = {
       WHERE id = @id
     `).run({
       id,
-      title: note.title || '',
-      folderId: note.folderId || null,
-      tags: safeStringify(note.tags || []),
-      canvasConfig: note.canvasConfig != null ? safeStringify(note.canvasConfig) : null,
-      deleted: note.deleted ? 1 : 0,
-      updatedAt: note.updatedAt
+      title: merged.title || '',
+      folderId: merged.folderId || null,
+      tags: safeStringify(merged.tags || []),
+      canvasConfig: merged.canvasConfig != null ? safeStringify(merged.canvasConfig) : null,
+      deleted: merged.deleted ? 1 : 0,
+      updatedAt: merged.updatedAt
     })
     return this.getById(id)
   },

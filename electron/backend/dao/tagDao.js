@@ -47,6 +47,9 @@ module.exports = {
 
   update(id, tag) {
     const db = getDb()
+    const existing = this.getById(id)
+    if (!existing) return null
+    const merged = { ...existing, ...tag, id }
     db.prepare(`
       UPDATE tags SET
         name = @name,
@@ -56,10 +59,10 @@ module.exports = {
       WHERE id = @id
     `).run({
       id,
-      name: tag.name,
-      color: tag.color || '#6bbd8f',
-      sort: tag.sort ?? null,
-      updatedAt: tag.updatedAt
+      name: merged.name,
+      color: merged.color || '#6bbd8f',
+      sort: merged.sort ?? null,
+      updatedAt: merged.updatedAt
     })
     return this.getById(id)
   },

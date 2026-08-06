@@ -65,6 +65,9 @@ module.exports = {
 
   update(id, folder) {
     const db = getDb()
+    const existing = this.getById(id)
+    if (!existing) return null
+    const merged = { ...existing, ...folder, id }
     db.prepare(`
       UPDATE folders SET
         name = @name,
@@ -76,12 +79,12 @@ module.exports = {
       WHERE id = @id
     `).run({
       id,
-      name: folder.name,
-      parentId: folder.parentId || null,
-      tags: safeStringify(folder.tags || []),
-      isSystem: folder.isSystem ? 1 : 0,
-      deleted: folder.deleted ? 1 : 0,
-      updatedAt: folder.updatedAt
+      name: merged.name,
+      parentId: merged.parentId || null,
+      tags: safeStringify(merged.tags || []),
+      isSystem: merged.isSystem ? 1 : 0,
+      deleted: merged.deleted ? 1 : 0,
+      updatedAt: merged.updatedAt
     })
     return this.getById(id)
   },

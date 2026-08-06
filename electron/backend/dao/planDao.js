@@ -70,6 +70,9 @@ module.exports = {
 
   update(id, plan) {
     const db = getDb()
+    const existing = this.getById(id)
+    if (!existing) return null
+    const merged = { ...existing, ...plan, id }
     db.prepare(`
       UPDATE plans SET
         title = @title,
@@ -85,16 +88,16 @@ module.exports = {
       WHERE id = @id
     `).run({
       id,
-      title: plan.title,
-      description: plan.description ?? null,
-      dueDate: plan.dueDate ?? null,
-      reminder: plan.reminder != null ? safeStringify(plan.reminder) : null,
-      completed: plan.completed ? 1 : 0,
-      priority: plan.priority || 'normal',
-      tags: safeStringify(plan.tags || []),
-      noteId: plan.noteId || null,
-      blockId: plan.blockId || null,
-      updatedAt: plan.updatedAt
+      title: merged.title,
+      description: merged.description ?? null,
+      dueDate: merged.dueDate ?? null,
+      reminder: merged.reminder != null ? safeStringify(merged.reminder) : null,
+      completed: merged.completed ? 1 : 0,
+      priority: merged.priority || 'normal',
+      tags: safeStringify(merged.tags || []),
+      noteId: merged.noteId || null,
+      blockId: merged.blockId || null,
+      updatedAt: merged.updatedAt
     })
     return this.getById(id)
   },
