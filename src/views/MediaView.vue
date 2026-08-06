@@ -53,12 +53,30 @@
           <input
             v-model="searchText"
             type="text"
-            placeholder="搜索素材..."
+            placeholder="搜索素材（含标签）..."
             class="search-input"
             @keydown.esc="searchText = ''"
           />
         </div>
       </div>
+    </div>
+
+    <!-- 标签筛选栏 -->
+    <div v-if="mediaTags.length" class="tag-filter-bar">
+      <span class="tag-filter-label">标签：</span>
+      <button
+        class="tag-filter-chip"
+        :class="{ active: !activeTagFilter }"
+        @click="activeTagFilter = null"
+      >全部</button>
+      <button
+        v-for="t in mediaTags"
+        :key="t.id"
+        class="tag-filter-chip"
+        :class="{ active: activeTagFilter === t.id }"
+        :style="activeTagFilter === t.id ? { background: t.color, color: '#fff', borderColor: t.color } : {}"
+        @click="activeTagFilter = activeTagFilter === t.id ? null : t.id"
+      >{{ t.name }}</button>
     </div>
 
     <div class="media-content">
@@ -152,6 +170,14 @@
                     ? (item.blockType === 'gallery' ? '画廊' : '单图')
                     : (item.name || typeLabel[item.type] + '频')
                 }}</span>
+                <div v-if="itemTagNames(item).length" class="media-tags">
+                  <span
+                    v-for="t in itemTagNames(item)"
+                    :key="t.id"
+                    class="media-tag-chip"
+                    :style="{ background: t.color + '22', color: t.color }"
+                  >{{ t.name }}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -187,6 +213,10 @@
         <button class="ctx-item" @click="startRenameMedia">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           重命名
+        </button>
+        <button class="ctx-item" @click="openTagPicker(contextMenu.item)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+          编辑标签
         </button>
         <button class="ctx-item ctx-danger" @click="askDelete">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
@@ -339,14 +369,61 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- 标签选择弹窗 -->
+    <Teleport to="body">
+      <div v-if="tagPickerState.show" class="modal-overlay" @click.self="closeTagPicker">
+        <div class="tag-picker-modal" @click.stop>
+          <div class="tag-picker-header">
+            <h3>编辑标签</h3>
+            <button class="btn-close" @click="closeTagPicker">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div class="tag-picker-search">
+            <input
+              v-model="tagPickerState.search"
+              type="text"
+              placeholder="搜索或创建标签..."
+              class="tag-search-input"
+            />
+          </div>
+          <div class="tag-picker-list">
+            <template v-for="t in tagStore.tags" :key="t.id">
+              <button
+                v-if="!tagPickerState.search.trim() || t.name.toLowerCase().includes(tagPickerState.search.trim().toLowerCase())"
+                class="tag-pick-item"
+                :class="{ selected: tagPickerState.item?.tags?.includes(t.id) }"
+                :style="{ borderColor: tagPickerState.item?.tags?.includes(t.id) ? t.color : '' }"
+                @click="toggleItemTag(t.id)"
+              >
+                <span class="tag-dot" :style="{ background: t.color }"></span>
+                {{ t.name }}
+                <svg v-if="tagPickerState.item?.tags?.includes(t.id)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              </button>
+            </template>
+            <button
+              v-if="tagPickerState.search.trim() && !tagStore.tags.some(t => t.name.toLowerCase() === tagPickerState.search.trim().toLowerCase())"
+              class="tag-pick-create"
+              @click="createAndAddTag"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              创建"{{ tagPickerState.search.trim() }}"
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNoteStore } from '@/stores/note'
+import { useTagStore } from '@/stores/tag'
 import { resolveImageUrl, isImageRef, getAllImageRefs, deleteImage, renameMedia, getAllImageMeta } from '@/utils/imageStore'
+import { imagesApi } from '@/api/images'
 import { useMediaFolders } from '@/composables/useMediaFolders'
 import BgDecor from '@/components/BgDecor.vue'
 
@@ -371,6 +448,11 @@ const allItems = ref([])
 const activeFilter = ref('all')
 const searchText = ref('')
 const previewItem_data = ref(null)
+
+const tagStore = useTagStore()
+tagStore.init()
+const activeTagFilter = ref(null)
+const tagPickerState = reactive({ show: false, item: null, search: '' })
 
 const filters = [
   { key: 'all', label: '全部' },
@@ -397,12 +479,73 @@ const filteredItems = computed(() => {
   if (activeFilter.value !== 'all') {
     items = items.filter(i => i.type === activeFilter.value)
   }
+  if (activeTagFilter.value) {
+    items = items.filter(i => Array.isArray(i.tags) && i.tags.includes(activeTagFilter.value))
+  }
   if (searchText.value.trim()) {
     const q = searchText.value.trim().toLowerCase()
-    items = items.filter(i => i.noteTitle.toLowerCase().includes(q))
+    items = items.filter(i =>
+      (i.noteTitle || '').toLowerCase().includes(q) ||
+      (i.displayName || '').toLowerCase().includes(q) ||
+      (Array.isArray(i.tags) && i.tags.some(tid => (tagStore.getTag(tid)?.name || '').toLowerCase().includes(q)))
+    )
   }
   return items
 })
+
+// 素材可用标签列表（从所有素材去重）
+const mediaTags = computed(() => {
+  const ids = new Set()
+  allItems.value.forEach(i => {
+    if (Array.isArray(i.tags)) i.tags.forEach(t => ids.add(t))
+  })
+  return tagStore.tags.filter(t => ids.has(t.id))
+})
+
+function itemTagNames(item) {
+  if (!Array.isArray(item.tags) || !item.tags.length) return []
+  return item.tags.map(tid => tagStore.getTag(tid)).filter(Boolean)
+}
+
+async function toggleItemTag(tagId) {
+  if (!tagPickerState.item) return
+  const item = tagPickerState.item
+  const tags = Array.isArray(item.tags) ? [...item.tags] : []
+  const idx = tags.indexOf(tagId)
+  if (idx >= 0) tags.splice(idx, 1)
+  else tags.push(tagId)
+  item.tags = tags
+  try {
+    await imagesApi.updateTags(item.ref, tags)
+  } catch (e) {
+    console.error('更新素材标签失败:', e)
+    item.tags = tags.includes(tagId) ? tags.filter(t => t !== tagId) : [...tags, tagId]
+  }
+}
+
+function openTagPicker(item) {
+  tagPickerState.item = item
+  tagPickerState.search = ''
+  tagPickerState.show = true
+}
+
+function closeTagPicker() {
+  tagPickerState.show = false
+  tagPickerState.item = null
+}
+
+function createAndAddTag() {
+  const name = tagPickerState.search.trim()
+  if (!name) return
+  const existing = tagStore.tags.find(t => t.name.toLowerCase() === name.toLowerCase())
+  if (existing) {
+    toggleItemTag(existing.id)
+  } else {
+    const t = tagStore.createTag(name)
+    if (t) toggleItemTag(t.id)
+  }
+  tagPickerState.search = ''
+}
 
 // 所有文件夹的扁平列表（用于移动弹窗，带路径前缀）
 const allFoldersFlat = computed(() => {
@@ -506,10 +649,11 @@ async function collectMedia() {
   try {
     const [allRefs, allMeta] = await Promise.all([getAllImageRefs(), getAllImageMeta()])
     const metaMap = {}
-    for (const m of allMeta) metaMap[m.id] = m.displayName
+    for (const m of allMeta) metaMap[m.id] = { displayName: m.displayName, tags: m.tags }
     for (const ref of allRefs) {
       if (!referencedRefs.has(ref)) {
-        items.push(createStandaloneItem(ref, metaMap[ref]))
+        const meta = metaMap[ref]
+        items.push(createStandaloneItem(ref, meta?.displayName, meta?.tags))
       }
     }
   } catch { /* ignore */ }
@@ -551,7 +695,7 @@ function createItem(ref, type, note, blockType, name) {
   }
 }
 
-function createStandaloneItem(ref, displayName) {
+function createStandaloneItem(ref, displayName, tags) {
   return {
     id: `standalone_${ref}`,
     ref,
@@ -559,6 +703,7 @@ function createStandaloneItem(ref, displayName) {
     noteId: null,
     noteTitle: displayName || '素材库',
     displayName: displayName || '',
+    tags: tags || [],
     blockType: 'standalone',
     name: ref,
     url: '',
@@ -1400,5 +1545,104 @@ onUnmounted(() => {
   gap: 12px;
   color: #fff;
   font-size: 14px;
+}
+
+/* 标签筛选栏 */
+.tag-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 20px 8px;
+  flex-wrap: wrap;
+}
+.tag-filter-label {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+.tag-filter-chip {
+  padding: 3px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.tag-filter-chip:hover { border-color: var(--primary-color); }
+.tag-filter-chip.active {
+  background: var(--primary-color);
+  color: #fff;
+  border-color: var(--primary-color);
+}
+
+/* 素材卡片标签 */
+.media-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 4px;
+}
+.media-tag-chip {
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 500;
+  max-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 标签选择弹窗 */
+.tag-picker-modal {
+  background: var(--bg-primary);
+  border-radius: var(--radius-lg, 12px);
+  padding: 20px;
+  width: 360px;
+  max-height: 480px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0,0,0,.15);
+}
+.tag-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.tag-picker-header h3 { margin: 0; font-size: 16px; }
+.btn-close {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-tertiary); padding: 4px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+}
+.btn-close:hover { background: var(--bg-secondary); color: var(--text-primary); }
+.tag-picker-search { margin-bottom: 12px; }
+.tag-search-input {
+  width: 100%; padding: 8px 12px; border-radius: 8px;
+  border: 1px solid var(--border-color); background: var(--bg-secondary);
+  color: var(--text-primary); font-size: 13px; box-sizing: border-box;
+}
+.tag-search-input:focus { outline: none; border-color: var(--primary-color); }
+.tag-picker-list {
+  flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;
+}
+.tag-pick-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border-color);
+  background: var(--bg-secondary); color: var(--text-primary);
+  font-size: 13px; cursor: pointer; transition: all 0.15s;
+}
+.tag-pick-item:hover { border-color: var(--primary-color); }
+.tag-pick-item.selected { font-weight: 600; }
+.tag-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.tag-pick-item svg { margin-left: auto; color: var(--primary-color); }
+.tag-pick-create {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 12px; border-radius: 8px; border: 1px dashed var(--primary-color);
+  background: transparent; color: var(--primary-color);
+  font-size: 13px; cursor: pointer; margin-top: 4px;
 }
 </style>

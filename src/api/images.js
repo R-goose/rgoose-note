@@ -93,6 +93,14 @@ export const imagesApi = {
     return http.patch(`/images/${encodeURIComponent(ref)}/rename`, { displayName })
   },
 
+  /** 更新素材标签 */
+  updateTags(ref, tags) {
+    if (isElectron) {
+      return window.electronAPI.backend('backend:images:updateTags', { ref, tags })
+    }
+    return http.patch(`/images/${encodeURIComponent(ref)}/tags`, { tags })
+  },
+
   /** 列出全部 ref 及元数据（含 displayName） */
   listAllWithMeta() {
     if (isElectron) {

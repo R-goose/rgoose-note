@@ -73,6 +73,7 @@ function register() {
   ipcMain.handle('backend:images:listRefs', () => wrap(() => imageService.listRefs()))
   ipcMain.handle('backend:images:listAllWithMeta', () => wrap(() => imageService.listAllWithMeta()))
   ipcMain.handle('backend:images:rename', (_e, { ref, displayName }) => wrap(() => imageService.rename(ref, displayName)))
+  ipcMain.handle('backend:images:updateTags', (_e, { ref, tags }) => wrap(() => imageService.updateTags(ref, tags)))
 
   // ---------- 远程图片下载（绕过 CORS） ----------
   ipcMain.handle('backend:images:fetchRemote', async (_e, url) => {

@@ -111,6 +111,11 @@ function createRouter() {
     imageService.rename(req.params.ref, displayName)
     res.json(ok())
   })
+  app.patch('/api/images/:ref/tags', (req, res) => {
+    const { tags } = req.body || {}
+    imageService.updateTags(req.params.ref, tags)
+    res.json(ok())
+  })
   app.get('/api/images/:ref', (req, res) => {
     try {
       const { buffer, mimeType } = imageService.download(req.params.ref)

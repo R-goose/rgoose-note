@@ -135,12 +135,18 @@ module.exports = {
     return imageDao.updateDisplayName(ref, displayName)
   },
 
+  /** 更新标签 */
+  updateTags(ref, tags) {
+    return imageDao.updateTags(ref, tags)
+  },
+
   /** 列出全部 ref 及元数据 */
   listAllWithMeta() {
     return imageDao.listAll().map(img => ({
       id: img.id,
       displayName: img.displayName || null,
       mimeType: img.mimeType,
+      tags: img.tags || [],
       createdAt: img.createdAt
     }))
   },

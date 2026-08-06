@@ -39,11 +39,14 @@ function ensureBlockColumns(db) {
   }
 }
 
-/** 对 images 表补齐 displayName 列（旧库兼容） */
+/** 对 images 表补齐 displayName + tags 列（旧库兼容） */
 function ensureImageColumns(db) {
   const cols = db.prepare("PRAGMA table_info(images)").all().map(c => c.name)
   if (!cols.includes('displayName')) {
     db.exec(`ALTER TABLE images ADD COLUMN displayName TEXT`)
+  }
+  if (!cols.includes('tags')) {
+    db.exec(`ALTER TABLE images ADD COLUMN tags TEXT DEFAULT '[]'`)
   }
 }
 

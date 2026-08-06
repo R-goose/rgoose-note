@@ -795,6 +795,11 @@ function noteStyle(note) {
 function noteMatchesKeyword(note, kw) {
   if (!kw) return true
   if ((note.title || '').toLowerCase().includes(kw)) return true
+  // 按标签名搜索
+  if (Array.isArray(note.tags) && note.tags.some(tid => {
+    const tname = tagStore.getTag(tid)?.name || ''
+    return tname.toLowerCase().includes(kw)
+  })) return true
   if (!note.blocks?.length) return false
   const tmp = document.createElement('div')
   return note.blocks.some(b => {

@@ -34,6 +34,7 @@
             <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
             <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
           </svg>
+          <span v-if="noteFolderName" class="note-folder-name">{{ noteFolderName }}</span>
           {{ noteTitle }}
         </span>
       </div>
@@ -82,6 +83,14 @@ const noteTitle = computed(() => {
   if (!props.plan.noteId) return ''
   const n = (noteStore.notes || []).find(x => x.id === props.plan.noteId)
   return n ? (n.title || '未命名') : ''
+})
+
+const noteFolderName = computed(() => {
+  if (!props.plan.noteId) return ''
+  const n = (noteStore.notes || []).find(x => x.id === props.plan.noteId)
+  if (!n || !n.folderId) return ''
+  const folder = (noteStore.folders || []).find(f => f.id === n.folderId && !f.deleted)
+  return folder ? folder.name : ''
 })
 
 const isOverdue = computed(() => {
@@ -252,6 +261,17 @@ function formatDueDate(timestamp) {
 .note-link-tag:hover {
   background: var(--primary-color);
   color: #fff;
+}
+.note-folder-name {
+  background: rgba(0,0,0,.07);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  opacity: .85;
+}
+.note-link-tag:hover .note-folder-name {
+  background: rgba(255,255,255,.2);
 }
 
 .plan-actions {
