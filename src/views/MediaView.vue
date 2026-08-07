@@ -58,6 +58,15 @@
             @keydown.esc="searchText = ''"
           />
         </div>
+        <button class="btn-import-export" @click="exportMedia" :disabled="mediaExporting" title="导出全部素材">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          {{ mediaExporting ? '导出中...' : '导出' }}
+        </button>
+        <button class="btn-import-export" @click="$refs.importInput.click()" title="导入素材">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          导入
+        </button>
+        <input ref="importInput" type="file" accept=".json" style="display:none" @change="importMedia" />
       </div>
     </div>
 
@@ -451,12 +460,14 @@ import { ref, computed, onMounted, onUnmounted, nextTick, watch, reactive } from
 import { useRouter } from 'vue-router'
 import { useNoteStore } from '@/stores/note'
 import { useTagStore } from '@/stores/tag'
-import { resolveImageUrl, isImageRef, getAllImageRefs, deleteImage, renameMedia, getAllImageMeta } from '@/utils/imageStore'
+import { resolveImageUrl, isImageRef, getAllImageRefs, deleteImage, renameMedia, getAllImageMeta, getImageAsDataUrl } from '@/utils/imageStore'
 import { imagesApi } from '@/api/images'
 import { useMediaFolders } from '@/composables/useMediaFolders'
+import { useToast } from '@/composables/useToast'
 import BgDecor from '@/components/BgDecor.vue'
 
 const router = useRouter()
+const { success: toastSuccess, error: toastError, info: toastInfo } = useToast()
 const noteStore = useNoteStore()
 const {
   folders: mediaFolders,
@@ -1078,6 +1089,110 @@ function onMediaLibraryChanged() {
   collectMedia()
 }
 
+// ===== 素材导出 =====
+const mediaExporting = ref(false)
+
+async function exportMedia() {
+  if (mediaExporting.value) return
+  const items = filteredItems.value
+  if (!items.length) {
+    toastError('没有可导出的素材')
+    return
+  }
+
+  mediaExporting.value = true
+  toastInfo(`正在导出 ${items.length} 个素材...`)
+
+  try {
+    const bundle = []
+    for (const item of items) {
+      if (!isImageRef(item.ref)) continue
+      const dataUrl = await getImageAsDataUrl(item.ref)
+      if (dataUrl) {
+        bundle.push({
+          ref: item.ref,
+          displayName: item.displayName || null,
+          tags: Array.isArray(item.tags) ? item.tags : [],
+          dataUrl
+        })
+      }
+    }
+
+    const payload = {
+      version: 1,
+      exportedAt: Date.now(),
+      count: bundle.length,
+      items: bundle
+    }
+
+    if (window.electronAPI?.exportData) {
+      const ok = await window.electronAPI.exportData(payload)
+      if (ok) toastSuccess(`成功导出 ${bundle.length} 个素材`)
+      else toastError('导出已取消')
+    } else {
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `rgoose-media-${Date.now()}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      toastSuccess(`成功导出 ${bundle.length} 个素材`)
+    }
+  } catch (err) {
+    console.error('导出素材失败:', err)
+    toastError('导出素材失败')
+  } finally {
+    mediaExporting.value = false
+  }
+}
+
+// ===== 素材导入 =====
+async function importMedia(e) {
+  const file = e.target.files?.[0]
+  e.target.value = ''
+  if (!file) return
+
+  toastInfo('正在导入素材...')
+
+  try {
+    const text = await file.text()
+    const payload = JSON.parse(text)
+
+    if (!payload.items || !Array.isArray(payload.items)) {
+      toastError('文件格式不正确')
+      return
+    }
+
+    let successCount = 0
+    for (const item of payload.items) {
+      if (!item.dataUrl) continue
+      try {
+        const newRef = await imagesApi.uploadFromDataUrl(item.dataUrl)
+        if (newRef && item.displayName) {
+          await imagesApi.rename(newRef, item.displayName)
+        }
+        if (newRef && Array.isArray(item.tags) && item.tags.length) {
+          await imagesApi.updateTags(newRef, item.tags)
+        }
+        successCount++
+      } catch (err) {
+        console.error('导入单个素材失败:', item.ref, err)
+      }
+    }
+
+    if (successCount > 0) {
+      toastSuccess(`成功导入 ${successCount} 个素材`)
+      await collectMedia()
+    } else {
+      toastError('导入失败，未成功导入任何素材')
+    }
+  } catch (err) {
+    console.error('导入素材失败:', err)
+    toastError('导入素材失败：文件解析错误')
+  }
+}
+
 onMounted(() => {
   collectMedia()
   document.addEventListener('click', hideAllMenus)
@@ -1422,6 +1537,37 @@ onUnmounted(() => {
   color: var(--text-tertiary);
   flex-shrink: 0;
 }
+
+.btn-import-export {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(.34,1.2,.64,1);
+  white-space: nowrap;
+}
+.btn-import-export:hover {
+  border-color: color-mix(in srgb, var(--primary-color) 40%, var(--border-color));
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 5%, var(--bg-secondary));
+  transform: translateY(-1px);
+}
+.btn-import-export:active {
+  transform: translateY(0);
+}
+.btn-import-export:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .search-input {
   flex: 1;
   background: transparent;
