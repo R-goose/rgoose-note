@@ -131,7 +131,7 @@
               v-for="item in filteredItems"
               :key="item.id"
               class="media-card"
-              @click="onCardClick($event, item)"
+              @click.stop="onCardClick($event, item)"
               @contextmenu.prevent="showContextMenu($event, item)"
             >
               <div class="media-thumb">
@@ -547,6 +547,7 @@ async function toggleItemTag(tagId) {
 }
 
 function openTagPicker(item) {
+  hideContextMenu()
   tagPickerState.item = item
   tagPickerState.search = ''
   tagPickerState.show = true

@@ -34,6 +34,23 @@
       <BgDecor />
       <div class="notes-content-inner">
       <div v-if="!noteStore.currentFolderId" class="all-folders-view">
+        <!-- 标签快捷过滤栏 -->
+        <div v-if="allNoteTags.length" class="tag-quick-bar">
+          <span class="tag-quick-label">标签：</span>
+          <button
+            class="tag-quick-chip"
+            :class="{ active: !activeTagFilter }"
+            @click="clearTagFilter"
+          >全部</button>
+          <button
+            v-for="t in allNoteTags"
+            :key="t.id"
+            class="tag-quick-chip"
+            :class="{ active: activeTagFilter === t.id }"
+            :style="activeTagFilter === t.id ? { background: t.color, color: '#fff', borderColor: t.color } : {}"
+            @click="filterByTag(t.id)"
+          >{{ t.name }}</button>
+        </div>
         <div v-if="activeTagFilter || activeFolderTagFilter" class="tag-filter-bar">
           <span class="tag-filter-label">筛选中：</span>
           <span v-if="activeTagFilter" class="tag-filter-chip" :style="tagChipStyle(activeTagFilter)" @click="clearTagFilter">
@@ -675,6 +692,18 @@ function noteTagList(note) {
   if (!Array.isArray(note.tags) || !note.tags.length) return []
   return note.tags.slice(0, 3).map(id => ({ id, name: tagName(id), color: tagColor(id) }))
 }
+
+/** 当前视图中笔记所使用的所有标签（去重） */
+const allNoteTags = computed(() => {
+  const tagIds = new Set()
+  for (const n of noteStore.notes) {
+    if (n.deleted) continue
+    if (Array.isArray(n.tags)) n.tags.forEach(t => tagIds.add(t))
+  }
+  return tagStore.tags
+    .filter(t => tagIds.has(t.id))
+    .sort((a, b) => a.name.localeCompare(b.name, 'zh'))
+})
 
 function clearTagFilter() {
   activeTagFilter.value = null
@@ -1686,6 +1715,35 @@ onUnmounted(() => {
 
 .note-tag-chip:hover {
   transform: translateY(-1px);
+}
+
+.tag-quick-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 0 10px;
+  flex-wrap: wrap;
+}
+.tag-quick-label {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+.tag-quick-chip {
+  padding: 3px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.tag-quick-chip:hover { border-color: var(--primary-color); }
+.tag-quick-chip.active {
+  background: var(--primary-color);
+  color: #fff;
+  border-color: var(--primary-color);
 }
 
 .tag-filter-bar {

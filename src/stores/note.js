@@ -705,12 +705,17 @@ export const useNoteStore = defineStore('note', () => {
   function setNoteTags(noteId, tags) {
     const note = notes.value.find(n => n.id === noteId)
     if (note) {
+      const oldTags = [...(note.tags || [])]
       note.tags = Array.isArray(tags) ? [...tags] : []
       note.updatedAt = getTimestamp()
 
       markSaving()
       notesApi.update(noteId, { tags: note.tags, updatedAt: note.updatedAt })
-        .catch(err => console.error('更新笔记标签失败:', err))
+        .catch(err => {
+          console.error('更新笔记标签失败:', err)
+          note.tags = oldTags
+          toastError('标签保存失败，请重试')
+        })
         .finally(markSaved)
     }
   }
@@ -718,12 +723,17 @@ export const useNoteStore = defineStore('note', () => {
   function setFolderTags(folderId, tags) {
     const folder = folders.value.find(f => f.id === folderId)
     if (folder) {
+      const oldTags = [...(folder.tags || [])]
       folder.tags = Array.isArray(tags) ? [...tags] : []
       folder.updatedAt = getTimestamp()
 
       markSaving()
       foldersApi.update(folderId, { tags: folder.tags, updatedAt: folder.updatedAt })
-        .catch(err => console.error('更新文件夹标签失败:', err))
+        .catch(err => {
+          console.error('更新文件夹标签失败:', err)
+          folder.tags = oldTags
+          toastError('标签保存失败，请重试')
+        })
         .finally(markSaved)
     }
   }

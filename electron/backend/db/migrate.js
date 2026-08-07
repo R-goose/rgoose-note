@@ -39,6 +39,17 @@ function ensureBlockColumns(db) {
   }
 }
 
+/** 对 notes 表补齐 tags / canvasConfig 列（旧库兼容） */
+function ensureNoteColumns(db) {
+  const cols = db.prepare("PRAGMA table_info(notes)").all().map(c => c.name)
+  if (!cols.includes('tags')) {
+    db.exec(`ALTER TABLE notes ADD COLUMN tags TEXT`)
+  }
+  if (!cols.includes('canvasConfig')) {
+    db.exec(`ALTER TABLE notes ADD COLUMN canvasConfig TEXT`)
+  }
+}
+
 /** 对 images 表补齐 displayName + tags 列（旧库兼容） */
 function ensureImageColumns(db) {
   const cols = db.prepare("PRAGMA table_info(images)").all().map(c => c.name)
@@ -65,6 +76,7 @@ function runMigrations(db) {
 
   // 2. 对已存在的表补齐缺失列（兼容旧库）
   ensureBlockColumns(db)
+  ensureNoteColumns(db)
   ensureImageColumns(db)
   ensureConnectionColumns(db)
 
