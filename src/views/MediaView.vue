@@ -1114,9 +1114,16 @@ async function exportMedia() {
       // 用 displayName + 原始扩展名作为文件名，无 displayName 则用 ref
       const ext = item.ref.match(/\.(\w+)$/)?.[1] || 'png'
       const baseName = (item.displayName || item.ref).replace(/\.[^.]+$/, '')
+      // 分块转换 base64，避免大文件栈溢出
+      const bytes = new Uint8Array(arrayBuffer)
+      let binary = ''
+      const chunkSize = 8192
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
+      }
       files.push({
         name: `${baseName}.${ext}`,
-        buffer: btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+        buffer: btoa(binary)
       })
     }
 
