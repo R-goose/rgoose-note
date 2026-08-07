@@ -1096,12 +1096,12 @@ function startImport() {
 }
 
 function confirmImportFolder() {
+  // 直接在用户点击事件中触发文件选择器（Electron 要求用户手势链内调用）
+  const input = importInputRef.value
+  if (input) {
+    input.click()
+  }
   importFolderState.value.show = false
-  // 延迟打开文件选择器，确保弹窗关闭
-  nextTick(() => {
-    const input = importInputRef.value
-    if (input) input.click()
-  })
 }
 
 // ===== 移动到文件夹 =====
