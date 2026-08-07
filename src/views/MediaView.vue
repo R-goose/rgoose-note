@@ -1653,6 +1653,7 @@ onUnmounted(() => {
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 16px;
   align-content: start;
+  align-items: start;
 }
 .media-grid > .media-card:nth-child(1) { animation-delay: 0.02s; }
 .media-grid > .media-card:nth-child(2) { animation-delay: 0.05s; }
@@ -1782,7 +1783,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  flex: 1;
 }
 
 .media-info-header {
