@@ -1090,13 +1090,16 @@ function confirmDeleteFolder() {
 
 // ===== 导入到文件夹 =====
 const importFolderState = ref({ show: false, targetId: null })
+// 单独保存导入目标文件夹 ID，避免弹窗关闭后状态丢失
+let importTargetFolderId = null
 
 function startImport() {
   importFolderState.value = { show: true, targetId: currentFolderId.value }
 }
 
 function confirmImportFolder() {
-  // 直接在用户点击事件中触发文件选择器（Electron 要求用户手势链内调用）
+  // 先保存目标文件夹 ID，再触发文件选择器
+  importTargetFolderId = importFolderState.value.targetId
   const input = importInputRef.value
   if (input) {
     input.click()
@@ -1264,17 +1267,20 @@ async function confirmExportSelect() {
 /** 导入素材：直接选择原始文件上传 */
 async function importMedia(e) {
   const fileList = e.target.files
-  e.target.value = ''
   if (!fileList || !fileList.length) return
 
+  // 先把 File 对象取出来，再清空 input（清空 value 会使 FileList 变空）
   const files = Array.from(fileList)
-  const targetFolderId = importFolderState.value.targetId
+  e.target.value = ''
+  const targetFolderId = importTargetFolderId
   toastInfo(`正在导入 ${files.length} 个素材...`)
 
   let successCount = 0
   for (const file of files) {
     try {
+      console.log('[import] 开始上传:', file.name, file.type, file.size)
       const ref = await imagesApi.upload(file)
+      console.log('[import] 上传返回 ref:', ref)
       if (ref) {
         // 用原始文件名（去扩展名）作为 displayName
         const displayName = file.name.replace(/\.[^.]+$/, '')
@@ -1760,12 +1766,14 @@ onUnmounted(() => {
   flex: 1;
   overflow-y: auto;
   padding: 20px 24px;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 16px;
-  align-content: start;
-  align-items: start;
+  column-gap: 16px;
+  column-count: 5;
+  column-fill: balance;
 }
+@media (max-width: 1400px) { .media-grid { column-count: 4; } }
+@media (max-width: 1100px) { .media-grid { column-count: 3; } }
+@media (max-width: 800px) { .media-grid { column-count: 2; } }
+@media (max-width: 500px) { .media-grid { column-count: 1; } }
 .media-grid > .media-card:nth-child(1) { animation-delay: 0.02s; }
 .media-grid > .media-card:nth-child(2) { animation-delay: 0.05s; }
 .media-grid > .media-card:nth-child(3) { animation-delay: 0.08s; }
@@ -1777,6 +1785,8 @@ onUnmounted(() => {
 .media-grid > .media-card:nth-child(n+9) { animation-delay: 0.26s; }
 
 .media-card {
+  break-inside: avoid;
+  margin-bottom: 16px;
   border: 1px solid var(--border-light);
   border-radius: 14px;
   overflow: hidden;

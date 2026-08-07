@@ -204,6 +204,8 @@ async function ipcUploadFormData(path, formData) {
   const file = formData.get('file')
   if (!file) throw new Error('FormData 缺少 file 字段')
 
+  console.log('[ipcUpload] file:', file.name, file.type, file.size)
+
   // File/Blob → base64 dataUrl
   const dataUrl = await new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -212,11 +214,15 @@ async function ipcUploadFormData(path, formData) {
     reader.readAsDataURL(file)
   })
 
+  console.log('[ipcUpload] dataUrl length:', dataUrl?.length)
+
   const fileName = file.name || `img_${Date.now()}.png`
   const result = await window.electronAPI.backend('backend:images:upload', {
     base64: dataUrl,
     fileName
   })
+
+  console.log('[ipcUpload] IPC result:', result)
 
   if (!result || result.code !== 0) {
     throw new Error(result?.msg || '图片上传失败')
