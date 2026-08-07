@@ -1451,26 +1451,40 @@ onUnmounted(() => {
   gap: 16px;
   align-content: start;
 }
+.media-grid > .media-card:nth-child(1) { animation-delay: 0.02s; }
+.media-grid > .media-card:nth-child(2) { animation-delay: 0.05s; }
+.media-grid > .media-card:nth-child(3) { animation-delay: 0.08s; }
+.media-grid > .media-card:nth-child(4) { animation-delay: 0.11s; }
+.media-grid > .media-card:nth-child(5) { animation-delay: 0.14s; }
+.media-grid > .media-card:nth-child(6) { animation-delay: 0.17s; }
+.media-grid > .media-card:nth-child(7) { animation-delay: 0.2s; }
+.media-grid > .media-card:nth-child(8) { animation-delay: 0.23s; }
+.media-grid > .media-card:nth-child(n+9) { animation-delay: 0.26s; }
 
 .media-card {
   border: 1px solid var(--border-light);
-  border-radius: 12px;
+  border-radius: 14px;
   overflow: hidden;
   cursor: pointer;
-  transition: transform 0.25s cubic-bezier(.34,1.3,.64,1), box-shadow 0.25s ease, border-color 0.2s ease;
+  transition: transform 0.28s cubic-bezier(.34,1.3,.64,1), box-shadow 0.28s ease, border-color 0.2s ease;
   background: var(--bg-secondary);
   display: flex;
   flex-direction: column;
+  animation: card-in 0.4s cubic-bezier(.22,.61,.36,1) backwards;
+}
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .media-card:hover {
-  border-color: color-mix(in srgb, var(--primary-color) 40%, var(--border-color));
-  box-shadow: 0 8px 24px -8px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.06);
-  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--primary-color) 35%, var(--border-color));
+  box-shadow: 0 12px 32px -10px rgba(0,0,0,0.16), 0 4px 12px rgba(0,0,0,0.06);
+  transform: translateY(-5px);
 }
 
 .media-card:active {
-  transform: translateY(-1px);
+  transform: translateY(-2px);
   transition-duration: 0.08s;
 }
 
@@ -1484,22 +1498,32 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
+/* 缩略图底部渐变遮罩，与信息区融合增加深度 */
+.media-thumb::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 40%;
+  background: linear-gradient(to top, rgba(0,0,0,0.08), transparent);
+  pointer-events: none;
+}
+
 .media-thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.35s cubic-bezier(.22,.61,.36,1);
+  transition: transform 0.4s cubic-bezier(.22,.61,.36,1);
 }
 .media-card:hover .media-thumb img {
-  transform: scale(1.06);
+  transform: scale(1.07);
 }
 
 .thumb-icon {
   color: var(--text-secondary);
-  opacity: 0.4;
-  transition: opacity 0.2s;
+  opacity: 0.35;
+  transition: opacity 0.25s, transform 0.25s;
 }
-.media-card:hover .thumb-icon { opacity: 0.55; }
+.media-card:hover .thumb-icon { opacity: 0.5; transform: scale(1.08); }
 
 .thumb-video-cover {
   position: relative;
@@ -1510,10 +1534,10 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.35s cubic-bezier(.22,.61,.36,1);
+  transition: transform 0.4s cubic-bezier(.22,.61,.36,1);
 }
 .media-card:hover .thumb-video-cover img {
-  transform: scale(1.06);
+  transform: scale(1.07);
 }
 .play-overlay {
   position: absolute;
@@ -1521,39 +1545,40 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.18);
   color: #fff;
-  transition: background 0.2s;
+  transition: background 0.25s;
 }
-.media-card:hover .play-overlay { background: rgba(0, 0, 0, 0.3); }
+.media-card:hover .play-overlay { background: rgba(0, 0, 0, 0.28); }
 .play-overlay svg {
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
-  transition: transform 0.2s;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+  transition: transform 0.25s cubic-bezier(.34,1.3,.64,1);
 }
-.media-card:hover .play-overlay svg { transform: scale(1.1); }
+.media-card:hover .play-overlay svg { transform: scale(1.12); }
 
 .type-badge {
   position: absolute;
-  top: 7px;
-  left: 7px;
+  top: 8px;
+  left: 8px;
   font-size: 10px;
-  padding: 2px 7px;
-  border-radius: 5px;
+  padding: 2px 8px;
+  border-radius: 6px;
   font-weight: 600;
   color: #fff;
-  letter-spacing: 0.02em;
-  backdrop-filter: blur(4px);
+  letter-spacing: 0.03em;
+  backdrop-filter: blur(6px);
+  z-index: 1;
 }
 
-.type-badge.image { background: color-mix(in srgb, var(--primary-color) 75%, transparent); }
-.type-badge.audio { background: rgba(230, 126, 34, 0.8); }
-.type-badge.video { background: rgba(142, 68, 173, 0.8); }
+.type-badge.image { background: color-mix(in srgb, var(--primary-color) 70%, transparent); }
+.type-badge.audio { background: rgba(230, 126, 34, 0.75); }
+.type-badge.video { background: rgba(142, 68, 173, 0.75); }
 
 .media-info {
-  padding: 8px 10px 10px;
+  padding: 9px 11px 11px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
   flex: 1;
 }
 
@@ -1569,7 +1594,8 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  line-height: 1.3;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
 }
 
 .media-info-meta {
@@ -1588,9 +1614,9 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 120px;
+  max-width: 130px;
 }
-.media-folder svg { flex-shrink: 0; opacity: 0.7; }
+.media-folder svg { flex-shrink: 0; opacity: 0.65; }
 
 .media-note-count {
   font-size: 10.5px;
@@ -1609,7 +1635,7 @@ onUnmounted(() => {
   font-size: 10.5px;
   font-weight: 500;
   color: var(--primary-color);
-  background: color-mix(in srgb, var(--primary-color) 8%, transparent);
+  background: color-mix(in srgb, var(--primary-color) 7%, transparent);
   padding: 2px 8px;
   border-radius: 999px;
   cursor: pointer;
@@ -1617,12 +1643,13 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: all 0.15s;
-  border: 1px solid color-mix(in srgb, var(--primary-color) 12%, transparent);
+  transition: all 0.18s cubic-bezier(.34,1.2,.64,1);
+  border: 1px solid color-mix(in srgb, var(--primary-color) 10%, transparent);
 }
 .media-note-chip:hover {
-  background: color-mix(in srgb, var(--primary-color) 15%, transparent);
-  border-color: color-mix(in srgb, var(--primary-color) 30%, transparent);
+  background: color-mix(in srgb, var(--primary-color) 14%, transparent);
+  border-color: color-mix(in srgb, var(--primary-color) 28%, transparent);
+  transform: translateY(-1px);
 }
 
 /* 右键菜单 */
