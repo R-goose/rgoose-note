@@ -134,7 +134,7 @@ async function ipcRequest(path, options = {}) {
     throw new Error(`未匹配到 IPC 路由: ${options.method} ${path}`)
   }
 
-  const result = await window.electronAPI.backend(route.channel, ...route.args)
+  const result = await window.electronAPI.backend(route.channel, ...JSON.parse(JSON.stringify(route.args)))
 
   if (!result || result.code !== 0) {
     throw new Error(result?.msg || `IPC 调用失败 (code: ${result?.code})`)
