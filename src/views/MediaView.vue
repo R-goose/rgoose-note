@@ -62,7 +62,7 @@
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           {{ mediaExporting ? '导出中...' : '导出' }}
         </button>
-        <button class="btn-import-export" @click="$refs.importInput.click()" title="导入素材文件">
+        <button class="btn-import-export" @click="startImport" title="导入素材文件">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           导入
         </button>
@@ -301,6 +301,35 @@
           <div class="confirm-actions">
             <button class="btn btn-secondary" @click="moveState.show = false">取消</button>
             <button class="btn btn-primary" @click="confirmMove">移动</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 导入到文件夹弹窗 -->
+    <Teleport to="body">
+      <div v-if="importFolderState.show" class="modal-overlay" @click.self="importFolderState.show = false">
+        <div class="modal-content move-modal">
+          <h3 class="move-title">导入到文件夹</h3>
+          <div class="move-folder-list">
+            <button class="move-folder-item" :class="{ active: importFolderState.targetId === null }" @click="importFolderState.targetId = null">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              根目录
+            </button>
+            <button
+              v-for="f in allFoldersFlat"
+              :key="f.id"
+              class="move-folder-item"
+              :class="{ active: importFolderState.targetId === f.id }"
+              @click="importFolderState.targetId = f.id"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              {{ f.displayName }}
+            </button>
+          </div>
+          <div class="confirm-actions">
+            <button class="btn btn-secondary" @click="importFolderState.show = false">取消</button>
+            <button class="btn btn-primary" @click="confirmImportFolder">选择文件</button>
           </div>
         </div>
       </div>
@@ -921,6 +950,7 @@ function goToNote(noteId) {
 
 // ===== 点击卡片弹出菜单（查看素材 / 跳转笔记） =====
 const cardMenu = ref({ show: false, x: 0, y: 0, item: null })
+const importInputRef = ref(null)
 
 function onCardClick(e, item) {
   cardMenu.value = { show: true, x: e.clientX, y: e.clientY, item }
@@ -1031,6 +1061,22 @@ function confirmDeleteFolder() {
     deleteFolder(deleteFolderState.value.id)
   }
   deleteFolderState.value.show = false
+}
+
+// ===== 导入到文件夹 =====
+const importFolderState = ref({ show: false, targetId: null })
+
+function startImport() {
+  importFolderState.value = { show: true, targetId: currentFolderId.value }
+}
+
+function confirmImportFolder() {
+  importFolderState.value.show = false
+  // 延迟打开文件选择器，确保弹窗关闭
+  nextTick(() => {
+    const input = importInputRef.value
+    if (input) input.click()
+  })
 }
 
 // ===== 移动到文件夹 =====
@@ -1174,6 +1220,7 @@ async function importMedia(e) {
   if (!fileList || !fileList.length) return
 
   const files = Array.from(fileList)
+  const targetFolderId = importFolderState.value.targetId
   toastInfo(`正在导入 ${files.length} 个素材...`)
 
   let successCount = 0
@@ -1184,6 +1231,10 @@ async function importMedia(e) {
         // 用原始文件名（去扩展名）作为 displayName
         const displayName = file.name.replace(/\.[^.]+$/, '')
         await imagesApi.rename(ref, displayName)
+        // 将素材分配到选定的文件夹
+        if (targetFolderId !== undefined) {
+          setMediaFolder(ref, targetFolderId)
+        }
         successCount++
       }
     } catch (err) {
@@ -1889,7 +1940,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 20px 8px;
+  padding: 8px 28px 8px;
   flex-wrap: wrap;
 }
 .tag-filter-label {
