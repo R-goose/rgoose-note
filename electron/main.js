@@ -170,26 +170,28 @@ ipcMain.handle('export-data', async (_event, data) => {
   return false
 })
 
-/** 素材导出到文件夹：选择目录，将素材以原始格式写入 */
-ipcMain.handle('export-media-to-dir', async (_event, files) => {
+/** 选择导出文件夹（仅弹窗，返回路径） */
+ipcMain.handle('select-export-dir', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: '选择导出文件夹',
     properties: ['openDirectory']
   })
 
   if (result.canceled || !result.filePaths.length) {
-    return { canceled: true, count: 0 }
+    return null
   }
+  return result.filePaths[0]
+})
 
-  const dir = result.filePaths[0]
+/** 将素材文件写入指定目录 */
+ipcMain.handle('write-media-to-dir', async (_event, { dir, files }) => {
   let count = 0
   for (const file of files) {
     const filePath = path.join(dir, file.name)
     fs.writeFileSync(filePath, Buffer.from(file.buffer, 'base64'))
     count++
   }
-
-  return { canceled: false, count }
+  return count
 })
 
 ipcMain.handle('import-data', async () => {

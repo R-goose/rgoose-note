@@ -1092,7 +1092,7 @@ function onMediaLibraryChanged() {
 // ===== 素材导出 =====
 const mediaExporting = ref(false)
 
-/** 导出素材：以原始格式保存到用户选择的文件夹 */
+/** 导出素材：先弹窗选目录，确认后再下载并写入 */
 async function exportMedia() {
   if (mediaExporting.value) return
   const items = filteredItems.value
@@ -1101,8 +1101,15 @@ async function exportMedia() {
     return
   }
 
+  // Electron：先弹窗让用户选目录
+  let targetDir = null
+  if (window.electronAPI?.selectExportDir) {
+    targetDir = await window.electronAPI.selectExportDir()
+    if (!targetDir) return // 用户取消
+  }
+
   mediaExporting.value = true
-  toastInfo(`正在准备 ${items.length} 个素材...`)
+  toastInfo(`正在导出 ${items.length} 个素材...`)
 
   try {
     // 下载每个素材为 buffer
@@ -1132,14 +1139,10 @@ async function exportMedia() {
       return
     }
 
-    if (window.electronAPI?.exportMediaToDir) {
-      // Electron：选择文件夹并写入原始文件
-      const result = await window.electronAPI.exportMediaToDir(files)
-      if (result.canceled) {
-        toastError('导出已取消')
-      } else {
-        toastSuccess(`成功导出 ${result.count} 个素材到文件夹`)
-      }
+    if (targetDir) {
+      // Electron：写入已选定的目录
+      const count = await window.electronAPI.writeMediaToDir({ dir: targetDir, files })
+      toastSuccess(`成功导出 ${count} 个素材到 ${targetDir}`)
     } else {
       // 浏览器：逐个下载
       for (const file of files) {
