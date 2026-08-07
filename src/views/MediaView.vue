@@ -66,7 +66,7 @@
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           导入
         </button>
-        <input ref="importInput" type="file" accept="image/*,audio/*,video/*" multiple style="display:none" @change="importMedia" />
+        <input ref="importInputRef" type="file" accept="image/*,audio/*,video/*" multiple style="display:none" @change="importMedia" />
       </div>
     </div>
 
@@ -301,6 +301,31 @@
           <div class="confirm-actions">
             <button class="btn btn-secondary" @click="moveState.show = false">取消</button>
             <button class="btn btn-primary" @click="confirmMove">移动</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 导出素材选择弹窗 -->
+    <Teleport to="body">
+      <div v-if="exportSelectState.show" class="modal-overlay" @click.self="exportSelectState.show = false">
+        <div class="modal-content export-select-modal">
+          <h3 class="move-title">选择要导出的素材</h3>
+          <div class="export-select-toolbar">
+            <button class="btn btn-secondary btn-sm" @click="toggleAllExport(true)">全选</button>
+            <button class="btn btn-secondary btn-sm" @click="toggleAllExport(false)">全不选</button>
+            <span class="export-select-count">已选 {{ exportSelectedCount }} / {{ exportSelectState.items.length }}</span>
+          </div>
+          <div class="export-select-list">
+            <label v-for="item in exportSelectState.items" :key="item.ref" class="export-select-item" :class="{ checked: exportSelectState.selected[item.ref] }">
+              <input type="checkbox" v-model="exportSelectState.selected[item.ref]" />
+              <span class="export-select-name">{{ item.displayName || itemName(item) }}</span>
+              <span class="export-select-type">{{ typeLabel[item.type] }}</span>
+            </label>
+          </div>
+          <div class="confirm-actions">
+            <button class="btn btn-secondary" @click="exportSelectState.show = false">取消</button>
+            <button class="btn btn-primary" :disabled="exportSelectedCount === 0" @click="confirmExportSelect">导出</button>
           </div>
         </div>
       </div>
@@ -1138,14 +1163,37 @@ function onMediaLibraryChanged() {
 // ===== 素材导出 =====
 const mediaExporting = ref(false)
 
-/** 导出素材：先弹窗选目录，确认后再下载并写入 */
-async function exportMedia() {
+// 导出素材选择弹窗
+const exportSelectState = ref({ show: false, items: [], selected: {} })
+
+const exportSelectedCount = computed(() => {
+  return Object.values(exportSelectState.value.selected).filter(Boolean).length
+})
+
+function exportMedia() {
   if (mediaExporting.value) return
-  const items = filteredItems.value
+  const items = filteredItems.value.filter(i => isImageRef(i.ref))
   if (!items.length) {
     toastError('没有可导出的素材')
     return
   }
+  const selected = {}
+  items.forEach(i => { selected[i.ref] = true })
+  exportSelectState.value = { show: true, items, selected }
+}
+
+function toggleAllExport(val) {
+  const map = {}
+  exportSelectState.value.items.forEach(i => { map[i.ref] = val })
+  exportSelectState.value.selected = map
+}
+
+/** 确认选择后执行导出 */
+async function confirmExportSelect() {
+  const items = exportSelectState.value.items.filter(i => exportSelectState.value.selected[i.ref])
+  if (!items.length) return
+
+  exportSelectState.value.show = false
 
   // Electron：先弹窗让用户选目录
   let targetDir = null
@@ -1462,6 +1510,69 @@ onUnmounted(() => {
   font-size: 16px;
   font-weight: 700;
   margin-bottom: 16px;
+}
+
+/* 导出素材选择弹窗 */
+.export-select-modal {
+  width: 480px;
+  max-width: 90vw;
+  padding: 24px;
+}
+.export-select-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.export-select-count {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-left: auto;
+}
+.export-select-list {
+  max-height: 340px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.export-select-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all .1s;
+}
+.export-select-item:hover { background: var(--bg-hover); }
+.export-select-item.checked {
+  border-color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 8%, transparent);
+}
+.export-select-item input[type="checkbox"] {
+  accent-color: var(--primary-color);
+  cursor: pointer;
+}
+.export-select-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.export-select-type {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+  color: var(--text-tertiary);
+}
+.btn-sm {
+  padding: 3px 10px;
+  font-size: 12px;
 }
 .move-folder-list {
   max-height: 300px;
