@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron')
 
 contextBridge.exposeInMainWorld('electronAPI', {
   exportData: data => ipcRenderer.invoke('export-data', data),
+  exportMediaToDir: files => ipcRenderer.invoke('export-media-to-dir', files),
   importData: () => ipcRenderer.invoke('import-data'),
   getDataPath: () => ipcRenderer.invoke('get-data-path'),
   openPath: targetPath => ipcRenderer.invoke('open-path', targetPath),

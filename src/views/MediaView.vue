@@ -58,15 +58,15 @@
             @keydown.esc="searchText = ''"
           />
         </div>
-        <button class="btn-import-export" @click="exportMedia" :disabled="mediaExporting" title="导出全部素材">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <button class="btn-import-export" @click="exportMedia" :disabled="mediaExporting" title="导出全部素材到文件夹">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           {{ mediaExporting ? '导出中...' : '导出' }}
         </button>
-        <button class="btn-import-export" @click="$refs.importInput.click()" title="导入素材">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <button class="btn-import-export" @click="$refs.importInput.click()" title="导入素材文件">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           导入
         </button>
-        <input ref="importInput" type="file" accept=".json" style="display:none" @change="importMedia" />
+        <input ref="importInput" type="file" accept="image/*,audio/*,video/*" multiple style="display:none" @change="importMedia" />
       </div>
     </div>
 
@@ -460,7 +460,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick, watch, reactive } from
 import { useRouter } from 'vue-router'
 import { useNoteStore } from '@/stores/note'
 import { useTagStore } from '@/stores/tag'
-import { resolveImageUrl, isImageRef, getAllImageRefs, deleteImage, renameMedia, getAllImageMeta, getImageAsDataUrl } from '@/utils/imageStore'
+import { resolveImageUrl, isImageRef, getAllImageRefs, deleteImage, renameMedia, getAllImageMeta } from '@/utils/imageStore'
 import { imagesApi } from '@/api/images'
 import { useMediaFolders } from '@/composables/useMediaFolders'
 import { useToast } from '@/composables/useToast'
@@ -1092,6 +1092,7 @@ function onMediaLibraryChanged() {
 // ===== 素材导出 =====
 const mediaExporting = ref(false)
 
+/** 导出素材：以原始格式保存到用户选择的文件夹 */
 async function exportMedia() {
   if (mediaExporting.value) return
   const items = filteredItems.value
@@ -1101,43 +1102,52 @@ async function exportMedia() {
   }
 
   mediaExporting.value = true
-  toastInfo(`正在导出 ${items.length} 个素材...`)
+  toastInfo(`正在准备 ${items.length} 个素材...`)
 
   try {
-    const bundle = []
+    // 下载每个素材为 buffer
+    const files = []
     for (const item of items) {
       if (!isImageRef(item.ref)) continue
-      const dataUrl = await getImageAsDataUrl(item.ref)
-      if (dataUrl) {
-        bundle.push({
-          ref: item.ref,
-          displayName: item.displayName || null,
-          tags: Array.isArray(item.tags) ? item.tags : [],
-          dataUrl
-        })
+      const blob = await imagesApi.download(item.ref)
+      const arrayBuffer = await blob.arrayBuffer()
+      // 用 displayName + 原始扩展名作为文件名，无 displayName 则用 ref
+      const ext = item.ref.match(/\.(\w+)$/)?.[1] || 'png'
+      const baseName = (item.displayName || item.ref).replace(/\.[^.]+$/, '')
+      files.push({
+        name: `${baseName}.${ext}`,
+        buffer: btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+      })
+    }
+
+    if (!files.length) {
+      toastError('没有可导出的素材文件')
+      return
+    }
+
+    if (window.electronAPI?.exportMediaToDir) {
+      // Electron：选择文件夹并写入原始文件
+      const result = await window.electronAPI.exportMediaToDir(files)
+      if (result.canceled) {
+        toastError('导出已取消')
+      } else {
+        toastSuccess(`成功导出 ${result.count} 个素材到文件夹`)
       }
-    }
-
-    const payload = {
-      version: 1,
-      exportedAt: Date.now(),
-      count: bundle.length,
-      items: bundle
-    }
-
-    if (window.electronAPI?.exportData) {
-      const ok = await window.electronAPI.exportData(payload)
-      if (ok) toastSuccess(`成功导出 ${bundle.length} 个素材`)
-      else toastError('导出已取消')
     } else {
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `rgoose-media-${Date.now()}.json`
-      a.click()
-      URL.revokeObjectURL(url)
-      toastSuccess(`成功导出 ${bundle.length} 个素材`)
+      // 浏览器：逐个下载
+      for (const file of files) {
+        const bytes = atob(file.buffer)
+        const arr = new Uint8Array(bytes.length)
+        for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i)
+        const blob = new Blob([arr])
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = file.name
+        a.click()
+        URL.revokeObjectURL(url)
+      }
+      toastSuccess(`成功导出 ${files.length} 个素材`)
     }
   } catch (err) {
     console.error('导出素材失败:', err)
@@ -1147,49 +1157,35 @@ async function exportMedia() {
   }
 }
 
-// ===== 素材导入 =====
+/** 导入素材：直接选择原始文件上传 */
 async function importMedia(e) {
-  const file = e.target.files?.[0]
+  const fileList = e.target.files
   e.target.value = ''
-  if (!file) return
+  if (!fileList || !fileList.length) return
 
-  toastInfo('正在导入素材...')
+  const files = Array.from(fileList)
+  toastInfo(`正在导入 ${files.length} 个素材...`)
 
-  try {
-    const text = await file.text()
-    const payload = JSON.parse(text)
-
-    if (!payload.items || !Array.isArray(payload.items)) {
-      toastError('文件格式不正确')
-      return
-    }
-
-    let successCount = 0
-    for (const item of payload.items) {
-      if (!item.dataUrl) continue
-      try {
-        const newRef = await imagesApi.uploadFromDataUrl(item.dataUrl)
-        if (newRef && item.displayName) {
-          await imagesApi.rename(newRef, item.displayName)
-        }
-        if (newRef && Array.isArray(item.tags) && item.tags.length) {
-          await imagesApi.updateTags(newRef, item.tags)
-        }
+  let successCount = 0
+  for (const file of files) {
+    try {
+      const ref = await imagesApi.upload(file)
+      if (ref) {
+        // 用原始文件名（去扩展名）作为 displayName
+        const displayName = file.name.replace(/\.[^.]+$/, '')
+        await imagesApi.rename(ref, displayName)
         successCount++
-      } catch (err) {
-        console.error('导入单个素材失败:', item.ref, err)
       }
+    } catch (err) {
+      console.error('导入文件失败:', file.name, err)
     }
+  }
 
-    if (successCount > 0) {
-      toastSuccess(`成功导入 ${successCount} 个素材`)
-      await collectMedia()
-    } else {
-      toastError('导入失败，未成功导入任何素材')
-    }
-  } catch (err) {
-    console.error('导入素材失败:', err)
-    toastError('导入素材失败：文件解析错误')
+  if (successCount > 0) {
+    toastSuccess(`成功导入 ${successCount} 个素材`)
+    await collectMedia()
+  } else {
+    toastError('导入失败，未成功导入任何素材')
   }
 }
 
