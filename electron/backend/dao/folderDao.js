@@ -89,6 +89,15 @@ module.exports = {
     return this.getById(id)
   },
 
+  /** 仅更新 tags 字段（专用轻量接口） */
+  updateTags(id, tags) {
+    const db = getDb()
+    const ts = Date.now()
+    db.prepare('UPDATE folders SET tags = ?, updatedAt = ? WHERE id = ?')
+      .run(safeStringify(tags || []), ts, id)
+    return this.getById(id)
+  },
+
   softDelete(id) {
     const db = getDb()
     return db.prepare('UPDATE folders SET deleted = 1, updatedAt = ? WHERE id = ?')

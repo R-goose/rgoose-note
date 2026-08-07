@@ -20,6 +20,7 @@ function register() {
   ipcMain.handle('backend:notes:get',      (_e, id) => wrap(() => noteService.get(id)))
   ipcMain.handle('backend:notes:create',   (_e, note) => wrap(() => noteService.create(note)))
   ipcMain.handle('backend:notes:update',   (_e, { id, note }) => wrap(() => noteService.update(id, note)))
+  ipcMain.handle('backend:notes:updateTags', (_e, { id, tags }) => wrap(() => noteService.updateTags(id, tags)))
   ipcMain.handle('backend:notes:delete',   (_e, id) => wrap(() => noteService.delete(id)))
   ipcMain.handle('backend:notes:duplicate',(_e, id) => wrap(() => noteService.duplicate(id)))
   ipcMain.handle('backend:notes:listAll',  () => wrap(() => noteService.listAll()))
@@ -42,6 +43,7 @@ function register() {
   ipcMain.handle('backend:folders:get',      (_e, id) => wrap(() => folderService.get(id)))
   ipcMain.handle('backend:folders:create',   (_e, folder) => wrap(() => folderService.create(folder)))
   ipcMain.handle('backend:folders:update',   (_e, { id, folder }) => wrap(() => folderService.update(id, folder)))
+  ipcMain.handle('backend:folders:updateTags', (_e, { id, tags }) => wrap(() => folderService.updateTags(id, tags)))
   ipcMain.handle('backend:folders:delete',   (_e, id) => wrap(() => folderService.delete(id)))
   ipcMain.handle('backend:folders:listAll',  () => wrap(() => folderService.listAll()))
 

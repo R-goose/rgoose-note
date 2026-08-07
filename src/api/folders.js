@@ -24,6 +24,11 @@ export const foldersApi = {
     return http.put(`/folders/${id}`, folder)
   },
 
+  /** 仅更新标签 */
+  updateTags(id, tags) {
+    return http.patch(`/folders/${id}/tags`, { tags })
+  },
+
   /** 删除文件夹（递归软删子文件夹及笔记） */
   delete(id) {
     return http.del(`/folders/${id}`)

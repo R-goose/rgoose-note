@@ -1450,14 +1450,20 @@ onUnmounted(() => {
   border-radius: var(--radius-lg);
   overflow: hidden;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.2s cubic-bezier(.34,1.2,.64,1);
   background: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
 }
 
 .media-card:hover {
-  border-color: var(--primary-color);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--primary-color) 50%, var(--border-color));
+  box-shadow: 0 6px 20px -4px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06);
+  transform: translateY(-3px);
+}
+
+.media-card:active {
+  transform: translateY(-1px);
 }
 
 .media-thumb {
@@ -1474,6 +1480,10 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.3s ease;
+}
+.media-card:hover .media-thumb img {
+  transform: scale(1.05);
 }
 
 .thumb-icon {
@@ -1521,10 +1531,11 @@ onUnmounted(() => {
 .type-badge.video { background: #8e44ad; }
 
 .media-info {
-  padding: 8px 10px;
+  padding: 7px 10px 9px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
+  flex: 1;
 }
 
 .media-name {

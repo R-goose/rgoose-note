@@ -29,6 +29,7 @@ function createRouter() {
   app.get('/api/notes/:id', (req, res) => res.json(ok(noteService.get(req.params.id))))
   app.post('/api/notes', (req, res) => res.json(ok(noteService.create(req.body))))
   app.put('/api/notes/:id', (req, res) => res.json(ok(noteService.update(req.params.id, req.body))))
+  app.patch('/api/notes/:id/tags', (req, res) => res.json(ok(noteService.updateTags(req.params.id, req.body.tags))))
   app.delete('/api/notes/:id', (req, res) => { noteService.delete(req.params.id); res.json(ok()) })
   app.post('/api/notes/:id/duplicate', (req, res) => res.json(ok(noteService.duplicate(req.params.id))))
 
@@ -74,6 +75,7 @@ function createRouter() {
   app.get('/api/folders/:id', (req, res) => res.json(ok(folderService.get(req.params.id))))
   app.post('/api/folders', (req, res) => res.json(ok(folderService.create(req.body))))
   app.put('/api/folders/:id', (req, res) => res.json(ok(folderService.update(req.params.id, req.body))))
+  app.patch('/api/folders/:id/tags', (req, res) => res.json(ok(folderService.updateTags(req.params.id, req.body.tags))))
   app.delete('/api/folders/:id', (req, res) => res.json(ok(folderService.delete(req.params.id))))
 
   // ---------- Plans ----------

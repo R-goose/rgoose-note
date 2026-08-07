@@ -24,6 +24,11 @@ export const notesApi = {
     return http.put(`/notes/${id}`, note)
   },
 
+  /** 仅更新标签 */
+  updateTags(id, tags) {
+    return http.patch(`/notes/${id}/tags`, { tags })
+  },
+
   /** 删除笔记（软删除） */
   delete(id) {
     return http.del(`/notes/${id}`)

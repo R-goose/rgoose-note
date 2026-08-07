@@ -32,6 +32,12 @@ module.exports = {
     return folderDao.update(id, { ...folder, updatedAt: now() })
   },
 
+  /** 仅更新标签 */
+  updateTags(id, tags) {
+    this.get(id)
+    return folderDao.updateTags(id, tags)
+  },
+
   /** 递归软删：文件夹 + 子文件夹 + 其下笔记（及 blocks/connections） */
   delete(id) {
     const db = getDb()

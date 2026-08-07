@@ -40,6 +40,12 @@ module.exports = {
     return noteDao.update(id, { ...note, updatedAt: now() })
   },
 
+  /** 仅更新标签 */
+  updateTags(id, tags) {
+    requireNote(id)
+    return noteDao.updateTags(id, tags)
+  },
+
   /** 软删笔记 + 物理删除关联 blocks/connections（事务） */
   delete(id) {
     const db = getDb()

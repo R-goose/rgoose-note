@@ -20,6 +20,7 @@ const routes = [
   { m: 'GET',    p: '/notes/:id',              c: 'backend:notes:get',       b: (p) => [p.id] },
   { m: 'POST',   p: '/notes',                  c: 'backend:notes:create',    b: (_p, body) => [body] },
   { m: 'PUT',    p: '/notes/:id',              c: 'backend:notes:update',    b: (p, body) => [{ id: p.id, note: body }] },
+  { m: 'PATCH',  p: '/notes/:id/tags',         c: 'backend:notes:updateTags', b: (p, body) => [{ id: p.id, tags: body.tags }] },
   { m: 'DELETE', p: '/notes/:id',              c: 'backend:notes:delete',    b: (p) => [p.id] },
   { m: 'POST',   p: '/notes/:id/duplicate',    c: 'backend:notes:duplicate', b: (p) => [p.id] },
 
@@ -43,6 +44,7 @@ const routes = [
   { m: 'GET',    p: '/folders/:id',      c: 'backend:folders:get',      b: (p) => [p.id] },
   { m: 'POST',   p: '/folders',          c: 'backend:folders:create',   b: (_p, body) => [body] },
   { m: 'PUT',    p: '/folders/:id',      c: 'backend:folders:update',   b: (p, body) => [{ id: p.id, folder: body }] },
+  { m: 'PATCH',  p: '/folders/:id/tags', c: 'backend:folders:updateTags', b: (p, body) => [{ id: p.id, tags: body.tags }] },
   { m: 'DELETE', p: '/folders/:id',      c: 'backend:folders:delete',   b: (p) => [p.id] },
 
   // ---------- Plans ----------

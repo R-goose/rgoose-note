@@ -710,7 +710,7 @@ export const useNoteStore = defineStore('note', () => {
       note.updatedAt = getTimestamp()
 
       markSaving()
-      notesApi.update(noteId, { tags: note.tags, updatedAt: note.updatedAt })
+      notesApi.updateTags(noteId, note.tags)
         .catch(err => {
           console.error('更新笔记标签失败:', err)
           note.tags = oldTags
@@ -728,7 +728,7 @@ export const useNoteStore = defineStore('note', () => {
       folder.updatedAt = getTimestamp()
 
       markSaving()
-      foldersApi.update(folderId, { tags: folder.tags, updatedAt: folder.updatedAt })
+      foldersApi.updateTags(folderId, folder.tags)
         .catch(err => {
           console.error('更新文件夹标签失败:', err)
           folder.tags = oldTags
