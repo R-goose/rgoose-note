@@ -155,26 +155,33 @@
                 <span class="type-badge" :class="item.type">{{ typeLabel[item.type] }}</span>
               </div>
               <div class="media-info">
-                <span class="media-name" :title="'素材名称：' + itemName(item)">{{ itemName(item) }}</span>
-                <span v-if="itemFolderName(item)" class="media-folder" :title="'所在素材文件夹：' + itemFolderName(item)">📁 {{ itemFolderName(item) }}</span>
-                <div v-if="item.notes.length" class="media-note-list">
-                  <span class="media-note-label">在{{ item.notes.length }}个笔记中使用</span>
-                  <div class="media-note-items">
-                    <span
-                      v-for="n in item.notes"
-                      :key="n.id"
-                      class="media-note-chip"
-                      @click.stop="goToNote(n.id)"
-                      :title="'跳转到笔记：' + n.title"
-                    >{{ n.title }}</span>
-                  </div>
+                <div class="media-info-header">
+                  <span class="media-name" :title="'素材名称：' + itemName(item)">{{ itemName(item) }}</span>
+                </div>
+                <div v-if="itemFolderName(item) || item.notes.length || itemTagNames(item).length" class="media-info-meta">
+                  <span v-if="itemFolderName(item)" class="media-folder">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                    {{ itemFolderName(item) }}
+                  </span>
+                  <span v-if="item.notes.length" class="media-note-count" @click.stop>
+                    {{ item.notes.length }} 个笔记
+                  </span>
+                </div>
+                <div v-if="item.notes.length" class="media-note-items">
+                  <span
+                    v-for="n in item.notes"
+                    :key="n.id"
+                    class="media-note-chip"
+                    @click.stop="goToNote(n.id)"
+                    :title="'跳转到笔记：' + n.title"
+                  >{{ n.title }}</span>
                 </div>
                 <div v-if="itemTagNames(item).length" class="media-tags">
                   <span
                     v-for="t in itemTagNames(item)"
                     :key="t.id"
                     class="media-tag-chip"
-                    :style="{ background: t.color + '22', color: t.color }"
+                    :style="{ background: t.color + '1a', color: t.color, borderColor: t.color + '33' }"
                   >{{ t.name }}</span>
                 </div>
               </div>
@@ -1447,23 +1454,24 @@ onUnmounted(() => {
 
 .media-card {
   border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg);
+  border-radius: 12px;
   overflow: hidden;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(.34,1.2,.64,1);
+  transition: transform 0.25s cubic-bezier(.34,1.3,.64,1), box-shadow 0.25s ease, border-color 0.2s ease;
   background: var(--bg-secondary);
   display: flex;
   flex-direction: column;
 }
 
 .media-card:hover {
-  border-color: color-mix(in srgb, var(--primary-color) 50%, var(--border-color));
-  box-shadow: 0 6px 20px -4px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06);
-  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--primary-color) 40%, var(--border-color));
+  box-shadow: 0 8px 24px -8px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.06);
+  transform: translateY(-4px);
 }
 
 .media-card:active {
   transform: translateY(-1px);
+  transition-duration: 0.08s;
 }
 
 .media-thumb {
@@ -1480,16 +1488,18 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.3s ease;
+  transition: transform 0.35s cubic-bezier(.22,.61,.36,1);
 }
 .media-card:hover .media-thumb img {
-  transform: scale(1.05);
+  transform: scale(1.06);
 }
 
 .thumb-icon {
   color: var(--text-secondary);
-  opacity: 0.5;
+  opacity: 0.4;
+  transition: opacity 0.2s;
 }
+.media-card:hover .thumb-icon { opacity: 0.55; }
 
 .thumb-video-cover {
   position: relative;
@@ -1500,6 +1510,10 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.35s cubic-bezier(.22,.61,.36,1);
+}
+.media-card:hover .thumb-video-cover img {
+  transform: scale(1.06);
 }
 .play-overlay {
   position: absolute;
@@ -1507,81 +1521,109 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(0, 0, 0, 0.2);
   color: #fff;
-  opacity: 0.9;
+  transition: background 0.2s;
 }
+.media-card:hover .play-overlay { background: rgba(0, 0, 0, 0.3); }
 .play-overlay svg {
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+  transition: transform 0.2s;
 }
+.media-card:hover .play-overlay svg { transform: scale(1.1); }
 
 .type-badge {
   position: absolute;
-  top: 6px;
-  left: 6px;
-  font-size: 11px;
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-weight: 500;
+  top: 7px;
+  left: 7px;
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-weight: 600;
   color: #fff;
+  letter-spacing: 0.02em;
+  backdrop-filter: blur(4px);
 }
 
-.type-badge.image { background: var(--primary-color); }
-.type-badge.audio { background: #e67e22; }
-.type-badge.video { background: #8e44ad; }
+.type-badge.image { background: color-mix(in srgb, var(--primary-color) 75%, transparent); }
+.type-badge.audio { background: rgba(230, 126, 34, 0.8); }
+.type-badge.video { background: rgba(142, 68, 173, 0.8); }
 
 .media-info {
-  padding: 7px 10px 9px;
+  padding: 8px 10px 10px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 5px;
   flex: 1;
 }
 
+.media-info-header {
+  display: flex;
+  align-items: center;
+}
+
 .media-name {
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 1.3;
+}
+
+.media-info-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .media-folder {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   font-size: 11px;
   color: var(--text-tertiary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 120px;
 }
+.media-folder svg { flex-shrink: 0; opacity: 0.7; }
 
-.media-note-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-top: 2px;
-}
-.media-note-label {
-  font-size: 10px;
+.media-note-count {
+  font-size: 10.5px;
   color: var(--text-tertiary);
   white-space: nowrap;
 }
+
 .media-note-items {
   display: flex;
   flex-wrap: wrap;
-  gap: 3px;
+  gap: 4px;
 }
 .media-note-chip {
-  font-size: 10px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 10.5px;
+  font-weight: 500;
   color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 8%, transparent);
+  padding: 2px 8px;
+  border-radius: 999px;
   cursor: pointer;
-  max-width: 80px;
+  max-width: 100px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: opacity 0.15s;
+  transition: all 0.15s;
+  border: 1px solid color-mix(in srgb, var(--primary-color) 12%, transparent);
 }
-.media-note-chip:hover { opacity: .7; }
+.media-note-chip:hover {
+  background: color-mix(in srgb, var(--primary-color) 15%, transparent);
+  border-color: color-mix(in srgb, var(--primary-color) 30%, transparent);
+}
 
 /* 右键菜单 */
 .media-context-menu {
@@ -1697,19 +1739,21 @@ onUnmounted(() => {
 .media-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 3px;
-  margin-top: 4px;
+  gap: 4px;
 }
 .media-tag-chip {
-  padding: 1px 6px;
-  border-radius: 3px;
+  padding: 1px 7px;
+  border-radius: 4px;
   font-size: 10px;
   font-weight: 500;
-  max-width: 60px;
+  border: 1px solid transparent;
+  max-width: 70px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: transform 0.15s;
 }
+.media-tag-chip:hover { transform: scale(1.05); }
 
 /* 标签选择弹窗 */
 .tag-picker-modal {
