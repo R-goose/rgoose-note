@@ -585,7 +585,14 @@ const filteredItems = computed(() => {
       (Array.isArray(i.tags) && i.tags.some(tid => (tagStore.getTag(tid)?.name || '').toLowerCase().includes(q)))
     )
   }
-  return items
+  // 稳定排序：按显示名称 → 原始名称 → ref 兜底，避免后端返回顺序波动导致排布跳动
+  return [...items].sort((a, b) => {
+    const na = (a.displayName || a.name || a.ref || '').toLowerCase()
+    const nb = (b.displayName || b.name || b.ref || '').toLowerCase()
+    if (na < nb) return -1
+    if (na > nb) return 1
+    return 0
+  })
 })
 
 // 素材可用标签列表（从所有素材去重）
@@ -1766,14 +1773,11 @@ onUnmounted(() => {
   flex: 1;
   overflow-y: auto;
   padding: 20px 24px;
-  column-gap: 16px;
-  column-count: 5;
-  column-fill: balance;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 16px;
+  align-content: start;
 }
-@media (max-width: 1400px) { .media-grid { column-count: 4; } }
-@media (max-width: 1100px) { .media-grid { column-count: 3; } }
-@media (max-width: 800px) { .media-grid { column-count: 2; } }
-@media (max-width: 500px) { .media-grid { column-count: 1; } }
 .media-grid > .media-card:nth-child(1) { animation-delay: 0.02s; }
 .media-grid > .media-card:nth-child(2) { animation-delay: 0.05s; }
 .media-grid > .media-card:nth-child(3) { animation-delay: 0.08s; }
@@ -1785,8 +1789,6 @@ onUnmounted(() => {
 .media-grid > .media-card:nth-child(n+9) { animation-delay: 0.26s; }
 
 .media-card {
-  break-inside: avoid;
-  margin-bottom: 16px;
   border: 1px solid var(--border-light);
   border-radius: 14px;
   overflow: hidden;

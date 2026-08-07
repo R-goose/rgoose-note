@@ -1,0 +1,1412 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>前端编程速成指南 · 膨胀动漫版</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Sans+SC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&family=Ma+Shan+Zheng&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* 膨胀动漫风高饱和配色 */
+    --bg:#fef6e4;            /* 奶黄底 */
+    --bg-2:#ffeed1;
+    --paper:#fffaf0;
+    --ink:#1a0f08;           /* 更深的漫画黑 */
+    --ink-soft:#5a3e2b;
+    --line:#1a0f08;
+    --primary:#ff5a1f;       /* 更饱和的活力橙 */
+    --primary-dark:#c93d0e;
+    --secondary:#00d4c4;     /* 更亮的青绿 */
+    --accent:#ffcf00;        /* 更亮的黄 */
+    --pink:#ff3d7f;          /* 更饱和的樱花粉 */
+    --purple:#9b6dff;
+    --mint:#5dd99e;
+    --sky:#3dbfff;
+    /* 膨胀式硬阴影——偏移更大 */
+    --shadow-hard:5px 5px 0 var(--ink);
+    --shadow-hard-lg:7px 7px 0 var(--ink);
+    --shadow-hard-xl:10px 10px 0 var(--ink);
+    --shadow-hard-2xl:14px 14px 0 var(--ink);
+    --shadow-soft:3px 3px 0 rgba(26,15,8,.15);
+    --r-sm:8px;
+    --r-md:14px;
+    --r-lg:24px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden}
+  body{
+    font-family:"Noto Sans SC",system-ui,sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    line-height:1.6;
+    /* 双层漫画背景：网点 + 半色调渐隐 */
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(26,15,8,.09) 1.2px, transparent 0),
+      radial-gradient(circle at 800px 200px, rgba(255,90,31,.14) 0, transparent 45%),
+      radial-gradient(circle at 150px 700px, rgba(0,212,196,.12) 0, transparent 45%),
+      radial-gradient(circle at 1200px 800px, rgba(255,61,127,.10) 0, transparent 40%);
+    background-size:16px 16px, auto, auto, auto;
+  }
+  /* 全局半透明斜线纹理叠加层 */
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:1;
+    background-image:repeating-linear-gradient(135deg, rgba(26,15,8,.025) 0 2px, transparent 2px 14px);
+    mix-blend-mode:multiply;
+  }
+
+  /* ===== 进度条（漫画风粗边——更厚） ===== */
+  .progress-wrap{
+    position:fixed;top:16px;left:50%;transform:translateX(-50%);
+    width:240px;height:16px;background:var(--paper);
+    border:3.5px solid var(--ink);border-radius:16px;overflow:hidden;z-index:100;
+    box-shadow:var(--shadow-hard);
+  }
+  .progress-bar{
+    height:100%;width:0%;
+    background:repeating-linear-gradient(45deg,var(--primary) 0 10px,var(--primary-dark) 10px 20px);
+    transition:width .5s cubic-bezier(.4,0,.2,1);
+    box-shadow:inset 0 0 0 2px rgba(255,255,255,.2);
+  }
+
+  /* ===== 顶部页码——更膨胀 ===== */
+  .topbar{
+    position:fixed;top:0;left:0;right:0;
+    padding:16px 32px;display:flex;justify-content:flex-end;align-items:center;
+    z-index:50;pointer-events:none;
+  }
+  .counter{
+    font-family:"ZCOOL KuaiLe",cursive;font-size:19px;color:var(--ink);
+    background:var(--accent);border:3.5px solid var(--ink);
+    padding:5px 16px;border-radius:22px;box-shadow:var(--shadow-hard);
+    transform:rotate(2deg);
+  }
+  .counter .now{color:var(--primary-dark);font-size:24px;-webkit-text-stroke:.5px var(--ink)}
+
+  /* ===== 舞台 ===== */
+  .stage{
+    position:relative;width:100vw;height:100vh;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .slide{
+    position:absolute;inset:0;
+    /* 左右留出充足空间避开导航按钮（按钮在24px处，宽60px，需避让至~110px） */
+    padding:78px 115px 95px;
+    display:flex;flex-direction:column;justify-content:center;
+    opacity:0;transform:translateX(40px);
+    transition:opacity .45s cubic-bezier(.4,0,.2,1), transform .45s cubic-bezier(.4,0,.2,1);
+    pointer-events:none;overflow:hidden;
+    z-index:2;
+  }
+  .slide.active{opacity:1;transform:translateX(0);pointer-events:auto}
+
+  .slide-no{
+    position:absolute;right:50px;bottom:50px;
+    font-family:"ZCOOL KuaiLe",cursive;font-size:22px;color:var(--ink);
+    background:var(--paper);border:3px solid var(--ink);
+    padding:3px 14px;border-radius:12px;box-shadow:var(--shadow-hard);
+    transform:rotate(-4deg);
+  }
+  .slide-no::before{
+    content:"#";color:var(--primary);margin-right:2px;
+    -webkit-text-stroke:.5px var(--ink);
+  }
+
+  /* ===== 排版（更膨胀的厚描边 + 多层投影） ===== */
+  .eyebrow{
+    font-family:"ZCOOL KuaiLe",cursive;font-size:15px;letter-spacing:.18em;
+    color:var(--paper);background:var(--ink);
+    padding:7px 18px;border-radius:22px;display:inline-block;
+    margin-bottom:18px;box-shadow:var(--shadow-hard);
+    transform:rotate(-1.5deg);border:2.5px solid var(--ink);
+    position:relative;
+  }
+  .eyebrow::after{
+    content:"";position:absolute;right:-6px;top:-6px;
+    width:14px;height:14px;background:var(--accent);
+    border:2.5px solid var(--ink);border-radius:50%;
+    box-shadow:1px 1px 0 var(--ink);
+  }
+  h1.title{
+    font-family:"ZCOOL KuaiLe",cursive;font-weight:400;
+    font-size:88px;line-height:1.05;letter-spacing:.01em;
+    color:var(--paper);margin-bottom:22px;
+    /* 三层投影：黄+橙+黑，膨胀立体感 */
+    text-shadow:
+      6px 6px 0 var(--accent),
+      8px 8px 0 var(--primary),
+      11px 11px 0 var(--ink);
+    -webkit-text-stroke:2.5px var(--ink);
+  }
+  h2.heading{
+    font-family:"ZCOOL KuaiLe",cursive;font-weight:400;
+    font-size:54px;line-height:1.12;color:var(--paper);margin-bottom:22px;
+    text-shadow:
+      4px 4px 0 var(--accent),
+      6px 6px 0 var(--ink);
+    -webkit-text-stroke:2px var(--ink);
+    display:inline-block;
+  }
+  .lead{
+    font-size:18px;line-height:1.75;color:var(--ink-soft);
+    max-width:880px;margin-bottom:22px;font-weight:500;
+  }
+  p.text{font-size:15px;line-height:1.85;color:var(--ink-soft);margin-bottom:10px;max-width:860px}
+  .muted{color:var(--ink-soft);opacity:.7;font-size:13px}
+
+  /* ===== 封面（更膨胀的标题 + 速度线背景） ===== */
+  .cover{align-items:flex-start;justify-content:center;padding:80px 90px}
+  .cover::before{
+    content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
+    background-image:repeating-linear-gradient(45deg,
+      transparent 0 18px,
+      rgba(255,90,31,.08) 18px 19px,
+      transparent 19px 38px,
+      rgba(0,212,196,.06) 38px 39px);
+  }
+  .cover .eyebrow{margin-bottom:30px;font-size:17px;position:relative;z-index:2}
+  .cover h1{font-size:124px;line-height:1.0;margin-bottom:28px;position:relative;z-index:2}
+  .cover .subtitle{
+    font-family:"Ma Shan Zheng",cursive;
+    font-size:25px;color:var(--ink-soft);margin-bottom:50px;max-width:600px;line-height:1.6;
+    position:relative;z-index:2;
+  }
+  .cover .meta{
+    display:flex;gap:24px;padding-top:20px;
+    font-size:12px;color:var(--ink-soft);letter-spacing:.05em;
+    position:relative;z-index:2;
+  }
+  .cover .meta div{
+    background:var(--paper);border:3px solid var(--ink);
+    padding:9px 18px;border-radius:12px;box-shadow:var(--shadow-hard-lg);
+    transition:transform .2s cubic-bezier(.34,1.56,.64,1);
+  }
+  .cover .meta div:hover{transform:translate(-2px,-2px) rotate(-2deg);box-shadow:var(--shadow-hard-xl)}
+  .cover .meta div span{display:block;color:var(--ink);font-weight:700;margin-top:3px;font-size:15px}
+
+  /* 漫画装饰星 */
+  .star-deco{
+    position:absolute;font-family:"ZCOOL KuaiLe",cursive;
+    color:var(--primary);-webkit-text-stroke:2px var(--ink);
+    pointer-events:none;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes pulse{0%,100%{transform:scale(1) rotate(0)}50%{transform:scale(1.2) rotate(8deg)}}
+  @keyframes wobble{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(3deg)}}
+  @keyframes float-y{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+
+  /* ===== 布局（含 min-width 防止代码块被挤压） ===== */
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;margin-top:14px}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:14px}
+  .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:14px}
+  /* 网格内的代码列保持不收缩，避免横向溢出 */
+  .grid-2 > div:has(.code){min-width:0}
+  .grid-2 > div:has(.code) .code{min-width:0}
+
+  /* 膨胀卡片（厚边 + 大硬阴影 + 倾斜悬浮） */
+  .card{
+    background:var(--paper);border:3.5px solid var(--ink);
+    border-radius:var(--r-md);padding:22px;
+    box-shadow:var(--shadow-hard-lg);
+    transition:transform .25s cubic-bezier(.34,1.56,.64,1), box-shadow .25s;
+    position:relative;
+  }
+  .card:hover{
+    transform:translate(-4px,-4px) rotate(-1.2deg);
+    box-shadow:var(--shadow-hard-2xl);
+  }
+  .card::before{
+    content:"";position:absolute;top:8px;right:8px;
+    width:10px;height:10px;background:var(--accent);
+    border:2px solid var(--ink);border-radius:50%;
+    box-shadow:1px 1px 0 var(--ink);
+  }
+  .card .num{
+    display:inline-block;font-family:"ZCOOL KuaiLe",cursive;font-size:13px;
+    color:var(--paper);font-weight:700;margin-bottom:10px;
+    background:var(--primary);border:2.5px solid var(--ink);
+    padding:3px 12px;border-radius:10px;box-shadow:2.5px 2.5px 0 var(--ink);
+    transform:rotate(-2deg);
+  }
+  .card h3{
+    font-family:"ZCOOL KuaiLe",cursive;font-size:23px;font-weight:400;
+    color:var(--ink);margin-bottom:8px;
+    -webkit-text-stroke:.5px var(--ink);
+  }
+  .card p{font-size:13.5px;line-height:1.7;color:var(--ink-soft)}
+
+  /* 彩色卡片变体——更鲜艳 */
+  .card.c-pink{background:#ffd6e4}
+  .card.c-yellow{background:#fff0a8}
+  .card.c-mint{background:#c9f0d4}
+  .card.c-blue{background:#bfe4f5}
+
+  /* 角色卡片——更夸张的倾斜悬浮 */
+  .role-card{
+    background:var(--paper);border:3.5px solid var(--ink);
+    border-radius:var(--r-md);overflow:hidden;
+    box-shadow:var(--shadow-hard-lg);
+    transition:transform .3s cubic-bezier(.34,1.56,.64,1), box-shadow .3s;
+    position:relative;
+  }
+  .role-card:hover{transform:translate(-5px,-5px) rotate(-1.5deg);box-shadow:var(--shadow-hard-2xl)}
+  .role-card .tag{
+    background:var(--primary);color:var(--paper);
+    padding:12px 20px;font-family:"ZCOOL KuaiLe",cursive;font-size:19px;
+    border-bottom:3.5px solid var(--ink);letter-spacing:.06em;
+    position:relative;
+  }
+  .role-card .tag::after{
+    content:"★";position:absolute;right:14px;top:50%;transform:translateY(-50%);
+    color:var(--accent);-webkit-text-stroke:1.5px var(--ink);font-size:16px;
+  }
+  .role-card .tag.alt{background:var(--pink)}
+  .role-card .tag.alt2{background:var(--secondary);color:var(--ink)}
+  .role-card .body{padding:18px 20px}
+  .role-card h3{
+    font-family:"ZCOOL KuaiLe",cursive;font-size:23px;font-weight:400;
+    margin-bottom:6px;color:var(--ink);
+    -webkit-text-stroke:.5px var(--ink);
+  }
+  .role-card .meta{font-size:12px;color:var(--ink-soft);margin-bottom:12px;opacity:.75}
+  .role-card ul{list-style:none;padding:0}
+  .role-card ul li{
+    font-size:13.5px;line-height:1.75;color:var(--ink-soft);
+    padding-left:22px;position:relative;
+  }
+  .role-card ul li::before{
+    content:"▶";position:absolute;left:0;top:1px;
+    color:var(--primary);font-size:11px;font-weight:900;
+  }
+
+  /* 列表——更膨胀 */
+  .list{list-style:none;padding:0;margin-top:8px}
+  .list li{
+    padding:16px 0;border-bottom:3px dashed var(--ink);
+    display:flex;gap:14px;align-items:flex-start;
+    transition:transform .2s;
+  }
+  .list li:hover{transform:translateX(6px)}
+  .list li:last-child{border-bottom:none}
+  .list .idx{
+    font-family:"ZCOOL KuaiLe",cursive;font-size:15px;
+    color:var(--paper);font-weight:700;min-width:44px;padding:5px 9px;
+    background:var(--primary);border:2.5px solid var(--ink);
+    border-radius:8px;text-align:center;box-shadow:3px 3px 0 var(--ink);
+    transform:rotate(-3deg);
+  }
+  .list .content{flex:1}
+  .list .content strong{
+    display:block;font-size:17px;color:var(--ink);font-weight:700;margin-bottom:4px;
+    font-family:"ZCOOL KuaiLe",cursive;font-weight:400;
+  }
+  .list .content span{font-size:13.5px;color:var(--ink-soft);line-height:1.6}
+
+  /* 代码块（漫画黑底——更厚边，宽度自适应防溢出） */
+  .code{
+    background:#15100a;color:#fef6e4;border-radius:var(--r-md);
+    padding:22px 24px;font-family:"JetBrains Mono",monospace;font-size:12.5px;
+    line-height:1.75;overflow-x:auto;margin-top:14px;
+    border:3.5px solid var(--ink);
+    box-shadow:var(--shadow-hard-lg);
+    position:relative;
+    max-width:100%;min-width:0;
+    white-space:pre;word-break:normal;
+  }
+  .code::-webkit-scrollbar{height:8px}
+  .code::-webkit-scrollbar-track{background:#2a1f15;border-radius:4px}
+  .code::-webkit-scrollbar-thumb{background:var(--primary);border-radius:4px}
+  .code::before{
+    content:"{ CODE }";position:absolute;top:-12px;left:18px;
+    background:var(--primary);color:var(--paper);
+    font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:700;
+    padding:2px 10px;border:2.5px solid var(--ink);border-radius:6px;
+    box-shadow:2px 2px 0 var(--ink);
+  }
+  .code .kw{color:#95e1a3}
+  .code .str{color:#ffd23f}
+  .code .tag-name{color:#ff8c69}
+  .code .attr{color:#4ecdc4}
+  .code .comment{color:#6b5840;font-style:italic}
+  .code .num-lit{color:#ff5d8f}
+  .code .fn{color:#ffd23f}
+
+  /* 工具图标（漫画方块——更膨胀） */
+  .tool{
+    background:var(--paper);border:3.5px solid var(--ink);
+    border-radius:var(--r-md);padding:18px;text-align:center;
+    box-shadow:var(--shadow-hard);
+    transition:transform .25s cubic-bezier(.34,1.56,.64,1), box-shadow .25s;
+    position:relative;
+  }
+  .tool:hover{transform:translate(-3px,-3px) rotate(-3deg);box-shadow:var(--shadow-hard-2xl)}
+  .tool .icon{
+    width:58px;height:58px;margin:0 auto 10px;
+    border-radius:14px;
+    display:flex;align-items:center;justify-content:center;
+    font-family:"ZCOOL KuaiLe",cursive;font-weight:400;font-size:24px;
+    color:var(--paper);border:3px solid var(--ink);
+    box-shadow:3.5px 3.5px 0 var(--ink);
+    position:relative;
+  }
+  .tool .icon::after{
+    content:"";position:absolute;top:5px;right:5px;
+    width:8px;height:8px;background:rgba(255,255,255,.6);
+    border-radius:50%;
+  }
+  .tool:nth-child(1) .icon{background:var(--primary)}
+  .tool:nth-child(2) .icon{background:var(--pink)}
+  .tool:nth-child(3) .icon{background:var(--secondary);color:var(--ink)}
+  .tool:nth-child(4) .icon{background:var(--accent);color:var(--ink)}
+  .tool:nth-child(5) .icon{background:var(--purple)}
+  .tool:nth-child(6) .icon{background:var(--pink)}
+  .tool:nth-child(7) .icon{background:var(--secondary);color:var(--ink)}
+  .tool:nth-child(8) .icon{background:var(--accent);color:var(--ink)}
+  .tool h4{font-family:"ZCOOL KuaiLe",cursive;font-size:16px;font-weight:400;color:var(--ink);margin-bottom:3px;-webkit-text-stroke:.4px var(--ink)}
+  .tool p{font-size:11.5px;color:var(--ink-soft);line-height:1.5;opacity:.85}
+
+  /* 流程——更膨胀 */
+  .flow{display:flex;align-items:stretch;gap:0;margin-top:18px;flex-wrap:wrap}
+  .flow-step{
+    flex:1;min-width:120px;background:var(--paper);
+    border:3.5px solid var(--ink);border-radius:var(--r-md);
+    padding:14px 12px;box-shadow:var(--shadow-hard);
+    transition:transform .2s cubic-bezier(.34,1.56,.64,1);
+  }
+  .flow-step:hover{transform:translate(-2px,-2px) rotate(-1deg)}
+  .flow-step .n{
+    display:inline-block;font-family:"ZCOOL KuaiLe",cursive;font-size:12px;
+    color:var(--paper);font-weight:700;margin-bottom:6px;
+    background:var(--primary);border:2.5px solid var(--ink);
+    padding:2px 9px;border-radius:6px;box-shadow:2px 2px 0 var(--ink);
+    transform:rotate(-3deg);
+  }
+  .flow-step h4{font-family:"ZCOOL KuaiLe",cursive;font-size:16px;font-weight:400;color:var(--ink);margin-bottom:4px}
+  .flow-step p{font-size:11px;color:var(--ink-soft);line-height:1.4;opacity:.85}
+  .flow-arrow{
+    display:flex;align-items:center;justify-content:center;
+    width:28px;color:var(--primary);font-size:26px;font-weight:900;
+    -webkit-text-stroke:1.5px var(--ink);
+  }
+
+  /* 对白气泡（漫画感——更夸张） */
+  .analogy{
+    background:var(--accent);border:3.5px solid var(--ink);
+    padding:16px 22px;border-radius:var(--r-md);
+    margin-top:16px;max-width:880px;
+    box-shadow:var(--shadow-hard-lg);
+    position:relative;
+    transform:rotate(-.4deg);
+  }
+  .analogy::before{
+    content:"";position:absolute;left:36px;top:-13px;
+    width:22px;height:22px;background:var(--accent);
+    border-left:3.5px solid var(--ink);border-top:3.5px solid var(--ink);
+    transform:rotate(45deg);
+  }
+  .analogy::after{
+    content:"💡";position:absolute;right:14px;top:-14px;
+    font-size:20px;background:var(--paper);
+    border:2.5px solid var(--ink);border-radius:50%;
+    width:34px;height:34px;display:flex;align-items:center;justify-content:center;
+    box-shadow:2px 2px 0 var(--ink);transform:rotate(8deg);
+  }
+  .analogy .label{
+    font-family:"ZCOOL KuaiLe",cursive;font-size:14px;color:var(--ink);
+    font-weight:700;margin-bottom:5px;letter-spacing:.06em;
+    display:inline-block;background:var(--ink);color:var(--paper);
+    padding:2px 10px;border-radius:8px;
+    transform:rotate(-1deg) translateY(-2px);
+  }
+  .analogy p{font-size:14px;color:var(--ink);line-height:1.7}
+  .analogy p strong{font-family:"ZCOOL KuaiLe",cursive;font-weight:400;color:var(--primary-dark);-webkit-text-stroke:.5px var(--ink)}
+
+  /* 大比喻——更膨胀，带引号装饰 */
+  .big-analogy{
+    margin-top:20px;padding:28px 28px 22px;background:var(--paper);
+    border:3.5px solid var(--ink);border-radius:var(--r-lg);
+    max-width:920px;box-shadow:var(--shadow-hard-xl);
+    position:relative;
+    transform:rotate(-.3deg);
+  }
+  .big-analogy::before{
+    content:"\201C";position:absolute;left:14px;top:-18px;
+    font-family:"Ma Shan Zheng",cursive;font-size:64px;
+    color:var(--accent);-webkit-text-stroke:2.5px var(--ink);
+    line-height:1;
+  }
+  .big-analogy .quote{
+    font-family:"Ma Shan Zheng",cursive;
+    font-size:24px;line-height:1.55;color:var(--ink);margin-bottom:12px;
+    padding-left:20px;
+  }
+  .big-analogy .source{
+    font-size:13px;color:var(--ink-soft);opacity:.75;letter-spacing:.05em;
+    padding-left:20px;font-weight:500;
+  }
+
+  /* 速查表——更厚边 */
+  .cheat{
+    background:var(--paper);border:3.5px solid var(--ink);
+    border-radius:var(--r-md);overflow:hidden;
+    box-shadow:var(--shadow-hard-lg);margin-top:14px;
+  }
+  .cheat table{width:100%;border-collapse:collapse;font-size:13px}
+  .cheat th{
+    background:var(--primary);color:var(--paper);
+    padding:12px 14px;text-align:left;
+    font-family:"ZCOOL KuaiLe",cursive;font-weight:400;font-size:16px;
+    border-bottom:3.5px solid var(--ink);
+    -webkit-text-stroke:.4px var(--ink);
+  }
+  .cheat td{padding:10px 14px;border-bottom:2.5px dashed var(--ink);color:var(--ink-soft)}
+  .cheat td:first-child{font-family:"JetBrains Mono",monospace;color:var(--primary-dark);font-weight:700}
+  .cheat tr:last-child td{border-bottom:none}
+  .cheat tr:hover td{background:var(--bg-2);color:var(--ink)}
+
+  /* 单位标签——更膨胀 */
+  .unit-tag{
+    display:inline-block;background:var(--paper);
+    border:3px solid var(--ink);
+    padding:6px 13px;border-radius:20px;margin:5px 7px 5px 0;
+    font-family:"JetBrains Mono",monospace;font-size:12.5px;
+    color:var(--ink);font-weight:700;
+    box-shadow:2.5px 2.5px 0 var(--ink);
+    transition:transform .2s cubic-bezier(.34,1.56,.64,1);
+  }
+  .unit-tag:hover{transform:translate(-2px,-2px) rotate(-3deg);box-shadow:4px 4px 0 var(--ink)}
+  .unit-tag .desc{color:var(--ink-soft);font-family:"Noto Sans SC";font-weight:400;margin-left:6px;opacity:.85}
+
+  /* AI 对话气泡——更膨胀 */
+  .chat{margin-top:14px;max-width:900px}
+  .chat .msg{display:flex;gap:10px;margin-bottom:10px;align-items:flex-start}
+  .chat .avatar{
+    width:40px;height:40px;border-radius:10px;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    font-family:"ZCOOL KuaiLe",cursive;font-size:15px;color:var(--paper);
+    border:3px solid var(--ink);box-shadow:2.5px 2.5px 0 var(--ink);
+  }
+  .chat .user .avatar{background:var(--primary)}
+  .chat .ai .avatar{background:var(--secondary);color:var(--ink)}
+  .chat .bubble{
+    background:var(--paper);border:3px solid var(--ink);
+    border-radius:14px;padding:11px 15px;
+    font-size:13px;line-height:1.7;color:var(--ink-soft);
+    box-shadow:2.5px 2.5px 0 var(--ink);flex:1;
+    position:relative;
+  }
+  .chat .ai .bubble{background:#c9f0d4}
+  .chat .bubble code{
+    font-family:"JetBrains Mono",monospace;font-size:12px;
+    background:var(--bg-2);padding:1px 6px;border-radius:4px;
+    color:var(--primary-dark);font-weight:700;
+  }
+
+  /* 结尾——更膨胀 */
+  .ending{text-align:center;align-items:center}
+  .ending h1{font-size:100px;margin-bottom:20px}
+  .ending .lead{margin:0 auto 28px;text-align:center}
+  .path{display:flex;justify-content:center;gap:14px;margin-top:28px;flex-wrap:wrap}
+  .path-step{
+    padding:14px 22px;background:var(--paper);border:3px solid var(--ink);
+    border-radius:var(--r-sm);font-size:14.5px;color:var(--ink);font-weight:500;
+    box-shadow:var(--shadow-hard);transition:all .25s cubic-bezier(.34,1.56,.64,1);
+  }
+  .path-step:hover{transform:translate(-3px,-3px) rotate(-3deg);box-shadow:var(--shadow-hard-2xl)}
+  .path-step .n{
+    font-family:"ZCOOL KuaiLe",cursive;color:var(--paper);background:var(--primary);
+    font-size:12px;font-weight:700;margin-right:8px;
+    padding:1px 7px;border-radius:6px;border:2px solid var(--ink);
+  }
+  .ending-sign{
+    margin-top:40px;font-family:"Ma Shan Zheng",cursive;
+    color:var(--ink);font-size:22px;
+    background:var(--accent);padding:8px 24px;
+    border:3px solid var(--ink);border-radius:14px;
+    box-shadow:var(--shadow-hard);display:inline-block;
+    transform:rotate(-1.5deg);
+  }
+
+  /* ===== 导航按钮（漫画风——更大更圆） ===== */
+  .nav-btn{
+    position:fixed;top:50%;transform:translateY(-50%);
+    width:60px;height:60px;border-radius:50%;
+    background:var(--accent);border:3.5px solid var(--ink);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;z-index:60;color:var(--ink);
+    transition:all .2s cubic-bezier(.34,1.56,.64,1);
+    font-size:30px;font-weight:900;
+    box-shadow:var(--shadow-hard-lg);
+  }
+  .nav-btn:hover{background:var(--primary);color:var(--paper);transform:translateY(-50%) translate(-3px,-3px) rotate(-8deg);box-shadow:var(--shadow-hard-2xl)}
+  .nav-btn:disabled{opacity:.4;cursor:not-allowed}
+  .nav-btn:disabled:hover{background:var(--accent);color:var(--ink);transform:translateY(-50%);box-shadow:var(--shadow-hard-lg)}
+  .nav-prev{left:24px}
+  .nav-next{right:24px}
+
+  /* 底部点点——更膨胀 */
+  .dots{
+    position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
+    display:flex;gap:9px;z-index:60;background:var(--paper);
+    padding:11px 18px;border-radius:22px;
+    border:3.5px solid var(--ink);box-shadow:var(--shadow-hard);
+  }
+  .dot{
+    width:14px;height:14px;border-radius:50%;background:var(--bg-2);
+    border:2.5px solid var(--ink);cursor:pointer;
+    transition:all .25s cubic-bezier(.34,1.56,.64,1);
+  }
+  .dot:hover{background:var(--accent);transform:scale(1.4) rotate(180deg)}
+  .dot.active{background:var(--primary);width:36px;border-radius:9px;box-shadow:1.5px 1.5px 0 var(--ink)}
+
+  /* 右下角工具——更膨胀 */
+  .tools-corner{position:fixed;bottom:22px;right:22px;z-index:60;display:flex;gap:8px}
+  .tool-btn{
+    width:48px;height:48px;border-radius:12px;
+    background:var(--secondary);border:3.5px solid var(--ink);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;color:var(--ink);transition:all .2s cubic-bezier(.34,1.56,.64,1);
+    font-size:20px;box-shadow:var(--shadow-hard);
+  }
+  .tool-btn:hover{background:var(--primary);color:var(--paper);transform:translate(-3px,-3px) rotate(-8deg);box-shadow:var(--shadow-hard-2xl)}
+
+  /* 帮助提示——更膨胀 */
+  .help-hint{
+    position:fixed;bottom:22px;left:22px;z-index:60;
+    font-size:11px;color:var(--ink-soft);letter-spacing:.04em;
+    background:var(--paper);padding:9px 15px;border-radius:10px;
+    border:3px solid var(--ink);box-shadow:var(--shadow-hard);
+    transform:rotate(-1deg);
+  }
+  .help-hint kbd{
+    font-family:"JetBrains Mono",monospace;font-size:10px;
+    padding:2px 7px;background:var(--accent);border:2px solid var(--ink);
+    border-radius:5px;margin:0 2px;color:var(--ink);font-weight:700;
+    box-shadow:1.5px 1.5px 0 var(--ink);
+  }
+
+  /* 进入动画——更夸张的弹跳 */
+  .slide.active .anim{animation:popIn .55s cubic-bezier(.34,1.7,.64,1) backwards}
+  .slide.active .anim:nth-child(1){animation-delay:.05s}
+  .slide.active .anim:nth-child(2){animation-delay:.14s}
+  .slide.active .anim:nth-child(3){animation-delay:.23s}
+  .slide.active .anim:nth-child(4){animation-delay:.32s}
+  .slide.active .anim:nth-child(5){animation-delay:.41s}
+  .slide.active .anim:nth-child(6){animation-delay:.50s}
+  @keyframes popIn{
+    0%{opacity:0;transform:translateY(28px) scale(.82) rotate(-3deg)}
+    60%{opacity:1;transform:translateY(-4px) scale(1.04) rotate(1deg)}
+    100%{opacity:1;transform:translateY(0) scale(1) rotate(0)}
+  }
+
+  /* 漫画装饰元素——更强动效 */
+  .deco-burst{
+    position:absolute;pointer-events:none;
+    font-family:"ZCOOL KuaiLe",cursive;
+    color:var(--primary);-webkit-text-stroke:2.5px var(--ink);
+    animation:decoPulse 2.5s ease-in-out infinite;
+    z-index:3;
+  }
+  @keyframes decoPulse{
+    0%,100%{filter:drop-shadow(2px 2px 0 var(--ink))}
+    50%{filter:drop-shadow(3px 3px 0 var(--ink));opacity:.9}
+  }
+
+  /* 响应式 */
+  @media (max-width:1280px){
+    .slide{padding:76px 100px 90px}
+    .cover h1{font-size:104px}
+    h1.title{font-size:74px}
+    h2.heading{font-size:46px}
+  }
+  @media (max-width:1100px){
+    .slide{padding:72px 90px 80px}
+    .cover h1{font-size:84px}
+    h1.title{font-size:56px}
+    h2.heading{font-size:38px}
+    .grid-3,.grid-4{grid-template-columns:repeat(2,1fr)}
+    .deco-burst{display:none}
+    .nav-btn{width:52px;height:52px;font-size:26px}
+    .nav-prev{left:18px}
+    .nav-next{right:18px}
+  }
+  @media (max-width:700px){
+    .slide{padding:68px 70px 76px}
+    .cover h1{font-size:52px}
+    h1.title{font-size:36px}
+    h2.heading{font-size:26px}
+    .grid-2,.grid-3,.grid-4{grid-template-columns:1fr;gap:14px}
+    .flow{flex-direction:column}
+    .flow-arrow{transform:rotate(90deg);height:20px;width:auto}
+    .topbar{padding:12px 18px}
+    .progress-wrap{width:140px}
+  }
+</style>
+</head>
+<body>
+
+<div class="progress-wrap"><div class="progress-bar" id="progress"></div></div>
+
+<div class="topbar">
+  <div class="counter"><span class="now" id="nowSlide">01</span> / <span id="totalSlide">19</span></div>
+</div>
+
+<div class="stage" id="stage">
+
+  <!-- 1. 封面 -->
+  <section class="slide cover active">
+    <div class="deco-burst anim" style="right:80px;top:120px;font-size:64px;transform:rotate(15deg);color:var(--primary)">★</div>
+    <div class="deco-burst anim" style="right:180px;top:280px;font-size:44px;transform:rotate(-20deg);animation-delay:.5s;color:var(--secondary)">✦</div>
+    <div class="deco-burst anim" style="right:60px;top:380px;font-size:54px;transform:rotate(30deg);animation-delay:1s;color:var(--pink)">★</div>
+    <div class="deco-burst anim" style="right:240px;top:160px;font-size:34px;transform:rotate(-10deg);animation-delay:.8s;color:var(--accent)">✦</div>
+    <div class="eyebrow anim">FRONTEND · CRASH COURSE</div>
+    <h1 class="title anim">前端编程<br>速成指南</h1>
+    <p class="subtitle anim">写给完全没接触过计算机的人——<br>从认识代码到看懂网页。</p>
+    <div class="meta anim">
+      <div>课时<span>19 张幻灯片</span></div>
+      <div>受众<span>零基础初学者</span></div>
+      <div>目标<span>建立认知地图</span></div>
+    </div>
+    <div class="slide-no">01</div>
+  </section>
+
+  <!-- 2. 编程是什么 -->
+  <section class="slide">
+    <div class="deco-burst" style="right:60px;top:80px;font-size:50px;transform:rotate(20deg)">!</div>
+    <div class="eyebrow anim">第一章 · 编程基础</div>
+    <h2 class="heading anim">编程，就是"写指令<br>让计算机干活"</h2>
+    <p class="lead anim">计算机不会自己思考，只会严格执行人写给它的步骤。编程语言有很多种，核心都是同一件事——把"想做的事"翻译成计算机能懂的指令。</p>
+    <div class="grid-2 anim" style="max-width:920px">
+      <div class="card c-yellow">
+        <div class="num">概念 01</div>
+        <h3>源代码</h3>
+        <p>程序员用编程语言写出的文本文件。计算机看不懂，需要被翻译成机器能执行的指令。</p>
+      </div>
+      <div class="card c-mint">
+        <div class="num">概念 02</div>
+        <h3>翻译方式</h3>
+        <p>编译（一次性翻译，如 C/C++）；解释（逐行执行，如 JavaScript）。前端代码属于解释型。</p>
+      </div>
+    </div>
+    <div class="analogy anim">
+      <div class="label">类比</div>
+      <p>写代码就像给一个特别听话的人写"做事清单"：<strong>步骤越清楚，它做得越准</strong>。漏写一步，它就原地发呆。</p>
+    </div>
+    <div class="slide-no">02</div>
+  </section>
+
+  <!-- 3. 数据与存储单位 -->
+  <section class="slide">
+    <div class="eyebrow anim">第一章 · 编程基础</div>
+    <h2 class="heading anim">数据都长什么样？</h2>
+    <p class="lead anim">计算机底层只认识 0 和 1（二进制）。所有文字、图片、视频，最终都转换成一长串 0 和 1 存起来。</p>
+    <div class="cheat anim">
+      <table>
+        <thead><tr><th>单位</th><th>含义</th><th>换算</th><th>直观感受</th></tr></thead>
+        <tbody>
+          <tr><td>bit（位）</td><td>最小单位，一个 0 或 1</td><td>—</td><td>一个开关状态</td></tr>
+          <tr><td>Byte（字节）</td><td>基本存储单位</td><td>1 B = 8 bit</td><td>存一个英文字母</td></tr>
+          <tr><td>KB</td><td>千字节</td><td>1 KB = 1024 B</td><td>一小段文字</td></tr>
+          <tr><td>MB</td><td>兆字节</td><td>1 MB = 1024 KB</td><td>一张手机照片</td></tr>
+          <tr><td>GB</td><td>吉字节</td><td>1 GB = 1024 MB</td><td>一部高清电影</td></tr>
+          <tr><td>TB</td><td>太字节</td><td>1 TB = 1024 GB</td><td>一块大硬盘</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="analogy anim">
+      <div class="label">为什么重要</div>
+      <p>前端常遇到"图片太大加载慢""文件超过 2MB 上传失败"——本质都是<strong>数据体积</strong>问题。</p>
+    </div>
+    <div class="slide-no">03</div>
+  </section>
+
+  <!-- 4. 编程中的常用单位 -->
+  <section class="slide">
+    <div class="eyebrow anim">第一章 · 编程基础</div>
+    <h2 class="heading anim">前端代码里的<br>常见"单位"</h2>
+    <p class="lead anim">这些单位决定大小、距离、时间、颜色。先混个脸熟，后面写 CSS/JS 时会反复用到。</p>
+    <div style="margin-top:14px">
+      <p class="text anim" style="font-weight:700;color:var(--ink)">长度单位</p>
+      <div class="anim">
+        <span class="unit-tag">px<span class="desc">像素</span></span>
+        <span class="unit-tag">rem<span class="desc">相对根字号</span></span>
+        <span class="unit-tag">em<span class="desc">相对父级字号</span></span>
+        <span class="unit-tag">%<span class="desc">相对父级</span></span>
+        <span class="unit-tag">vw<span class="desc">视口宽 1%</span></span>
+        <span class="unit-tag">vh<span class="desc">视口高 1%</span></span>
+      </div>
+      <p class="text anim" style="font-weight:700;color:var(--ink);margin-top:14px">时间单位</p>
+      <div class="anim">
+        <span class="unit-tag">s<span class="desc">秒</span></span>
+        <span class="unit-tag">ms<span class="desc">毫秒，1s=1000ms</span></span>
+      </div>
+      <p class="text anim" style="font-weight:700;color:var(--ink);margin-top:14px">颜色表示法</p>
+      <div class="anim">
+        <span class="unit-tag">#ff6b35<span class="desc">十六进制</span></span>
+        <span class="unit-tag">rgb(255,107,53)<span class="desc">三原色</span></span>
+        <span class="unit-tag">rgba(...,0.5)<span class="desc">带透明度</span></span>
+        <span class="unit-tag">hsl(15,100%,60%)<span class="desc">色相饱和度</span></span>
+      </div>
+    </div>
+    <div class="analogy anim">
+      <div class="label">小提醒</div>
+      <p><strong>px 最常用绝对尺寸，% 最常用相对尺寸</strong>。其他用到时再查。</p>
+    </div>
+    <div class="slide-no">04</div>
+  </section>
+
+  <!-- 5. 岗位分工 -->
+  <section class="slide">
+    <div class="eyebrow anim">第二章 · 岗位分工</div>
+    <h2 class="heading anim">互联网公司的岗位分工</h2>
+    <p class="lead anim">前端、后端、运维是最核心的三个技术岗位。</p>
+    <div class="grid-3 anim">
+      <div class="role-card">
+        <div class="tag">前端工程师</div>
+        <div class="body">
+          <h3>做"看得见"的部分</h3>
+          <p class="meta">用户能看到、点击的界面</p>
+          <ul>
+            <li>网页布局、配色、动画</li>
+            <li>按钮点击后的反应</li>
+            <li>数据如何展示</li>
+          </ul>
+        </div>
+      </div>
+      <div class="role-card">
+        <div class="tag alt">后端工程师</div>
+        <div class="body">
+          <h3>做"看不见"的部分</h3>
+          <p class="meta">服务器业务逻辑与数据</p>
+          <ul>
+            <li>用户登录验证</li>
+            <li>数据存储与查询</li>
+            <li>把数据加工给前端</li>
+          </ul>
+        </div>
+      </div>
+      <div class="role-card">
+        <div class="tag alt2">运维工程师</div>
+        <div class="body">
+          <h3>让一切"跑得稳"</h3>
+          <p class="meta">服务器、部署、监控</p>
+          <ul>
+            <li>服务器配置与上线</li>
+            <li>故障报警与修复</li>
+            <li>保证不宕机</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="analogy anim">
+      <div class="label">一句话区分</div>
+      <p><strong>前端</strong>是餐厅服务员（顾客能看见），<strong>后端</strong>是后厨厨师（顾客看不见），<strong>运维</strong>是物业（保证水电不断）。</p>
+    </div>
+    <div class="slide-no">05</div>
+  </section>
+
+  <!-- 6. 前端职责 -->
+  <section class="slide">
+    <div class="eyebrow anim">第二章 · 岗位分工</div>
+    <h2 class="heading anim">前端工程师的具体工作</h2>
+    <p class="lead anim">前端是离用户最近的技术岗位。</p>
+    <ul class="list anim">
+      <li>
+        <div class="idx">01</div>
+        <div class="content"><strong>还原设计稿</strong><span>设计师给的图，用代码精确地画成真实网页。</span></div>
+      </li>
+      <li>
+        <div class="idx">02</div>
+        <div class="content"><strong>实现交互逻辑</strong><span>点击弹窗、滑动切换、表单校验——让页面"动起来"。</span></div>
+      </li>
+      <li>
+        <div class="idx">03</div>
+        <div class="content"><strong>对接后端接口</strong><span>从后端拿数据，按设计要求展示给用户。</span></div>
+      </li>
+      <li>
+        <div class="idx">04</div>
+        <div class="content"><strong>保证体验与兼容</strong><span>不同浏览器、屏幕尺寸下都能正常使用。</span></div>
+      </li>
+    </ul>
+    <div class="slide-no">06</div>
+  </section>
+
+  <!-- 7. 前端工具 -->
+  <section class="slide">
+    <div class="eyebrow anim">第三章 · 工具与流程</div>
+    <h2 class="heading anim">前端常用的工具</h2>
+    <p class="lead anim">就像厨师有刀和锅，前端也有自己的"家伙什"。</p>
+    <div class="grid-4 anim">
+      <div class="tool"><div class="icon">VS</div><h4>编辑器</h4><p>VS Code 写代码</p></div>
+      <div class="tool"><div class="icon">Chr</div><h4>浏览器</h4><p>Chrome 调试</p></div>
+      <div class="tool"><div class="icon">Git</div><h4>版本管理</h4><p>记录改动可回退</p></div>
+      <div class="tool"><div class="icon">Vt</div><h4>构建工具</h4><p>Vite 打包代码</p></div>
+      <div class="tool"><div class="icon">npm</div><h4>包管理器</h4><p>下载第三方库</p></div>
+      <div class="tool"><div class="icon">Fig</div><h4>Figma</h4><p>设计稿还原</p></div>
+      <div class="tool"><div class="icon">F12</div><h4>调试工具</h4><p>开发者工具</p></div>
+      <div class="tool"><div class="icon">Go</div><h4>部署平台</h4><p>发布上线</p></div>
+    </div>
+    <div class="analogy anim">
+      <div class="label">名词解释</div>
+      <p><strong>库</strong>是别人写好的工具箱；<strong>框架</strong>是搭好的房屋骨架；<strong>包管理器</strong>是应用商店。</p>
+    </div>
+    <div class="slide-no">07</div>
+  </section>
+
+  <!-- 8. 工作流程 -->
+  <section class="slide">
+    <div class="eyebrow anim">第三章 · 工具与流程</div>
+    <h2 class="heading anim">前端工作通用流程</h2>
+    <p class="lead anim">一个功能从无到有，大致经历这几步。</p>
+    <div class="flow anim">
+      <div class="flow-step"><div class="n">01</div><h4>需求评审</h4><p>对齐做什么</p></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><div class="n">02</div><h4>看设计稿</h4><p>拆解结构</p></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><div class="n">03</div><h4>编写代码</h4><p>HTML/CSS/JS</p></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><div class="n">04</div><h4>联调测试</h4><p>对接后端</p></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><div class="n">05</div><h4>代码评审</h4><p>同事互查</p></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><div class="n">06</div><h4>部署上线</h4><p>发布服务器</p></div>
+    </div>
+    <div class="analogy anim">
+      <div class="label">日常节奏</div>
+      <p>实际是<strong>循环迭代</strong>：写一点、看效果、改一点、再写——这种反馈循环是前端的核心体验。</p>
+    </div>
+    <div class="slide-no">08</div>
+  </section>
+
+  <!-- 9. HTML 详解 -->
+  <section class="slide">
+    <div class="eyebrow anim">第四章 · HTML 详解</div>
+    <h2 class="heading anim">HTML：网页的"骨架"</h2>
+    <p class="lead anim">HTML 用"标签"描述网页里有什么内容。标签用尖括号包围、成对出现。</p>
+    <div class="grid-2 anim">
+      <div>
+        <p class="text"><strong>基本语法</strong></p>
+        <p class="text">开始标签 + 内容 + 结束标签。标签可嵌套，也可带"属性"。</p>
+        <p class="text">完整网页有固定骨架：html 包着 head（配置）和 body（内容）。</p>
+        <div class="analogy" style="margin-top:18px">
+          <div class="label">类比</div>
+          <p>HTML 像人体<strong>骨骼</strong>——决定有哪些部位，看不出胖瘦美丑。</p>
+        </div>
+      </div>
+      <div>
+        <div class="code">
+<span class="comment">&lt;!-- 完整网页骨架 --&gt;</span>
+<span class="tag-name">&lt;!DOCTYPE html&gt;</span>
+<span class="tag-name">&lt;html</span> <span class="attr">lang</span>=<span class="str">"zh"</span><span class="tag-name">&gt;</span>
+  <span class="tag-name">&lt;head&gt;</span>
+    <span class="tag-name">&lt;meta</span> <span class="attr">charset</span>=<span class="str">"UTF-8"</span><span class="tag-name">&gt;</span>
+    <span class="tag-name">&lt;title&gt;</span>我的网页<span class="tag-name">&lt;/title&gt;</span>
+  <span class="tag-name">&lt;/head&gt;</span>
+  <span class="tag-name">&lt;body&gt;</span>
+    <span class="tag-name">&lt;h1&gt;</span>你好，世界<span class="tag-name">&lt;/h1&gt;</span>
+    <span class="tag-name">&lt;p&gt;</span>这是段落。<span class="tag-name">&lt;/p&gt;</span>
+  <span class="tag-name">&lt;/body&gt;</span>
+<span class="tag-name">&lt;/html&gt;</span>
+        </div>
+      </div>
+    </div>
+    <div class="slide-no">09</div>
+  </section>
+
+  <!-- 10. HTML 标签速查 -->
+  <section class="slide">
+    <div class="eyebrow anim">第四章 · HTML 详解</div>
+    <h2 class="heading anim">常用 HTML 标签速查</h2>
+    <p class="lead anim">不用全背，用到时回来查。</p>
+    <div class="cheat anim">
+      <table>
+        <thead><tr><th>标签</th><th>作用</th><th>示例</th></tr></thead>
+        <tbody>
+          <tr><td>&lt;h1&gt; ~ &lt;h6&gt;</td><td>标题（从大到小）</td><td>&lt;h1&gt;标题&lt;/h1&gt;</td></tr>
+          <tr><td>&lt;p&gt;</td><td>段落</td><td>&lt;p&gt;一段文字&lt;/p&gt;</td></tr>
+          <tr><td>&lt;img&gt;</td><td>图片（自闭合）</td><td>&lt;img src="a.jpg"&gt;</td></tr>
+          <tr><td>&lt;a&gt;</td><td>超链接</td><td>&lt;a href="..."&gt;跳转&lt;/a&gt;</td></tr>
+          <tr><td>&lt;div&gt;</td><td>块容器</td><td>&lt;div class="box"&gt;...&lt;/div&gt;</td></tr>
+          <tr><td>&lt;span&gt;</td><td>行内容器</td><td>&lt;span&gt;红字&lt;/span&gt;</td></tr>
+          <tr><td>&lt;ul&gt; / &lt;li&gt;</td><td>无序列表</td><td>&lt;ul&gt;&lt;li&gt;项&lt;/li&gt;&lt;/ul&gt;</td></tr>
+          <tr><td>&lt;button&gt;</td><td>按钮</td><td>&lt;button&gt;点我&lt;/button&gt;</td></tr>
+          <tr><td>&lt;input&gt;</td><td>输入框</td><td>&lt;input type="text"&gt;</td></tr>
+          <tr><td>&lt;form&gt;</td><td>表单</td><td>包裹输入，提交数据</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="code anim" style="margin-top:14px">
+<span class="comment">&lt;!-- 卡片实例 --&gt;</span>
+<span class="tag-name">&lt;div</span> <span class="attr">class</span>=<span class="str">"card"</span><span class="tag-name">&gt;</span>
+  <span class="tag-name">&lt;img</span> <span class="attr">src</span>=<span class="str">"avatar.jpg"</span> <span class="attr">alt</span>=<span class="str">"头像"</span><span class="tag-name">&gt;</span>
+  <span class="tag-name">&lt;h3&gt;</span>标题<span class="tag-name">&lt;/h3&gt;</span>
+  <span class="tag-name">&lt;p&gt;</span>简介内容<span class="tag-name">&lt;/p&gt;</span>
+  <span class="tag-name">&lt;button&gt;</span>关注<span class="tag-name">&lt;/button&gt;</span>
+<span class="tag-name">&lt;/div&gt;</span>
+    </div>
+    <div class="slide-no">10</div>
+  </section>
+
+  <!-- 11. CSS 详解 -->
+  <section class="slide">
+    <div class="eyebrow anim">第五章 · CSS 详解</div>
+    <h2 class="heading anim">CSS：网页的"外貌"</h2>
+    <p class="lead anim">CSS 决定网页长什么样——颜色、大小、位置、动画。写法："选择器 { 属性: 值 }"。</p>
+    <div class="grid-2 anim">
+      <div>
+        <p class="text"><strong>三种选择器</strong></p>
+        <p class="text">① 标签：<code>p</code> 选中所有段落</p>
+        <p class="text">② 类：<code>.card</code> 选中 class 为 card 的元素</p>
+        <p class="text">③ id：<code>#title</code> 选中 id 为 title 的元素</p>
+        <p class="text" style="margin-top:8px"><strong>常用属性</strong></p>
+        <p class="text">color、font-size、background、margin、padding、border、border-radius</p>
+        <div class="analogy" style="margin-top:16px">
+          <div class="label">类比</div>
+          <p>CSS 像人体的<strong>皮肤与衣着</strong>——同样骨架，穿不同衣服气质完全不同。</p>
+        </div>
+      </div>
+      <div>
+        <div class="code">
+<span class="comment">/* 标签选择器 */</span>
+<span class="tag-name">h1</span> {
+  <span class="attr">color</span>: <span class="str">#ff6b35</span>;
+  <span class="attr">font-size</span>: <span class="str">32px</span>;
+}
+
+<span class="comment">/* 类选择器 */</span>
+<span class="tag-name">.card</span> {
+  <span class="attr">background</span>: <span class="str">#fffaf0</span>;
+  <span class="attr">padding</span>: <span class="str">20px</span>;
+  <span class="attr">border-radius</span>: <span class="str">14px</span>;
+  <span class="attr">box-shadow</span>: <span class="str">4px 4px 0 #2b1a0f</span>;
+}
+
+<span class="comment">/* 悬停放大 */</span>
+<span class="tag-name">.card:hover</span> {
+  <span class="attr">transform</span>: <span class="str">scale(1.05)</span>;
+  <span class="attr">transition</span>: <span class="str">all .3s</span>;
+}
+        </div>
+      </div>
+    </div>
+    <div class="slide-no">11</div>
+  </section>
+
+  <!-- 12. CSS 布局 -->
+  <section class="slide">
+    <div class="eyebrow anim">第五章 · CSS 详解</div>
+    <h2 class="heading anim">布局：把元素摆到对的位置</h2>
+    <p class="lead anim">CSS 用布局方案控制排列方式，前端最常用 Flexbox。</p>
+    <div class="grid-2 anim">
+      <div>
+        <p class="text"><strong>盒模型（必须懂）</strong></p>
+        <p class="text">每个元素都是"盒子"：内容 → padding → border → margin。</p>
+        <p class="text" style="margin-top:8px"><strong>Flex 布局</strong></p>
+        <p class="text">父元素设 <code>display:flex</code>，子元素横向/纵向排列。</p>
+        <p class="text"><code>justify-content</code> 控主轴对齐，<code>align-items</code> 控交叉轴。</p>
+        <div class="analogy" style="margin-top:14px">
+          <div class="label">速记</div>
+          <p><strong>横向排列用 flex，整体居中一行代码</strong></p>
+        </div>
+      </div>
+      <div>
+        <div class="code">
+<span class="comment">/* 居中 */</span>
+<span class="tag-name">.container</span> {
+  <span class="attr">display</span>: <span class="str">flex</span>;
+  <span class="attr">justify-content</span>: <span class="str">center</span>;
+  <span class="attr">align-items</span>: <span class="str">center</span>;
+  <span class="attr">height</span>: <span class="str">100vh</span>;
+}
+
+<span class="comment">/* 三栏等宽 */</span>
+<span class="tag-name">.row</span> { <span class="attr">display</span>: <span class="str">flex</span>; <span class="attr">gap</span>: <span class="str">16px</span>; }
+<span class="tag-name">.row &gt; div</span> { <span class="attr">flex</span>: <span class="str">1</span>; }
+
+<span class="comment">/* 响应式 */</span>
+<span class="kw">@media</span> (max-width: <span class="num-lit">768px</span>) {
+  <span class="tag-name">.row</span> { <span class="attr">flex-direction</span>: <span class="str">column</span>; }
+}
+        </div>
+      </div>
+    </div>
+    <div class="slide-no">12</div>
+  </section>
+
+  <!-- 13. JavaScript 基础 -->
+  <section class="slide">
+    <div class="eyebrow anim">第六章 · JavaScript 详解</div>
+    <h2 class="heading anim">JS：让网页"会思考"</h2>
+    <p class="lead anim">HTML 是骨架、CSS 是外貌，JS 让网页能感知用户操作并做出反应。前端唯一真正的编程语言。</p>
+    <div class="grid-2 anim">
+      <div>
+        <p class="text"><strong>四个核心概念</strong></p>
+        <p class="text">① 变量：<code>let</code> 存可变数据，<code>const</code> 存不变</p>
+        <p class="text">② 函数：可复用逻辑，<code>function</code> 或 <code>()=&gt;{}</code></p>
+        <p class="text">③ 判断：<code>if / else</code>，条件分支</p>
+        <p class="text">④ 循环：<code>for</code>，重复执行</p>
+        <div class="analogy" style="margin-top:14px">
+          <div class="label">类比</div>
+          <p>JS 像人体的<strong>神经与肌肉</strong>——让身体能感知、做反应。</p>
+        </div>
+      </div>
+      <div>
+        <div class="code">
+<span class="comment">// 1. 变量</span>
+<span class="kw">let</span> name = <span class="str">'前端'</span>;
+<span class="kw">const</span> PI = <span class="num-lit">3.14</span>;
+
+<span class="comment">// 2. 函数</span>
+<span class="kw">function</span> <span class="fn">greet</span>(who) {
+  <span class="kw">return</span> <span class="str">'你好，'</span> + who;
+}
+
+<span class="comment">// 3. 判断</span>
+<span class="kw">let</span> age = <span class="num-lit">18</span>;
+<span class="kw">if</span> (age &gt;= <span class="num-lit">18</span>) {
+  console.log(<span class="str">'成年'</span>);
+} <span class="kw">else</span> {
+  console.log(<span class="str">'未成年'</span>);
+}
+
+<span class="comment">// 4. 循环</span>
+<span class="kw">let</span> sum = <span class="num-lit">0</span>;
+<span class="kw">for</span> (<span class="kw">let</span> i = <span class="num-lit">1</span>; i &lt;= <span class="num-lit">10</span>; i++) {
+  sum += i;
+} <span class="comment">// 55</span>
+        </div>
+      </div>
+    </div>
+    <div class="slide-no">13</div>
+  </section>
+
+  <!-- 14. JS DOM 操作 -->
+  <section class="slide">
+    <div class="eyebrow anim">第六章 · JavaScript 详解</div>
+    <h2 class="heading anim">实战：用 JS 操控网页</h2>
+    <p class="lead anim">JS 最常做的事："用户点了什么 → 改网页内容"。靠 DOM 操作和事件监听实现。</p>
+    <div class="grid-2 anim">
+      <div>
+        <p class="text"><strong>DOM</strong>：浏览器把 HTML 解析成"元素树"，JS 可读写节点。</p>
+        <p class="text"><strong>事件</strong>：用户操作（点击/输入）触发事件，用 <code>addEventListener</code> 监听。</p>
+        <div class="analogy" style="margin-top:16px">
+          <div class="label">总结</div>
+          <p>前端 JS 80% 的工作：<strong>选中元素 → 监听事件 → 改内容/样式</strong>。</p>
+        </div>
+      </div>
+      <div>
+        <div class="code">
+<span class="comment">// 1. 选中元素</span>
+<span class="kw">const</span> btn = document.<span class="fn">querySelector</span>(<span class="str">'#myBtn'</span>);
+<span class="kw">const</span> box = document.<span class="fn">getElementById</span>(<span class="str">'box'</span>);
+
+<span class="comment">// 2. 监听点击</span>
+btn.<span class="fn">addEventListener</span>(<span class="str">'click'</span>, () =&gt; {
+  <span class="comment">// 3. 改内容与样式</span>
+  box.textContent = <span class="str">'被点了！'</span>;
+  box.style.background = <span class="str">'#ff5d8f'</span>;
+  box.style.transform = <span class="str">'scale(1.1)'</span>;
+});
+
+<span class="comment">// 监听输入</span>
+input.<span class="fn">addEventListener</span>(<span class="str">'input'</span>, (e) =&gt; {
+  console.log(e.target.value);
+});
+        </div>
+      </div>
+    </div>
+    <div class="slide-no">14</div>
+  </section>
+
+  <!-- 15. 框架 + 全栈 -->
+  <section class="slide">
+    <div class="eyebrow anim">第七章 · 框架与全貌</div>
+    <h2 class="heading anim">框架 & 把所有东西串起来</h2>
+    <p class="lead anim">原生三件套够用，但项目一大就难管。框架提供"组织代码的规范"。</p>
+    <div class="grid-3 anim">
+      <div class="role-card"><div class="tag">Vue</div><div class="body"><h3>国内最流行</h3><p class="meta">上手友好</p><ul><li>文档中文完善</li><li>模板语法直观</li></ul></div></div>
+      <div class="role-card"><div class="tag alt">React</div><div class="body"><h3>全球最流行</h3><p class="meta">生态庞大</p><ul><li>一切皆组件</li><li>外企首选</li></ul></div></div>
+      <div class="role-card"><div class="tag alt2">Angular</div><div class="body"><h3>企业级</h3><p class="meta">规范严格</p><ul><li>自带全家桶</li><li>曲线陡</li></ul></div></div>
+    </div>
+    <div class="flow anim" style="margin-top:20px">
+      <div class="flow-step"><div class="n">01</div><h4>浏览器请求</h4><p>用户打开</p></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><div class="n">02</div><h4>后端处理</h4><p>查数据库</p></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><div class="n">03</div><h4>返回代码</h4><p>HTML/CSS/JS</p></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><div class="n">04</div><h4>浏览器渲染</h4><p>画出页面</p></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step"><div class="n">05</div><h4>用户看到</h4><p>再交互</p></div>
+    </div>
+    <div class="slide-no">15</div>
+  </section>
+
+  <!-- 16. AI 编程助手 -->
+  <section class="slide">
+    <div class="deco-burst" style="right:60px;top:80px;font-size:50px;transform:rotate(15deg)">AI</div>
+    <div class="eyebrow anim">第八章 · AI 与编程</div>
+    <h2 class="heading anim">AI 编程助手时代<br>已经来了</h2>
+    <p class="lead anim">大模型（GPT-5、Claude、Gemini 等）的爆发，让"AI 帮你写代码"成为日常。</p>
+    <div class="grid-4 anim">
+      <div class="tool"><div class="icon">Tr</div><h4>Trae</h4><p>字节 AI IDE</p></div>
+      <div class="tool"><div class="icon">Cu</div><h4>Cursor</h4><p>AI 编辑器</p></div>
+      <div class="tool"><div class="icon">Co</div><h4>Copilot</h4><p>代码补全</p></div>
+      <div class="tool"><div class="icon">GPT</div><h4>ChatGPT</h4><p>通用对话</p></div>
+    </div>
+    <div class="grid-2 anim" style="margin-top:16px">
+      <div class="card c-pink">
+        <div class="num">能力 01</div>
+        <h3>写代码</h3>
+        <p>描述需求，生成完整代码。HTML、CSS、JS，甚至整个组件。</p>
+      </div>
+      <div class="card c-mint">
+        <div class="num">能力 02</div>
+        <h3>改 bug</h3>
+        <p>贴上报错信息，指出问题与修复方案。</p>
+      </div>
+      <div class="card c-yellow">
+        <div class="num">能力 03</div>
+        <h3>讲解概念</h3>
+        <p>用比喻讲清"盒模型""闭包"等概念。</p>
+      </div>
+      <div class="card c-blue">
+        <div class="num">能力 04</div>
+        <h3>转语言</h3>
+        <p>JS 转 Python、Vue 改 React——重复活交给 AI。</p>
+      </div>
+    </div>
+    <div class="slide-no">16</div>
+  </section>
+
+  <!-- 17. AI 实战 -->
+  <section class="slide">
+    <div class="eyebrow anim">第八章 · AI 与编程</div>
+    <h2 class="heading anim">实战：让 AI 帮你写代码</h2>
+    <p class="lead anim">核心技能是"会提问"——描述越具体，输出越能用。</p>
+    <div class="grid-2 anim">
+      <div>
+        <p class="text"><strong>Prompt 三要素</strong></p>
+        <p class="text">① <strong>角色</strong>：让 AI 当什么（前端工程师）</p>
+        <p class="text">② <strong>任务</strong>：做什么（写卡片）</p>
+        <p class="text">③ <strong>要求</strong>：风格、技术栈、细节</p>
+        <div class="chat" style="margin-top:18px">
+          <div class="msg user">
+            <div class="avatar">我</div>
+            <div class="bubble">你是前端工程师。用 HTML+CSS 写一个奶油色产品卡片，含图片、标题、价格、按钮，圆角、有阴影、悬停上浮。</div>
+          </div>
+          <div class="msg ai">
+            <div class="avatar">AI</div>
+            <div class="bubble">已生成卡片代码，使用 <code>#fffaf0</code> 底色、<code>14px</code> 圆角、<code>4px 4px 0</code> 硬阴影，<code>transition</code> 实现悬停上浮。</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="code">
+<span class="comment">&lt;!-- AI 生成的卡片 --&gt;</span>
+<span class="tag-name">&lt;div</span> <span class="attr">class</span>=<span class="str">"product-card"</span><span class="tag-name">&gt;</span>
+  <span class="tag-name">&lt;img</span> <span class="attr">src</span>=<span class="str">"cake.jpg"</span> <span class="attr">alt</span>=<span class="str">"蛋糕"</span><span class="tag-name">&gt;</span>
+  <span class="tag-name">&lt;h3&gt;</span>草莓蛋糕<span class="tag-name">&lt;/h3&gt;</span>
+  <span class="tag-name">&lt;p</span> <span class="attr">class</span>=<span class="str">"price"</span><span class="tag-name">&gt;</span>¥58<span class="tag-name">&lt;/p&gt;</span>
+  <span class="tag-name">&lt;button&gt;</span>加入购物车<span class="tag-name">&lt;/button&gt;</span>
+<span class="tag-name">&lt;/div&gt;</span>
+
+<span class="tag-name">.product-card</span> {
+  <span class="attr">background</span>: <span class="str">#fffaf0</span>;
+  <span class="attr">border</span>: <span class="str">3px solid #2b1a0f</span>;
+  <span class="attr">border-radius</span>: <span class="str">14px</span>;
+  <span class="attr">box-shadow</span>: <span class="str">4px 4px 0 #2b1a0f</span>;
+  <span class="attr">transition</span>: <span class="str">all .3s</span>;
+}
+<span class="tag-name">.product-card:hover</span> {
+  <span class="attr">transform</span>: <span class="str">translateY(-6px)</span>;
+}
+        </div>
+      </div>
+    </div>
+    <div class="analogy anim">
+      <div class="label">提醒</div>
+      <p>AI 写的代码<strong>不是百分百正确</strong>，需要你看懂、验证、调整。HTML/CSS/JS 基础不能跳过。</p>
+    </div>
+    <div class="slide-no">17</div>
+  </section>
+
+  <!-- 18. AI 时代思维 -->
+  <section class="slide">
+    <div class="eyebrow anim">第八章 · AI 与编程</div>
+    <h2 class="heading anim">AI 时代该学什么？</h2>
+    <p class="lead anim">AI 越强，越要分清"哪些交给 AI、哪些自己会"。</p>
+    <div class="grid-2 anim">
+      <div class="card c-yellow">
+        <div class="num">交给 AI</div>
+        <h3>重复的、有标准答案的</h3>
+        <p style="margin-bottom:6px">• 写常见组件代码</p>
+        <p style="margin-bottom:6px">• 解释报错信息</p>
+        <p style="margin-bottom:6px">• 设计稿转结构</p>
+        <p>• 翻译、转换、格式化</p>
+      </div>
+      <div class="card c-mint">
+        <div class="num">自己掌握</div>
+        <h3>判断的、组合的、沟通的</h3>
+        <p style="margin-bottom:6px">• 看懂代码，判断对错</p>
+        <p style="margin-bottom:6px">• 把功能拼成产品</p>
+        <p style="margin-bottom:6px">• 描述清楚需求（prompt）</p>
+        <p>• 调试、优化、做决策</p>
+      </div>
+    </div>
+    <div class="big-analogy anim" style="margin-top:18px">
+      <p class="quote">AI 是放大器——会用的人效率翻 10 倍，不会基础的人连对错都看不出。</p>
+      <p class="source">— 基础决定上限，AI 决定下限</p>
+    </div>
+    <div class="slide-no">18</div>
+  </section>
+
+  <!-- 19. 结尾 -->
+  <section class="slide ending">
+    <div class="deco-burst" style="left:80px;top:120px;font-size:64px;transform:rotate(-15deg);color:var(--primary)">★</div>
+    <div class="deco-burst" style="right:80px;top:160px;font-size:54px;transform:rotate(20deg);animation-delay:.5s;color:var(--pink)">✦</div>
+    <div class="deco-burst" style="left:160px;top:280px;font-size:40px;transform:rotate(-25deg);animation-delay:.8s;color:var(--secondary)">★</div>
+    <div class="deco-burst" style="right:200px;top:340px;font-size:36px;transform:rotate(10deg);animation-delay:1.2s;color:var(--accent)">✦</div>
+    <div class="eyebrow anim" style="align-self:center">END · 写在最后</div>
+    <h1 class="title anim">编程不是魔法<br>是耐心</h1>
+    <p class="lead anim">每一行代码都是一次"和计算机对话"的练习。看不懂、报错、卡住都是正常过程。</p>
+    <div class="path anim">
+      <div class="path-step"><span class="n">01</span>别只看视频，动手敲</div>
+      <div class="path-step"><span class="n">02</span>报错别怕，复制去搜</div>
+      <div class="path-step"><span class="n">03</span>善用 AI，但别依赖</div>
+      <div class="path-step"><span class="n">04</span>做项目 &gt; 看教程</div>
+    </div>
+    <p class="ending-sign anim">— 祝你写出第一个属于自己的网页 —</p>
+    <div class="slide-no">19</div>
+  </section>
+
+</div>
+
+<!-- 导航按钮 -->
+<button class="nav-btn nav-prev" id="prevBtn" aria-label="上一页">‹</button>
+<button class="nav-btn nav-next" id="nextBtn" aria-label="下一页">›</button>
+
+<!-- 底部点点 -->
+<div class="dots" id="dots"></div>
+
+<!-- 右下角工具 -->
+<div class="tools-corner">
+  <button class="tool-btn" id="fullscreenBtn" title="全屏">⛶</button>
+</div>
+
+<!-- 帮助提示 -->
+<div class="help-hint">
+  <kbd>←</kbd> <kbd>→</kbd> 翻页 · <kbd>Space</kbd> 下一页 · <kbd>F</kbd> 全屏
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const dotsContainer = document.getElementById('dots');
+  const progress = document.getElementById('progress');
+  const nowEl = document.getElementById('nowSlide');
+  const totalEl = document.getElementById('totalSlide');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const fullscreenBtn = document.getElementById('fullscreenBtn');
+
+  let current = 0;
+  const total = slides.length;
+  totalEl.textContent = String(total).padStart(2,'0');
+
+  slides.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' active' : '');
+    d.addEventListener('click', () => go(i));
+    dotsContainer.appendChild(d);
+  });
+  const dots = document.querySelectorAll('.dot');
+
+  function go(idx){
+    if(idx < 0 || idx >= total || idx === current) return;
+    const dir = idx > current ? 1 : -1;
+    const from = slides[current];
+    const to = slides[idx];
+
+    from.classList.remove('active');
+    from.style.transform = `translateX(${-40 * dir}px)`;
+
+    to.style.transition = 'none';
+    to.style.transform = `translateX(${40 * dir}px)`;
+    to.style.opacity = '0';
+    void to.offsetWidth;
+
+    to.style.transition = '';
+    to.style.transform = '';
+    to.style.opacity = '';
+    to.classList.add('active');
+
+    setTimeout(() => {
+      from.style.transform = '';
+      from.style.opacity = '';
+    }, 500);
+
+    const anims = to.querySelectorAll('.anim');
+    anims.forEach(a => {
+      a.style.animation = 'none';
+      void a.offsetWidth;
+      a.style.animation = '';
+    });
+
+    current = idx;
+    update();
+  }
+
+  function next(){ if(current < total - 1) go(current + 1) }
+  function prev(){ if(current > 0) go(current - 1) }
+
+  function update(){
+    dots.forEach((d, i) => d.classList.toggle('active', i === current));
+    progress.style.width = ((current + 1) / total * 100) + '%';
+    nowEl.textContent = String(current + 1).padStart(2,'0');
+    prevBtn.disabled = current === 0;
+    nextBtn.disabled = current === total - 1;
+  }
+
+  prevBtn.addEventListener('click', prev);
+  nextBtn.addEventListener('click', next);
+
+  document.addEventListener('keydown', e => {
+    if(e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown'){ e.preventDefault(); next(); }
+    else if(e.key === 'ArrowLeft' || e.key === 'PageUp'){ e.preventDefault(); prev(); }
+    else if(e.key === 'Home'){ go(0); }
+    else if(e.key === 'End'){ go(total - 1); }
+    else if(e.key === 'f' || e.key === 'F'){ toggleFullscreen(); }
+  });
+
+  let wheelLock = false;
+  document.addEventListener('wheel', e => {
+    if(wheelLock) return;
+    if(Math.abs(e.deltaY) < 30) return;
+    wheelLock = true;
+    setTimeout(() => wheelLock = false, 600);
+    if(e.deltaY > 0) next(); else prev();
+  }, { passive: true });
+
+  let touchStartX = 0;
+  document.addEventListener('touchstart', e => touchStartX = e.touches[0].clientX);
+  document.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if(Math.abs(dx) > 50){ if(dx < 0) next(); else prev(); }
+  });
+
+  function toggleFullscreen(){
+    if(!document.fullscreenElement){
+      document.documentElement.requestFullscreen().catch(()=>{});
+    } else {
+      document.exitFullscreen();
+    }
+  }
+  fullscreenBtn.addEventListener('click', toggleFullscreen);
+
+  update();
+</script>
+
+</body>
+</html>
