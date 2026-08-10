@@ -16,6 +16,7 @@ export const useNoteStore = defineStore('note', () => {
   const currentNoteId = ref(null)
   const currentFolderId = ref(null)
   const lastFolderId = ref(null)
+  let cachedPullData = null
   const lastSyncTime = ref(0)
   const saveStatus = ref('saved') // 'saved' | 'saving'
   const { error: toastError } = useToast()
@@ -121,6 +122,7 @@ export const useNoteStore = defineStore('note', () => {
     initPromise = (async () => {
       try {
         const data = await syncApi.pull(0)
+        cachedPullData = data
         rebuildNoteStructure(data)
         notes.value = data.notes || []
         folders.value = data.folders || []
@@ -135,6 +137,11 @@ export const useNoteStore = defineStore('note', () => {
       await ensureSystemRootFolder()
     })()
     return initPromise
+  }
+
+  /** 获取 init() 拉取的完整数据（供其他 store 复用，避免重复 pull） */
+  function getPullData() {
+    return cachedPullData
   }
 
   let _ensureRootPromise = null
@@ -771,6 +778,7 @@ export const useNoteStore = defineStore('note', () => {
     lastSyncTime,
     saveStatus,
     init,
+    getPullData,
     clearCache,
     setNoteTags,
     setFolderTags,

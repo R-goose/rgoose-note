@@ -78,13 +78,13 @@ function register() {
   ipcMain.handle('backend:images:updateTags', (_e, { ref, tags }) => wrap(() => imageService.updateTags(ref, tags)))
 
   // ---------- 远程图片下载（绕过 CORS） ----------
-  ipcMain.handle('backend:images:fetchRemote', async (_e, url) => {
+  ipcMain.handle('backend:images:fetchRemote', async (_e, url) => wrap(async () => {
     const response = await fetch(url)
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     const arrayBuffer = await response.arrayBuffer()
     const mimeType = response.headers.get('content-type') || 'image/png'
     return { base64: Buffer.from(arrayBuffer).toString('base64'), mimeType }
-  })
+  }))
 
   // ---------- Sync / Data ----------
   ipcMain.handle('backend:sync:pull',       (_e, since) => wrap(() => syncService.pull(since || 0)))

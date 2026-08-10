@@ -62,13 +62,20 @@ module.exports = {
     tx()
   },
 
-  /** 批量更新（画布拖拽场景） */
+  /** 批量更新（画布拖拽 / 撤销恢复场景）
+   *  使用 upsert 语义：块已存在则更新，不存在则插入（撤销删除恢复）
+   */
   batchUpdate(noteId, blocks) {
     const db = getDb()
     const ts = now()
     const tx = db.transaction(() => {
       for (const block of blocks) {
-        blockDao.update(block.id, { ...block, noteId, updatedAt: ts })
+        const existing = blockDao.getById(block.id)
+        if (existing) {
+          blockDao.update(block.id, { ...block, noteId, updatedAt: ts })
+        } else {
+          blockDao.insert({ ...block, noteId, createdAt: ts, updatedAt: ts })
+        }
       }
       touchNote(noteId)
     })

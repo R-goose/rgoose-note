@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { generateId, getTimestamp, deepClone } from '@/utils'
 import { tagsApi } from '@/api/tags'
-import { syncApi } from '@/api/sync'
+import { useNoteStore } from './note'
 
 export const TAG_PRESET_COLORS = [
   '#6bbd8f', '#5a9e7a', '#4a90d9', '#9b7bd6',
@@ -27,9 +27,11 @@ export const useTagStore = defineStore('tag', () => {
     if (initPromise) return initPromise
     initPromise = (async () => {
       try {
-        const data = await syncApi.pull(0)
-        tags.value = data.tags || []
-        lastSyncTime.value = data.serverTime || Date.now()
+        // 复用 noteStore.init() 的 pull 数据，避免重复全量拉取
+        await useNoteStore().init()
+        const data = useNoteStore().getPullData()
+        tags.value = data?.tags || []
+        lastSyncTime.value = data?.serverTime || Date.now()
       } catch (err) {
         console.error('[tagStore] 从后端加载失败:', err)
         tags.value = []

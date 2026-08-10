@@ -703,7 +703,9 @@ async function downloadAsDataUrl(url) {
   // Electron IPC 模式：通过主进程下载（绕过 CORS）
   if (window.electronAPI?.backend) {
     const result = await window.electronAPI.backend('backend:images:fetchRemote', url)
-    return `data:${result.mimeType};base64,${result.base64}`
+    if (!result || result.code !== 0) throw new Error(result?.msg || '远程图片下载失败')
+    const { base64, mimeType } = result.data
+    return `data:${mimeType};base64,${base64}`
   }
   // 浏览器模式：通过后端代理
   const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(url)}`

@@ -86,17 +86,21 @@ export const imagesApi = {
   },
 
   /** 重命名素材（更新 displayName） */
-  rename(ref, displayName) {
+  async rename(ref, displayName) {
     if (isElectron) {
-      return window.electronAPI.backend('backend:images:rename', { ref, displayName })
+      const result = await window.electronAPI.backend('backend:images:rename', { ref, displayName })
+      if (!result || result.code !== 0) throw new Error(result?.msg || '重命名失败')
+      return result.data
     }
     return http.patch(`/images/${encodeURIComponent(ref)}/rename`, { displayName })
   },
 
   /** 更新素材标签 */
-  updateTags(ref, tags) {
+  async updateTags(ref, tags) {
     if (isElectron) {
-      return window.electronAPI.backend('backend:images:updateTags', { ref, tags })
+      const result = await window.electronAPI.backend('backend:images:updateTags', { ref, tags })
+      if (!result || result.code !== 0) throw new Error(result?.msg || '标签更新失败')
+      return result.data
     }
     return http.patch(`/images/${encodeURIComponent(ref)}/tags`, { tags })
   },

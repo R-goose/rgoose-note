@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { generateId, getTimestamp, deepClone } from '@/utils'
 import { plansApi } from '@/api/plans'
-import { syncApi } from '@/api/sync'
+import { useNoteStore } from './note'
 
 // 已提醒状态持久化 key：value 是 JSON 数组 [{ key, date }]
 const REMINDED_KEY = 'rgoose_plan_reminded'
@@ -65,9 +65,11 @@ export const usePlanStore = defineStore('plan', () => {
     if (initPromise) return initPromise
     initPromise = (async () => {
       try {
-        const data = await syncApi.pull(0)
-        plans.value = data.plans || []
-        lastSyncTime.value = data.serverTime || Date.now()
+        // 复用 noteStore.init() 的 pull 数据，避免重复全量拉取
+        await useNoteStore().init()
+        const data = useNoteStore().getPullData()
+        plans.value = data?.plans || []
+        lastSyncTime.value = data?.serverTime || Date.now()
       } catch (err) {
         console.error('[planStore] 从后端加载失败:', err)
         plans.value = []
