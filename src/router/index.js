@@ -3,7 +3,7 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 const routes = [
   {
     path: '/',
-    redirect: '/notes'
+    redirect: '/dashboard'
   },
   {
     path: '/notes',
@@ -47,11 +47,11 @@ const routes = [
     component: () => import('@/views/SettingsView.vue'),
     meta: { title: '设置' }
   },
-  // 404 兜底：未知路径重定向到笔记首页
+  // 404 兜底：未知路径重定向到仪表盘
   {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
-    redirect: '/notes'
+    redirect: '/dashboard'
   }
 ]
 

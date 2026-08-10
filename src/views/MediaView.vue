@@ -2,6 +2,13 @@
   <div class="media-view">
     <div class="view-header">
       <div class="header-left">
+        <!-- 返回上级文件夹按钮 -->
+        <button v-if="currentFolderId" class="media-back-btn" @click="enterFolder(parentFolderId)" title="返回上级">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+          <span>返回</span>
+        </button>
         <!-- 面包屑导航 -->
         <div class="media-breadcrumb">
           <span class="breadcrumb-item" @click="enterFolder(null)">
@@ -544,6 +551,13 @@ const allItems = ref([])
 const activeFilter = ref('all')
 const searchText = ref('')
 const previewItem_data = ref(null)
+
+// 当前文件夹的父级 ID（用于返回按钮）
+const parentFolderId = computed(() => {
+  if (!currentFolderId.value) return null
+  const cur = mediaFolders.value.find(f => f.id === currentFolderId.value)
+  return cur?.parentId || null
+})
 
 // ===== 瀑布流布局 =====
 const gridRef = ref(null)
@@ -1479,6 +1493,28 @@ watch(
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+/* 返回上级文件夹按钮 */
+.media-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.media-back-btn:hover {
+  background: var(--primary-color);
+  color: #fff;
+  border-color: var(--primary-color);
 }
 
 /* 面包屑 */

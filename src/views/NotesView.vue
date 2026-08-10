@@ -1535,11 +1535,10 @@ onUnmounted(() => {
   justify-content: center;
   font-size: 11px;
   font-weight: 600;
-  color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.5);
-  backdrop-filter: blur(6px);
+  color: #1a1f1c;
+  background: #ffffff;
   border-radius: 999px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
   z-index: 2;
 }
 

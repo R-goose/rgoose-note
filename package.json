@@ -1,7 +1,7 @@
 {
   "name": "r-goose-note",
   "private": true,
-  "version": "1.8.4",
+  "version": "1.8.5",
   "description": "R-Goose Note - 画布式笔记应用",
   "author": "R-Goose",
   "type": "module",
