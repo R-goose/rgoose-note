@@ -254,55 +254,6 @@
         </div>
       </div>
       
-      <div class="section-header" style="margin-top: 12px;">
-        <div class="section-title-wrapper">
-          <span>最近笔记</span>
-        </div>
-      </div>
-      <div class="note-list">
-        <div
-          v-for="note in recentNotes"
-          :key="note.id"
-          class="note-item"
-          :class="{ active: $route.params.id === note.id }"
-          @click="openNote(note.id)"
-        >
-          <div class="note-icon">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-            </svg>
-          </div>
-          <div class="note-info">
-            <div class="note-title">{{ note.title || '无标题笔记' }}</div>
-            <div class="note-time">
-              <span>{{ formatTime(note.updatedAt) }}</span>
-              <span v-if="getFolderPath(note.folderId)" class="note-folder">{{ getFolderPath(note.folderId) }}</span>
-            </div>
-            <div v-if="noteTagList(note).length" class="note-tags">
-              <span
-                v-for="t in noteTagList(note)"
-                :key="t.id"
-                class="note-tag"
-                :style="{ background: t.color + '22', color: t.color }"
-              >{{ t.name }}</span>
-            </div>
-          </div>
-          <button
-            type="button"
-            class="note-delete-btn"
-            title="删除笔记"
-            @click.stop.prevent="askDeleteNote(note)"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-              <polyline points="3 6 5 6 21 6"/>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-            </svg>
-          </button>
-        </div>
-        <div v-if="!recentNotes.length" class="empty-mini">暂无笔记</div>
-      </div>
-
       <!-- 浏览历史 -->
       <div class="section-header" style="margin-top: 12px;">
         <div class="section-title-wrapper">
@@ -718,11 +669,6 @@ const availableParentFolders = computed(() => {
   return noteStore.folders
     .filter(f => !f.deleted)
     .sort((a, b) => a.createdAt - b.createdAt)
-})
-
-const recentNotes = computed(() => {
-  const list = [...noteStore.notes].filter(n => !n.deleted).sort((a, b) => b.updatedAt - a.updatedAt)
-  return list.slice(0, 12)
 })
 
 function selectFolder(id) {
