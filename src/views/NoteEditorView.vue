@@ -676,16 +676,16 @@
       ></button>
       <template v-if="selectedBlock.type === 'text'">
         <span>文字：</span>
-        <button class="style-btn" @mousedown.prevent @click="formatSelection('bold')" title="加粗">
+        <button class="style-btn" :class="{ active: selFormat?.bold }" @mousedown.prevent @click="formatSelection('bold')" title="加粗">
           <strong>B</strong>
         </button>
-        <button class="style-btn" @mousedown.prevent @click="formatSelection('italic')" title="斜体">
+        <button class="style-btn" :class="{ active: selFormat?.italic }" @mousedown.prevent @click="formatSelection('italic')" title="斜体">
           <em>I</em>
         </button>
-        <button class="style-btn" @mousedown.prevent @click="formatSelection('underline')" title="下划线">
+        <button class="style-btn" :class="{ active: selFormat?.underline }" @mousedown.prevent @click="formatSelection('underline')" title="下划线">
           <span style="text-decoration: underline;">U</span>
         </button>
-        <button class="style-btn" @mousedown.prevent @click="formatSelection('strikeThrough')" title="删除线">
+        <button class="style-btn" :class="{ active: selFormat?.strikeThrough }" @mousedown.prevent @click="formatSelection('strikeThrough')" title="删除线">
           <span style="text-decoration: line-through;">S</span>
         </button>
         <span class="style-divider"></span>
@@ -693,6 +693,7 @@
           v-for="color in blockTextColors"
           :key="'sel-' + color.value"
           class="color-btn"
+          :class="{ active: selFormat?.foreColor === color.value }"
           :style="{ background: color.swatch }"
           :title="'文字颜色 ' + color.value"
           @mousedown.prevent
@@ -705,7 +706,7 @@
           v-for="size in blockFontSizes"
           :key="size.value"
           class="style-btn"
-          :class="{ active: (selectedBlock.fontSize || 14) === size.value }"
+          :class="{ active: selFormat ? selFormat.fontSize === size.value : (selectedBlock.fontSize || 14) === size.value }"
           @mousedown.prevent
           @click="formatSelection('fontSize', String(size.value))"
         >{{ size.label }}</button>
@@ -714,7 +715,7 @@
           v-for="weight in blockFontWeights"
           :key="weight.value"
           class="style-btn"
-          :class="{ active: (selectedBlock.fontWeight || 400) === weight.value }"
+          :class="{ active: selFormat ? selFormat.fontWeight === weight.value : (selectedBlock.fontWeight || 400) === weight.value }"
           @mousedown.prevent
           @click="formatSelection('fontWeight', String(weight.value))"
         >{{ weight.label }}</button>
@@ -1925,11 +1926,13 @@ function formatSelection(command, value = null) {
       }
     }
     inst.clearInlineStyle(command)
+    selFormat.value = null
     return
   }
 
   saveHistory()
   inst.formatSelection(command, value)
+  nextTick(updateSelFormat)
 }
 
 function setBlockStyle(patch) {
@@ -2261,6 +2264,25 @@ function getBlockMinimapColor(block) {
   return colors[block.color] || '#e8eae8'
 }
 
+// ==================== 选中文本样式状态追踪 ====================
+const selFormat = ref(null)
+
+watch(selectedBlockId, () => { selFormat.value = null })
+
+function updateSelFormat() {
+  if (!selectedBlockId.value) { selFormat.value = null; return }
+  const inst = blockRefs[selectedBlockId.value]
+  if (!inst || !inst.getSelectionFormat) { selFormat.value = null; return }
+  selFormat.value = inst.getSelectionFormat()
+}
+
+function onSelectionChange() {
+  // Only update when there's a selected block (toolbar is visible)
+  if (selectedBlockId.value) {
+    updateSelFormat()
+  }
+}
+
 onMounted(async () => {
   await noteStore.init()
   if (note.value) {
@@ -2274,6 +2296,7 @@ onMounted(async () => {
   window.addEventListener('mousemove', onWindowMouseMove)
   window.addEventListener('blur', onWindowBlur)
   window.addEventListener('resize', autoSizeTitle)
+  document.addEventListener('selectionchange', onSelectionChange)
   await nextTick()
   autoSizeTitle()
 })
@@ -2288,6 +2311,7 @@ onUnmounted(() => {
   window.removeEventListener('mousemove', onWindowMouseMove)
   window.removeEventListener('blur', onWindowBlur)
   window.removeEventListener('resize', autoSizeTitle)
+  document.removeEventListener('selectionchange', onSelectionChange)
   flushContentHistory()
   if (titleMirrorEl.value) {
     titleMirrorEl.value.remove()

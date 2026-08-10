@@ -1629,8 +1629,24 @@ function focusEditorAtEnd() {
 
 function formatSelection(command, value = null) {
   if (!editorRef.value) return false
-  editorRef.value.focus()
+
+  // Save selection before focus (focus may collapse selection)
   const sel = window.getSelection()
+  let savedRange = null
+  if (sel && sel.rangeCount > 0) {
+    const r = sel.getRangeAt(0)
+    if (!r.collapsed && editorRef.value.contains(r.commonAncestorContainer)) {
+      savedRange = r.cloneRange()
+    }
+  }
+
+  editorRef.value.focus()
+
+  // Restore selection if it was lost during focus
+  if (savedRange) {
+    sel.removeAllRanges()
+    sel.addRange(savedRange)
+  }
 
   let hasSelection = false
   if (sel && sel.rangeCount > 0) {
@@ -1736,7 +1752,61 @@ function clearInlineStyle(prop) {
   emit('update', props.block.id, { content: editorRef.value.innerHTML })
 }
 
-defineExpose({ formatSelection, clearInlineStyle })
+function getSelectionFormat() {
+  if (!editorRef.value) return null
+  const sel = window.getSelection()
+  if (!sel || sel.rangeCount === 0) return null
+  const range = sel.getRangeAt(0)
+  if (range.collapsed) return null
+  if (!editorRef.value.contains(range.commonAncestorContainer)) return null
+
+  // Use queryCommandState for execCommand-based formats
+  const bold = document.queryCommandState('bold')
+  const italic = document.queryCommandState('italic')
+  const underline = document.queryCommandState('underline')
+  const strikeThrough = document.queryCommandState('strikeThrough')
+  const foreColor = normalizeColor(document.queryCommandValue('foreColor'))
+
+  // For fontSize and fontWeight, inspect the actual DOM
+  let fontSize = null
+  let fontWeight = null
+  let node = range.startContainer
+  if (node.nodeType === 3) node = node.parentElement
+  if (node && node.nodeType === 1) {
+    const el = node.closest('[style*="font-size"], [style*="font-weight"]')
+    if (el) {
+      const fs = el.style.fontSize
+      if (fs) fontSize = parseInt(fs)
+      const fw = el.style.fontWeight
+      if (fw) fontWeight = parseInt(fw)
+    }
+    // Also check parent chain for inherited font-size/font-weight
+    if (!fontSize || !fontWeight) {
+      let cur = node
+      while (cur && cur !== editorRef.value) {
+        if (cur.style) {
+          if (!fontSize && cur.style.fontSize) fontSize = parseInt(cur.style.fontSize)
+          if (!fontWeight && cur.style.fontWeight) fontWeight = parseInt(cur.style.fontWeight)
+        }
+        cur = cur.parentElement
+      }
+    }
+  }
+
+  return { bold, italic, underline, strikeThrough, foreColor, fontSize, fontWeight, hasSelection: true }
+}
+
+function normalizeColor(color) {
+  if (!color) return null
+  // rgb(x, y, z) → #hex
+  const m = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/)
+  if (m) {
+    return '#' + [m[1], m[2], m[3]].map(n => parseInt(n).toString(16).padStart(2, '0')).join('')
+  }
+  return color
+}
+
+defineExpose({ formatSelection, clearInlineStyle, getSelectionFormat })
 
 function insertList(type) {
   showInsertMenu.value = false

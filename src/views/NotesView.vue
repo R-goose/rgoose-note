@@ -151,7 +151,22 @@
         </div>
       </div>
       
-      <div v-else-if="filteredNotes.length === 0" class="empty-state">
+      <template v-else>
+      <div class="folder-nav-bar">
+        <button class="folder-back-btn" @click="goBackToRoot" title="返回根目录">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+          <span>返回</span>
+        </button>
+        <div class="folder-breadcrumb">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          </svg>
+          <span>{{ currentFolderName }}</span>
+        </div>
+      </div>
+      <div v-if="filteredNotes.length === 0" class="empty-state">
         <svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="1.5">
           <rect x="32" y="20" width="56" height="80" rx="4"/>
           <path d="M44 40h32M44 56h32M44 72h20"/>
@@ -214,6 +229,7 @@
           </div>
         </article>
       </div>
+      </template>
       </div>
     </div>
 
@@ -658,6 +674,10 @@ const currentFolderName = computed(() => {
   return noteStore.folders.find(f => f.id === noteStore.currentFolderId)?.name || '笔记'
 })
 
+function goBackToRoot() {
+  noteStore.setCurrentFolder(null)
+}
+
 const allFolders = computed(() => noteStore.sortedFolders)
 
 function enterFolder(folderId) {
@@ -998,6 +1018,11 @@ function closeContextMenu() {
 function execCtxAction(action) {
   const { type, target } = contextMenu.value
   closeContextMenu()
+  if (type === 'panel') {
+    if (action === 'newNote') createNote()
+    else if (action === 'newFolder') openCreateFolderModal()
+    return
+  }
   if (!target) return
   if (type === 'note') {
     if (action === 'open') openNote(target.id)
@@ -1018,9 +1043,6 @@ function execCtxAction(action) {
     } else if (action === 'delete') {
       deleteFolderState.value = { show: true, target }
     }
-  } else if (type === 'panel') {
-    if (action === 'newNote') createNote()
-    else if (action === 'newFolder') openCreateFolderModal()
   }
 }
 
@@ -1205,6 +1227,48 @@ onUnmounted(() => {
 .notes-content-inner {
   position: relative;
   z-index: 1;
+}
+
+.folder-nav-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 4px 16px;
+  align-items: center;
+}
+
+.folder-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.folder-back-btn:hover {
+  background: var(--primary-color);
+  color: #fff;
+  border-color: var(--primary-color);
+}
+
+.folder-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.folder-breadcrumb svg {
+  color: var(--primary-color);
 }
 
 .all-folders-view {
