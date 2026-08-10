@@ -74,6 +74,10 @@ export const useNoteStore = defineStore('note', () => {
   }
 
   function getFolderNoteCount(folderId) {
+    if (folderId === SYSTEM_ROOT_FOLDER_ID) {
+      // 根目录包含 folderId 为 null 的未归类笔记
+      return notes.value.filter(n => (n.folderId == null || n.folderId === SYSTEM_ROOT_FOLDER_ID) && !n.deleted).length
+    }
     return notes.value.filter(n => n.folderId === folderId && !n.deleted).length
   }
 

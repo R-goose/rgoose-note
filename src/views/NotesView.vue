@@ -32,7 +32,7 @@
     
     <div class="notes-content">
       <BgDecor />
-      <div class="notes-content-inner">
+      <div class="notes-content-inner" @contextmenu.prevent="onPanelContextMenu">
       <div v-if="!noteStore.currentFolderId" class="all-folders-view">
         <!-- 标签快捷过滤栏 -->
         <div v-if="allNoteTags.length" class="tag-quick-bar">
@@ -71,7 +71,7 @@
               class="folder-card"
               :style="folderStyle(folder.id)"
               @click="enterFolder(folder.id)"
-              @contextmenu.prevent="onFolderContextMenu($event, folder)"
+              @contextmenu.prevent.stop="onFolderContextMenu($event, folder)"
             >
               <svg class="folder-card-wave" viewBox="0 0 200 60" preserveAspectRatio="none" aria-hidden="true">
                 <path d="M0,40 C40,20 80,55 120,35 C160,15 180,45 200,30 L200,60 L0,60 Z" fill="currentColor"/>
@@ -108,7 +108,7 @@
               class="note-card"
               :style="noteStyle(note)"
               @click="openNote(note.id)"
-              @contextmenu.prevent="onNoteContextMenu($event, note)"
+              @contextmenu.prevent.stop="onNoteContextMenu($event, note)"
             >
               <div class="note-card-media" :class="{ 'has-cover': getNoteCover(note) }">
                 <img v-if="getNoteCover(note)" :src="getNoteCover(note)" alt="" loading="lazy" />
@@ -259,6 +259,31 @@
     </Teleport>
 
     <Teleport to="body">
+      <div v-if="showCreateFolderModal" class="modal-overlay" @click.self="cancelCreateFolder">
+        <div class="modal-content create-folder-modal-simple">
+          <h3>新建文件夹</h3>
+          <input
+            ref="folderNameInputRef"
+            v-model="newFolderName"
+            type="text"
+            class="input"
+            :class="{ 'input-error': folderNameError }"
+            placeholder="请输入文件夹名称"
+            maxlength="50"
+            @keyup.enter="confirmCreateFolder"
+            @keyup.esc="cancelCreateFolder"
+            @input="folderNameError = false"
+          />
+          <div v-if="folderNameError" class="field-error-tip">文件夹名称已存在</div>
+          <div class="modal-actions">
+            <button class="btn btn-secondary" @click="cancelCreateFolder">取消</button>
+            <button class="btn btn-primary" @click="confirmCreateFolder">创建</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <Teleport to="body">
       <div
         v-if="contextMenu.show"
         class="context-menu"
@@ -330,6 +355,25 @@
               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
             </svg>
             <span>删除</span>
+          </button>
+        </template>
+        <template v-else-if="contextMenu.type === 'panel'">
+          <button class="context-menu-item" @click="execCtxAction('newFolder')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+              <line x1="12" y1="11" x2="12" y2="17"/>
+              <line x1="9" y1="14" x2="15" y2="14"/>
+            </svg>
+            <span>新建文件夹</span>
+          </button>
+          <button class="context-menu-item" @click="execCtxAction('newNote')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="12" y1="18" x2="12" y2="12"/>
+              <line x1="9" y1="15" x2="15" y2="15"/>
+            </svg>
+            <span>新建笔记</span>
           </button>
         </template>
       </div>
@@ -471,7 +515,7 @@
 <script setup>
 import { ref, computed, nextTick, onMounted, onUnmounted, reactive, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { useNoteStore } from '@/stores/note'
+import { useNoteStore, SYSTEM_ROOT_FOLDER_ID } from '@/stores/note'
 import { useTagStore, TAG_PRESET_COLORS } from '@/stores/tag'
 import { useToast } from '@/composables/useToast'
 import { formatDate as formatDateUtil } from '@/utils'
@@ -493,6 +537,10 @@ const newNoteTitle = ref('')
 const createError = ref('')
 const selectedTemplate = ref(null)
 const noteTitleInputRef = ref(null)
+const showCreateFolderModal = ref(false)
+const newFolderName = ref('')
+const folderNameInputRef = ref(null)
+const folderNameError = ref(false)
 
 // 笔记模板库
 const NOTE_TEMPLATES = [
@@ -617,7 +665,7 @@ function enterFolder(folderId) {
 }
 
 function countNotesInFolder(folderId) {
-  return noteStore.notes.filter(n => !n.deleted && n.folderId === folderId).length
+  return noteStore.getFolderNoteCount(folderId)
 }
 
 /** 根据笔记数量计算气泡尺寸和不规则圆角 */
@@ -763,6 +811,41 @@ function cancelCreateNote() {
   selectedTemplate.value = null
 }
 
+function openCreateFolderModal() {
+  newFolderName.value = ''
+  folderNameError.value = false
+  showCreateFolderModal.value = true
+  nextTick(() => folderNameInputRef.value?.focus())
+}
+
+function cancelCreateFolder() {
+  showCreateFolderModal.value = false
+  newFolderName.value = ''
+  folderNameError.value = false
+}
+
+function confirmCreateFolder() {
+  const name = newFolderName.value.trim()
+  if (!name) {
+    toastError('请输入文件夹名称')
+    return
+  }
+  // 当前文件夹作为父级（根目录视图下创建到根级）
+  const parentId = (noteStore.currentFolderId && noteStore.currentFolderId !== SYSTEM_ROOT_FOLDER_ID)
+    ? noteStore.currentFolderId
+    : null
+  // 同级重名检查
+  const duplicate = noteStore.folders.some(f => !f.deleted && f.name === name && (f.parentId || null) === (parentId || null))
+  if (duplicate) {
+    folderNameError.value = true
+    return
+  }
+  noteStore.createFolder(name, parentId)
+  showCreateFolderModal.value = false
+  newFolderName.value = ''
+  folderNameError.value = false
+}
+
 function openNote(id) {
   router.push(`/note/${id}`)
 }
@@ -905,6 +988,10 @@ function onNoteContextMenu(e, note) {
 function onFolderContextMenu(e, folder) {
   contextMenu.value = { show: true, type: 'folder', x: e.clientX, y: e.clientY, target: folder }
 }
+function onPanelContextMenu(e) {
+  // 空白处右键：弹出新建菜单
+  contextMenu.value = { show: true, type: 'panel', x: e.clientX, y: e.clientY, target: null }
+}
 function closeContextMenu() {
   contextMenu.value.show = false
 }
@@ -931,6 +1018,9 @@ function execCtxAction(action) {
     } else if (action === 'delete') {
       deleteFolderState.value = { show: true, target }
     }
+  } else if (type === 'panel') {
+    if (action === 'newNote') createNote()
+    else if (action === 'newFolder') openCreateFolderModal()
   }
 }
 
@@ -1535,6 +1625,10 @@ onUnmounted(() => {
   border-color: #d96b6e;
 }
 
+.create-folder-modal-simple .input.input-error {
+  border-color: #d96b6e;
+}
+
 .field-error-tip {
   color: #d96b6e;
   font-size: 12px;
@@ -1604,6 +1698,30 @@ onUnmounted(() => {
 }
 
 .create-note-modal .modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.create-folder-modal-simple {
+  width: 380px;
+  max-width: 90vw;
+  padding: 24px;
+}
+
+.create-folder-modal-simple h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: var(--text-primary);
+}
+
+.create-folder-modal-simple .input {
+  margin-bottom: 16px;
+  font-size: 15px;
+}
+
+.create-folder-modal-simple .modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
