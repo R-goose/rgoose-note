@@ -600,20 +600,25 @@ const NOTE_TEMPLATES = [
 
 function buildTemplateBlocks(tplKey) {
   const PAD_X = 60
-  const GAP = 24
+  const GAP = 32
   const blocks = []
   let cursorY = 60
-  // 估算块渲染高度（文本块含标题/列表实际更高），用于推算下一块 y，避免重叠
+  // 估算块渲染高度（含块 header + padding 开销 + 浏览器默认标题/段落/列表 margin）
   const estHeight = (data) => {
-    if (data.type === 'todo') return 110
+    if (data.type === 'todo') return 132
     // 文本块：根据内容粗略估算
     const html = data.content || ''
-    const lines = (html.match(/<li/g) || []).length + (html.match(/<p/g) || []).length
+    const pCount = (html.match(/<p/g) || []).length
+    const liCount = (html.match(/<li/g) || []).length
     const hasH2 = /<h2/.test(html)
     const hasH3 = /<h3/.test(html)
-    let h = 70 + lines * 26
-    if (hasH2) h += 20
-    if (hasH3) h += 16
+    // 基础开销：块 header(22) + content padding(22) + border(2) ≈ 46
+    let h = 50
+    if (hasH2) h += 64   // h2: font 24 + margin 40
+    if (hasH3) h += 50   // h3: font 18 + margin 32
+    h += pCount * 48     // p: font 16 + margin 32
+    h += liCount * 26    // li: line-height ~24 + 间距
+    if (liCount > 0) h += 32 // ul 自身 margin
     return Math.max(data.minHeight || 80, h)
   }
   // 单列块
