@@ -1225,8 +1225,11 @@ import interact, { rect } from 'interactjs'
 import { useToast } from '@/composables/useToast'
 import { useClickOutside } from '@/composables/useClickOutside'
 import { saveImage, resolveImageUrl, preloadImages, isImageRef } from '@/utils/imageStore'
+import { imagesApi } from '@/api/images'
+import html2canvas from 'html2canvas-pro'
+import { jsPDF } from 'jspdf'
 
-const { error: toastError } = useToast()
+const { error: toastError, showToast, removeToast, success: toastSuccess } = useToast()
 
 const route = useRoute()
 const router = useRouter()
@@ -3609,182 +3612,232 @@ function closeImagePreview() {
   previewDragging = false
 }
 
-function exportAsPDF() {
-  showExportMenu.value = false
+function getBlockRenderHeight(b) {
+  if (b.type === 'image') return b.minHeight || 200
+  return Math.max(60, b.minHeight || 80)
+}
 
-  const originalZoom = canvasConfig.value.zoom
-  const originalOffsetX = canvasConfig.value.offsetX
-  const originalOffsetY = canvasConfig.value.offsetY
-
-  if (blocks.value.length > 0) {
-    const minX = Math.min(...blocks.value.map(b => b.x))
-    const minY = Math.min(...blocks.value.map(b => b.y))
-    canvasConfig.value.zoom = 1
-    canvasConfig.value.offsetX = -minX + 60
-    canvasConfig.value.offsetY = -minY + 60
+async function convertImagesToDataUrl(target) {
+  const imgs = Array.from(target.querySelectorAll('img'))
+  const tasks = []
+  for (const img of imgs) {
+    const src = img.src
+    if (!src || src.startsWith('data:')) continue
+    tasks.push((async () => {
+      try {
+        let blob
+        if (src.startsWith('rgoose-image://')) {
+          const ref = decodeURIComponent(src.replace('rgoose-image://local/', ''))
+          blob = await imagesApi.download(ref)
+        } else if (src.startsWith('http') || src.startsWith('/') || src.startsWith('blob:')) {
+          const resp = await fetch(src)
+          blob = await resp.blob()
+        } else {
+          return
+        }
+        const dataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(reader.result)
+          reader.onerror = reject
+          reader.readAsDataURL(blob)
+        })
+        img.dataset.exportOrigSrc = src
+        img.src = dataUrl
+        if (img.complete) return
+        await new Promise(r => { img.onload = r; img.onerror = r; setTimeout(r, 3000) })
+      } catch (e) {
+        console.warn('convert image failed:', src, e)
+      }
+    })())
   }
+  await Promise.all(tasks)
+}
 
-  nextTick(() => {
-    window.print()
-
-    safeTimeout(() => {
-      canvasConfig.value.zoom = originalZoom
-      canvasConfig.value.offsetX = originalOffsetX
-      canvasConfig.value.offsetY = originalOffsetY
-    }, 500)
+function restoreImagesFromDataUrl(target) {
+  const imgs = target.querySelectorAll('img')
+  imgs.forEach(img => {
+    const orig = img.dataset.exportOrigSrc
+    if (orig) {
+      img.src = orig
+      delete img.dataset.exportOrigSrc
+    }
   })
 }
 
-function exportAsImage() {
-  showExportMenu.value = false
-  
-  const canvas = document.createElement('canvas')
-  const ctx = canvas.getContext('2d')
-  
-  if (!blocks.value.length) {
-    canvas.width = 800
-    canvas.height = 600
-    ctx.fillStyle = '#f8faf8'
-    ctx.fillRect(0, 0, 800, 600)
-  } else {
-    const padding = 60
-    const minX = Math.min(...blocks.value.map(b => b.x))
-    const minY = Math.min(...blocks.value.map(b => b.y))
-    const maxX = Math.max(...blocks.value.map(b => b.x + (b.width || 240)))
-    const maxY = Math.max(...blocks.value.map(b => {
-      if (b.type === 'image') return b.y + (b.minHeight || 200)
-      return b.y + Math.max(60, b.minHeight || 80)
-    }))
-    
-    const width = maxX - minX + padding * 2
-    const height = maxY - minY + padding * 2
-    
-    canvas.width = width
-    canvas.height = height
-    
-    ctx.fillStyle = '#f8faf8'
-    ctx.fillRect(0, 0, width, height)
-    
-    const offsetX = -minX + padding
-    const offsetY = -minY + padding
-    
-    const colorMap = {
-      green: '#a8d5ba',
-      blue: '#b8c8d8',
-      yellow: '#d5c9a8',
-      pink: '#d8b8b5',
-      gray: '#c8cac9',
-      white: '#ffffff'
-    }
-    
-    connections.value.forEach(conn => {
-      const fromBlock = blocks.value.find(b => b.id === conn.from)
-      const toBlock = blocks.value.find(b => b.id === conn.to)
-      if (!fromBlock || !toBlock) return
-      
-      const fromW = fromBlock.width || 240
-      const fromH = fromBlock.minHeight || 60
-      const toW = toBlock.width || 240
-      const toH = toBlock.minHeight || 60
-      
-      const fromCenterX = fromBlock.x + fromW / 2 + offsetX
-      const fromCenterY = fromBlock.y + fromH / 2 + offsetY
-      const toCenterX = toBlock.x + toW / 2 + offsetX
-      const toCenterY = toBlock.y + toH / 2 + offsetY
-      
-      const fromWidth = fromW / 2
-      const fromHeight = fromH / 2
-      const toWidth = toW / 2
-      const toHeight = toH / 2
-      
-      const dx = toCenterX - fromCenterX
-      const dy = toCenterY - fromCenterY
-      
-      let fromX, fromY, toX, toY
-      
-      if (Math.abs(dx) * fromHeight > Math.abs(dy) * fromWidth) {
-        fromX = fromCenterX + (dx > 0 ? fromWidth : -fromWidth)
-        fromY = fromCenterY + dy * (fromWidth / Math.abs(dx))
-      } else {
-        fromY = fromCenterY + (dy > 0 ? fromHeight : -fromHeight)
-        fromX = fromCenterX + dx * (fromHeight / Math.abs(dy))
-      }
-      
-      if (Math.abs(dx) * toHeight > Math.abs(dy) * toWidth) {
-        toX = toCenterX - (dx > 0 ? toWidth : -toWidth)
-        toY = toCenterY - dy * (toWidth / Math.abs(dx))
-      } else {
-        toY = toCenterY - (dy > 0 ? toHeight : -toHeight)
-        toX = toCenterX - dx * (toHeight / Math.abs(dy))
-      }
-      
-      ctx.strokeStyle = conn.color || '#6bbd8f'
-      ctx.lineWidth = parseInt(conn.width) || 2
-      ctx.beginPath()
-      ctx.moveTo(fromX, fromY)
-      
-      const offset = Math.max(Math.abs(dx), Math.abs(dy)) * 0.4
-      
-      const fromDirX = fromX - fromCenterX
-      const fromDirY = fromY - fromCenterY
-      const fromLen = Math.sqrt(fromDirX * fromDirX + fromDirY * fromDirY) || 1
-      const fromNormX = fromDirX / fromLen
-      const fromNormY = fromDirY / fromLen
-      
-      const toDirX = toX - toCenterX
-      const toDirY = toY - toCenterY
-      const toLen = Math.sqrt(toDirX * toDirX + toDirY * toDirY) || 1
-      const toNormX = toDirX / toLen
-      const toNormY = toDirY / toLen
-      
-      const c1x = fromX + fromNormX * offset
-      const c1y = fromY + fromNormY * offset
-      const c2x = toX + toNormX * offset
-      const c2y = toY + toNormY * offset
-      
-      ctx.bezierCurveTo(c1x, c1y, c2x, c2y, toX, toY)
-      ctx.stroke()
-    })
-    
-    blocks.value.forEach(block => {
-      const x = block.x + offsetX
-      const y = block.y + offsetY
-      const w = block.width || 240
-      let h
-      if (block.type === 'image') {
-        h = block.minHeight || 200
-      } else {
-        h = Math.max(60, block.minHeight || 80)
-      }
-      
-      ctx.fillStyle = colorMap[block.color] || '#ffffff'
-      ctx.beginPath()
-      const radius = 8
-      ctx.roundRect(x, y, w, h, radius)
-      ctx.fill()
-      
-      ctx.strokeStyle = '#e8e8e8'
-      ctx.lineWidth = 1
-      ctx.stroke()
-      
-      ctx.fillStyle = '#333'
-      ctx.font = '14px -apple-system, BlinkMacSystemFont, sans-serif'
-      if (block.type === 'image') {
-        ctx.fillText('[图片]', x + 16, y + 30)
-      } else if (block.type === 'note-link') {
-        ctx.fillStyle = '#6bbd8f'
-        ctx.fillText('🔗 引用笔记', x + 16, y + 30)
-      } else if (block.content) {
-        const text = block.content.replace(/<[^>]*>/g, '').slice(0, 50)
-        ctx.fillText(text, x + 16, y + 30)
-      }
-    })
+async function captureCanvasSnapshot() {
+  const target = canvasRef.value
+  if (!target) return null
+
+  const original = {
+    zoom: canvasConfig.value.zoom,
+    offsetX: canvasConfig.value.offsetX,
+    offsetY: canvasConfig.value.offsetY,
+    selectedBlockIds: [...selectedBlockIds.value],
+    selectedConnectionId: selectedConnectionId.value,
+    overflow: target.style.overflow,
+    width: target.style.width,
+    height: target.style.height,
+    minWidth: target.style.minWidth,
+    minHeight: target.style.minHeight,
+    flexBasis: target.style.flexBasis,
+    bgDisplay: null
   }
-  
-  const link = document.createElement('a')
-  link.download = `${note.value?.title || '笔记'}_${Date.now()}.png`
-  link.href = canvas.toDataURL('image/png')
-  link.click()
+
+  const bgEl = target.querySelector('.canvas-bg')
+  if (bgEl) {
+    original.bgDisplay = bgEl.style.display
+  }
+
+  try {
+    selectedBlockIds.value = []
+    selectedConnectionId.value = null
+
+    let contentWidth = 1200
+    let contentHeight = 800
+    if (blocks.value.length > 0) {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+      blocks.value.forEach(b => {
+        const w = b.width || 240
+        const h = getBlockRenderHeight(b)
+        minX = Math.min(minX, b.x)
+        minY = Math.min(minY, b.y)
+        maxX = Math.max(maxX, b.x + w)
+        maxY = Math.max(maxY, b.y + h)
+      })
+      const padding = 80
+      contentWidth = Math.max(400, (maxX - minX) + padding * 2)
+      contentHeight = Math.max(300, (maxY - minY) + padding * 2)
+      canvasConfig.value.zoom = 1
+      canvasConfig.value.offsetX = -minX + padding
+      canvasConfig.value.offsetY = -minY + padding
+    } else {
+      canvasConfig.value.zoom = 1
+    }
+
+    target.style.overflow = 'visible'
+    target.style.width = contentWidth + 'px'
+    target.style.height = contentHeight + 'px'
+    target.style.minWidth = '0'
+    target.style.minHeight = '0'
+    target.style.flexBasis = 'auto'
+    if (bgEl) bgEl.style.display = 'none'
+
+    await nextTick()
+    await new Promise(r => setTimeout(r, 250))
+
+    await convertImagesToDataUrl(target)
+    await new Promise(r => setTimeout(r, 150))
+
+    const canvas = await html2canvas(target, {
+      backgroundColor: '#f8faf8',
+      scale: 2,
+      useCORS: true,
+      allowTaint: false,
+      logging: false,
+      width: contentWidth,
+      height: contentHeight,
+      windowWidth: contentWidth,
+      windowHeight: contentHeight,
+      scrollX: 0,
+      scrollY: 0,
+      x: 0,
+      y: 0,
+      ignoreElements: (el) => {
+        if (!el.classList) return false
+        return el.classList.contains('multi-select-toolbar') ||
+          el.classList.contains('block-actions') ||
+          el.classList.contains('block-drag-handle') ||
+          el.classList.contains('block-group-badge') ||
+          el.classList.contains('canvas-bg') ||
+          el.classList.contains('marquee-rect')
+      }
+    })
+
+    return canvas
+  } finally {
+    restoreImagesFromDataUrl(target)
+    canvasConfig.value.zoom = original.zoom
+    canvasConfig.value.offsetX = original.offsetX
+    canvasConfig.value.offsetY = original.offsetY
+    selectedBlockIds.value = original.selectedBlockIds
+    selectedConnectionId.value = original.selectedConnectionId
+    target.style.overflow = original.overflow
+    target.style.width = original.width
+    target.style.height = original.height
+    target.style.minWidth = original.minWidth
+    target.style.minHeight = original.minHeight
+    target.style.flexBasis = original.flexBasis
+    if (bgEl && original.bgDisplay !== null) bgEl.style.display = original.bgDisplay
+  }
+}
+
+async function exportAsPDF() {
+  showExportMenu.value = false
+  if (!blocks.value.length) {
+    showToast('画布无内容可导出', 'warning')
+    return
+  }
+
+  const toastId = showToast('正在生成 PDF...', 'info', 0)
+
+  try {
+    const canvas = await captureCanvasSnapshot()
+    if (!canvas) {
+      removeToast(toastId)
+      showToast('导出失败：画布不可用', 'error')
+      return
+    }
+
+    const imgData = canvas.toDataURL('image/png')
+    const orientation = canvas.width >= canvas.height ? 'landscape' : 'portrait'
+
+    const pdf = new jsPDF({
+      orientation,
+      unit: 'px',
+      format: [canvas.width, canvas.height],
+      hotfixes: ['px_scaling']
+    })
+    pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height)
+    pdf.save(`${note.value?.title || '笔记'}.pdf`)
+
+    removeToast(toastId)
+    toastSuccess('PDF 导出成功')
+  } catch (e) {
+    console.error('PDF export failed:', e)
+    removeToast(toastId)
+    showToast('PDF 导出失败：' + (e?.message || '未知错误'), 'error')
+  }
+}
+
+async function exportAsImage() {
+  showExportMenu.value = false
+  if (!blocks.value.length) {
+    showToast('画布无内容可导出', 'warning')
+    return
+  }
+
+  const toastId = showToast('正在生成图片...', 'info', 0)
+
+  try {
+    const canvas = await captureCanvasSnapshot()
+    if (!canvas) {
+      removeToast(toastId)
+      showToast('导出失败：画布不可用', 'error')
+      return
+    }
+
+    const link = document.createElement('a')
+    link.download = `${note.value?.title || '笔记'}.png`
+    link.href = canvas.toDataURL('image/png')
+    link.click()
+
+    removeToast(toastId)
+    toastSuccess('图片导出成功')
+  } catch (e) {
+    console.error('Image export failed:', e)
+    removeToast(toastId)
+    showToast('图片导出失败：' + (e?.message || '未知错误'), 'error')
+  }
 }
 
 function exportAsJSON() {

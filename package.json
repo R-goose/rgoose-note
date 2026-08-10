@@ -1,7 +1,7 @@
 {
   "name": "r-goose-note",
   "private": true,
-  "version": "1.8.8",
+  "version": "1.9.0",
   "description": "R-Goose Note - 画布式笔记应用",
   "author": "R-Goose",
   "type": "module",
@@ -23,7 +23,9 @@
     "dayjs": "^1.11.10",
     "express": "^5.2.1",
     "fs-extra": "^11.4.0",
+    "html2canvas-pro": "^2.3.3",
     "interactjs": "^1.10.27",
+    "jspdf": "^4.2.1",
     "katex": "^0.18.1",
     "multer": "^2.2.0",
     "pinia": "^2.1.7",
