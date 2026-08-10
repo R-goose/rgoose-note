@@ -280,6 +280,9 @@
               type="password"
               class="ai-key-input"
               placeholder="粘贴你的 API Key"
+              spellcheck="false"
+              autocapitalize="off"
+              autocomplete="off"
               @change="saveAiSettings"
             />
           </div>
@@ -288,26 +291,120 @@
               <div class="setting-name">文本对话模型</div>
               <div class="setting-desc">GLM-4.7-Flash 为永久免费</div>
             </div>
-            <input
-              v-model="aiModel"
-              type="text"
-              class="ai-key-input"
-              placeholder="glm-4.7-flash"
-              @change="saveAiSettings"
-            />
+            <div class="ai-model-row">
+              <div class="ai-combobox" ref="textComboboxRef">
+                <input
+                  v-model="aiModel"
+                  type="text"
+                  class="ai-key-input ai-combobox-input"
+                  placeholder="glm-4.7-flash"
+                  spellcheck="false"
+                  autocapitalize="off"
+                  autocomplete="off"
+                  @change="saveAiSettings"
+                  @focus="openDropdown('text')"
+                  @input="onComboboxInput('text')"
+                />
+                <button type="button" class="ai-combobox-arrow" @click="toggleDropdown('text')">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div v-if="activeDropdown === 'text'" class="ai-combobox-panel">
+                  <div v-if="!filteredTextModels.length" class="ai-combobox-empty">无匹配模型，点右侧"刷新模型列表"</div>
+                  <div
+                    v-for="m in filteredTextModels"
+                    :key="m.id"
+                    class="ai-combobox-option"
+                    :class="{ active: m.id === aiModel, free: m.free }"
+                    @mousedown.prevent="pickModel('text', m.id)"
+                  >
+                    <span class="ai-model-id">{{ m.id }}</span>
+                    <span class="ai-model-tag" :class="m.free ? 'is-free' : 'is-paid'">{{ m.free ? '免费' : '收费' }}</span>
+                    <span v-if="m.tag" class="ai-model-desc">{{ m.tag.replace(/^(免费|收费)\s·\s/, '') }}</span>
+                  </div>
+                </div>
+              </div>
+              <button class="btn-fetch-models" :disabled="loadingModels" @click="fetchAiModels">
+                {{ loadingModels ? '获取中...' : '刷新模型列表' }}
+              </button>
+            </div>
           </div>
           <div class="setting-item">
             <div class="setting-info">
               <div class="setting-name">图片生成模型</div>
               <div class="setting-desc">CogView-3-Flash 为永久免费</div>
             </div>
-            <input
-              v-model="aiImageModel"
-              type="text"
-              class="ai-key-input"
-              placeholder="cogview-3-flash"
-              @change="saveAiSettings"
-            />
+            <div class="ai-model-row">
+              <div class="ai-combobox" ref="imageComboboxRef">
+                <input
+                  v-model="aiImageModel"
+                  type="text"
+                  class="ai-key-input ai-combobox-input"
+                  placeholder="cogview-3-flash"
+                  spellcheck="false"
+                  autocapitalize="off"
+                  autocomplete="off"
+                  @change="saveAiSettings"
+                  @focus="openDropdown('image')"
+                  @input="onComboboxInput('image')"
+                />
+                <button type="button" class="ai-combobox-arrow" @click="toggleDropdown('image')">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div v-if="activeDropdown === 'image'" class="ai-combobox-panel">
+                  <div v-if="!filteredImageModels.length" class="ai-combobox-empty">无匹配模型，点右侧"刷新模型列表"</div>
+                  <div
+                    v-for="m in filteredImageModels"
+                    :key="m.id"
+                    class="ai-combobox-option"
+                    :class="{ active: m.id === aiImageModel, free: m.free }"
+                    @mousedown.prevent="pickModel('image', m.id)"
+                  >
+                    <span class="ai-model-id">{{ m.id }}</span>
+                    <span class="ai-model-tag" :class="m.free ? 'is-free' : 'is-paid'">{{ m.free ? '免费' : '收费' }}</span>
+                    <span v-if="m.tag" class="ai-model-desc">{{ m.tag.replace(/^(免费|收费)\s·\s/, '') }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="setting-item">
+            <div class="setting-info">
+              <div class="setting-name">视频生成模型</div>
+              <div class="setting-desc">CogVideoX-Flash 为永久免费（清影）</div>
+            </div>
+            <div class="ai-model-row">
+              <div class="ai-combobox" ref="videoComboboxRef">
+                <input
+                  v-model="aiVideoModel"
+                  type="text"
+                  class="ai-key-input ai-combobox-input"
+                  placeholder="cogvideox-flash"
+                  spellcheck="false"
+                  autocapitalize="off"
+                  autocomplete="off"
+                  @change="saveAiSettings"
+                  @focus="openDropdown('video')"
+                  @input="onComboboxInput('video')"
+                />
+                <button type="button" class="ai-combobox-arrow" @click="toggleDropdown('video')">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div v-if="activeDropdown === 'video'" class="ai-combobox-panel">
+                  <div v-if="!filteredVideoModels.length" class="ai-combobox-empty">无匹配模型，点右侧"刷新模型列表"</div>
+                  <div
+                    v-for="m in filteredVideoModels"
+                    :key="m.id"
+                    class="ai-combobox-option"
+                    :class="{ active: m.id === aiVideoModel, free: m.free }"
+                    @mousedown.prevent="pickModel('video', m.id)"
+                  >
+                    <span class="ai-model-id">{{ m.id }}</span>
+                    <span class="ai-model-tag" :class="m.free ? 'is-free' : 'is-paid'">{{ m.free ? '免费' : '收费' }}</span>
+                    <span v-if="m.tag" class="ai-model-desc">{{ m.tag.replace(/^(免费|收费)\s·\s/, '') }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -318,7 +415,7 @@
           <div id="set-about-version" class="setting-item">
             <div class="setting-info">
               <div class="setting-name brand-name">R-Goose Note</div>
-              <div class="setting-desc">版本 1.8.0</div>
+              <div class="setting-desc">版本 1.8.1</div>
             </div>
           </div>
           <div id="set-about-platform" class="setting-item">
@@ -503,12 +600,197 @@ const showClearCacheConfirm = ref(false)
 const aiApiKey = ref(localStorage.getItem('ai_api_key') || '')
 const aiModel = ref(localStorage.getItem('ai_model') || 'glm-4-flash')
 const aiImageModel = ref(localStorage.getItem('ai_image_model') || 'cogview-3-flash')
+const aiVideoModel = ref(localStorage.getItem('ai_video_model') || 'cogvideox-flash')
+
+// 智谱内置模型清单（免费 + 收费），API 返回可能不全，以此为基础与 API 合并
+// price 单位：元/百万 tokens（文本）/ 元/百张（图片）/ 元/次（视频），仅用于排序与展示，0 = 免费
+const BUILTIN_TEXT_MODELS = [
+  { id: 'glm-4.7-flash', free: true,  price: 0,    tag: '免费 · 混合思考 30B' },
+  { id: 'glm-4-flash',   free: true,  price: 0,    tag: '免费 · 旧版' },
+  { id: 'glm-4v-flash',  free: true,  price: 0,    tag: '免费 · 视觉' },
+  { id: 'glm-4',         free: false, price: 100,  tag: '收费 · 标准' },
+  { id: 'glm-4-plus',    free: false, price: 50,   tag: '收费 · 增强' },
+  { id: 'glm-4-long',    free: false, price: 1,    tag: '收费 · 长上下文' },
+  { id: 'glm-4.5',       free: false, price: 80,   tag: '收费' },
+  { id: 'glm-4.5-flash', free: false, price: 20,   tag: '收费 · 轻量' },
+  { id: 'glm-4.6',       free: false, price: 120,  tag: '收费' },
+  { id: 'glm-4.7',       free: false, price: 150,  tag: '收费 · 旗舰' },
+  { id: 'glm-4v',        free: false, price: 90,   tag: '收费 · 视觉' },
+  { id: 'glm-4v-plus',   free: false, price: 70,   tag: '收费 · 视觉增强' }
+]
+const BUILTIN_IMAGE_MODELS = [
+  { id: 'cogview-3-flash', free: true,  price: 0,   tag: '免费 · 旧版' },
+  { id: 'cogview-4-plus',  free: false, price: 50,  tag: '收费 · CogView4 支持 中文' },
+  { id: 'cogview-4',       free: false, price: 30,  tag: '收费' },
+  { id: 'cogview-3-plus',  free: false, price: 10,  tag: '收费' }
+]
+const BUILTIN_VIDEO_MODELS = [
+  { id: 'cogvideox-flash', free: true,  price: 0,   tag: '免费 · 清影' },
+  { id: 'cogvideox-2',     free: false, price: 100, tag: '收费 · 旗舰' },
+  { id: 'cogvideox',       free: false, price: 50,  tag: '收费 · 标准 · 0.5元/次' }
+]
+
+// 排序：免费在前，收费按价格从高到低
+function sortByPrice(list) {
+  return [...list].sort((a, b) => {
+    if (a.free !== b.free) return a.free ? -1 : 1   // 免费 true 在前
+    if (!a.free) return b.price - a.price            // 收费：价格降序
+    return 0
+  })
+}
+
+// 合并内置清单与本地缓存/API 返回（去重，按价格排序）
+// saved: 字符串数组（旧缓存或 API 返回的 id 列表）
+function mergeBuiltin(saved) {
+  // 分类规则：cogvideo → 视频；cogview/image → 图片；其余 → 文本
+  const isVideo = id => /cogvideo/i.test(id)
+  const isImage = id => /cogview|image/i.test(id)
+  const savedVideoIds = (saved || []).filter(id => isVideo(id))
+  const savedImageIds = (saved || []).filter(id => !isVideo(id) && isImage(id))
+  const savedTextIds  = (saved || []).filter(id => !isVideo(id) && !isImage(id))
+
+  const textMap = new Map(BUILTIN_TEXT_MODELS.map(m => [m.id, m]))
+  for (const id of savedTextIds) if (!textMap.has(id)) textMap.set(id, { id, free: false, price: 0, tag: '收费 · 其它' })
+
+  const imageMap = new Map(BUILTIN_IMAGE_MODELS.map(m => [m.id, m]))
+  for (const id of savedImageIds) if (!imageMap.has(id)) imageMap.set(id, { id, free: false, price: 0, tag: '收费 · 其它' })
+
+  const videoMap = new Map(BUILTIN_VIDEO_MODELS.map(m => [m.id, m]))
+  for (const id of savedVideoIds) if (!videoMap.has(id)) videoMap.set(id, { id, free: false, price: 0, tag: '收费 · 其它' })
+
+  return {
+    text: sortByPrice([...textMap.values()]),
+    image: sortByPrice([...imageMap.values()]),
+    video: sortByPrice([...videoMap.values()])
+  }
+}
+
+const merged = mergeBuiltin([
+  ...JSON.parse(localStorage.getItem('ai_text_models') || '[]'),
+  ...JSON.parse(localStorage.getItem('ai_image_models') || '[]'),
+  ...JSON.parse(localStorage.getItem('ai_video_models') || '[]')
+])
+const textModels = ref(merged.text)
+const imageModels = ref(merged.image)
+const videoModels = ref(merged.video)
+const loadingModels = ref(false)
+
+// 下拉框状态
+const activeDropdown = ref(null) // 'text' | 'image' | 'video' | null
+const textComboboxRef = ref(null)
+const imageComboboxRef = ref(null)
+const videoComboboxRef = ref(null)
+// 独立的搜索词，仅在用户实时输入时更新，避免默认模型名（如 glm-4-flash）误过滤掉列表
+const textQuery = ref('')
+const imageQuery = ref('')
+const videoQuery = ref('')
+
+const filteredTextModels = computed(() => {
+  const q = textQuery.value.trim().toLowerCase()
+  if (!q) return textModels.value
+  return textModels.value.filter(m => m.id.toLowerCase().includes(q))
+})
+
+const filteredImageModels = computed(() => {
+  const q = imageQuery.value.trim().toLowerCase()
+  if (!q) return imageModels.value
+  return imageModels.value.filter(m => m.id.toLowerCase().includes(q))
+})
+
+const filteredVideoModels = computed(() => {
+  const q = videoQuery.value.trim().toLowerCase()
+  if (!q) return videoModels.value
+  return videoModels.value.filter(m => m.id.toLowerCase().includes(q))
+})
+
+function openDropdown(type) {
+  activeDropdown.value = type
+  // 打开时清空搜索词，展示完整列表
+  if (type === 'text') textQuery.value = ''
+  else if (type === 'image') imageQuery.value = ''
+  else videoQuery.value = ''
+}
+
+function onComboboxInput(type) {
+  openDropdown(type)
+  // 同步搜索词到当前输入的文本（v-model 已更新对应 ref）
+  if (type === 'text') textQuery.value = aiModel.value
+  else if (type === 'image') imageQuery.value = aiImageModel.value
+  else videoQuery.value = aiVideoModel.value
+}
+
+function toggleDropdown(type) {
+  if (activeDropdown.value === type) {
+    activeDropdown.value = null
+  } else {
+    openDropdown(type)
+  }
+}
+
+function pickModel(type, m) {
+  if (type === 'text') {
+    aiModel.value = m
+    textQuery.value = ''
+  } else if (type === 'image') {
+    aiImageModel.value = m
+    imageQuery.value = ''
+  } else {
+    aiVideoModel.value = m
+    videoQuery.value = ''
+  }
+  activeDropdown.value = null
+  saveAiSettings()
+}
+
+function handleDropdownOutsideClick(e) {
+  if (activeDropdown.value === null) return
+  const textEl = textComboboxRef.value
+  const imageEl = imageComboboxRef.value
+  const videoEl = videoComboboxRef.value
+  if (textEl && textEl.contains(e.target)) return
+  if (imageEl && imageEl.contains(e.target)) return
+  if (videoEl && videoEl.contains(e.target)) return
+  activeDropdown.value = null
+}
 
 function saveAiSettings() {
   localStorage.setItem('ai_api_key', aiApiKey.value.trim())
   localStorage.setItem('ai_model', aiModel.value.trim() || 'glm-4-flash')
   localStorage.setItem('ai_image_model', aiImageModel.value.trim() || 'cogview-3-flash')
+  localStorage.setItem('ai_video_model', aiVideoModel.value.trim() || 'cogvideox-flash')
   toastSuccess('AI 设置已保存')
+}
+
+// 从智谱 API 拉取可用模型列表，并与内置清单合并
+async function fetchAiModels() {
+  const key = aiApiKey.value.trim()
+  if (!key) {
+    toastError('请先填写 API Key')
+    return
+  }
+  loadingModels.value = true
+  try {
+    const resp = await fetch('https://open.bigmodel.cn/api/paas/v4/models', {
+      headers: { Authorization: `Bearer ${key}` }
+    })
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    const json = await resp.json()
+    const all = (json?.data || []).map(m => m.id).filter(Boolean)
+    // API 返回 + 内置清单合并去重
+    const merged = mergeBuiltin(all)
+    textModels.value = merged.text
+    imageModels.value = merged.image
+    videoModels.value = merged.video
+    // 只缓存 id 列表，结构由内置清单驱动
+    localStorage.setItem('ai_text_models', JSON.stringify(textModels.value.map(m => m.id)))
+    localStorage.setItem('ai_image_models', JSON.stringify(imageModels.value.map(m => m.id)))
+    localStorage.setItem('ai_video_models', JSON.stringify(videoModels.value.map(m => m.id)))
+    toastSuccess(`已获取 ${all.length} 个，合并后共 ${textModels.value.length + imageModels.value.length + videoModels.value.length} 个模型`)
+  } catch (e) {
+    toastError('获取模型列表失败：' + e.message)
+  } finally {
+    loadingModels.value = false
+  }
 }
 
 // ============ 设置搜索 ============
@@ -613,6 +895,8 @@ function handleDocClick(e) {
 }
 onMounted(() => { document.addEventListener('click', handleDocClick) })
 onUnmounted(() => { document.removeEventListener('click', handleDocClick) })
+onMounted(() => { document.addEventListener('mousedown', handleDropdownOutsideClick) })
+onUnmounted(() => { document.removeEventListener('mousedown', handleDropdownOutsideClick) })
 const pendingImportData = ref(null)
 
 const lastSyncTimeStr = computed(() => {
@@ -1428,7 +1712,7 @@ function resetAllShortcuts() {
   background: var(--bg-secondary);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
-  overflow: hidden;
+  /* 不设 overflow: hidden，否则 AI 模型下拉面板会被裁剪 */
   width: 100%;
 }
 
@@ -1467,6 +1751,143 @@ function resetAllShortcuts() {
 
 .ai-key-input::placeholder {
   color: var(--text-tertiary);
+}
+
+.ai-model-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* AI 模型下拉框 */
+.ai-combobox {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.ai-combobox-input {
+  padding-right: 30px;
+  width: 240px;
+}
+
+.ai-combobox-arrow {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  pointer-events: auto;
+}
+
+.ai-combobox-arrow:hover {
+  color: var(--primary-color);
+}
+
+.ai-combobox-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  min-width: 240px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px -6px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.06);
+  z-index: 100;
+  padding: 4px;
+}
+
+.ai-combobox-option {
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-primary);
+  transition: background 0.12s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ai-combobox-option:hover {
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+}
+
+.ai-combobox-option.active {
+  background: color-mix(in srgb, var(--primary-color) 18%, transparent);
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.ai-model-id {
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.ai-model-tag {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  line-height: 1.5;
+}
+
+.ai-model-tag.is-free {
+  background: rgba(34, 197, 94, 0.16);
+  color: #16a34a;
+}
+
+.ai-model-tag.is-paid {
+  background: rgba(245, 158, 11, 0.16);
+  color: #d97706;
+}
+
+.ai-model-desc {
+  flex-basis: 100%;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-weight: normal;
+}
+
+.ai-combobox-empty {
+  padding: 10px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+.btn-fetch-models {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.btn-fetch-models:hover:not(:disabled) {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.btn-fetch-models:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .setting-info {

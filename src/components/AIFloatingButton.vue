@@ -40,6 +40,9 @@
             <button class="ai-chat-mode-btn" :class="{ active: panelMode === 'chat' && activeConvo?.mode === 'image', disabled: loading }" :disabled="loading" @click="!loading && switchPanel('image')" title="生成图片">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
             </button>
+            <button class="ai-chat-mode-btn" :class="{ active: panelMode === 'chat' && activeConvo?.mode === 'video', disabled: loading }" :disabled="loading" @click="!loading && switchPanel('video')" title="生成视频">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+            </button>
             <button class="ai-chat-mode-btn" :class="{ active: panelMode === 'calc' }" @click="switchPanel('calc')" title="计算器">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="11" x2="8" y2="11"/><line x1="12" y1="11" x2="12" y2="11"/><line x1="16" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="8" y2="15"/><line x1="12" y1="15" x2="12" y2="15"/><line x1="16" y1="15" x2="16" y2="18"/><line x1="8" y1="18" x2="12" y2="18"/></svg>
             </button>
@@ -122,10 +125,10 @@
                 <ellipse cx="16" cy="28" rx="7" ry="5" fill="currentColor" opacity="0.08"/>
               </svg>
             </div>
-            <p class="ai-welcome-title">{{ activeConvo?.mode === 'image' ? 'AI 图片生成' : '有什么可以帮你的？' }}</p>
-            <p class="ai-welcome-sub">{{ activeConvo?.mode === 'image' ? '描述你想要的图片，AI 帮你创作' : '输入问题，或试试下面的快捷操作' }}</p>
+            <p class="ai-welcome-title">{{ activeConvo?.mode === 'image' ? 'AI 图片生成' : activeConvo?.mode === 'video' ? 'AI 视频生成' : '有什么可以帮你的？' }}</p>
+            <p class="ai-welcome-sub">{{ activeConvo?.mode === 'image' ? '描述你想要的图片，AI 帮你创作' : activeConvo?.mode === 'video' ? '描述想要的视频画面，AI 帮你生成（耗时较长）' : '输入问题，或试试下面的快捷操作' }}</p>
             <div class="ai-chat-suggestions">
-              <button v-for="s in (activeConvo?.mode === 'image' ? imageSuggestions : chatSuggestions)" :key="s" @click="quickAsk(s)">
+              <button v-for="s in (activeConvo?.mode === 'image' ? imageSuggestions : activeConvo?.mode === 'video' ? videoSuggestions : chatSuggestions)" :key="s" @click="quickAsk(s)">
                 <span class="ai-suggestion-dot"></span>{{ s }}
               </button>
             </div>
@@ -152,11 +155,37 @@
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                     <span>复制</span>
                   </button>
+                  <button class="ai-msg-retry-btn" @click="regenerateMessage(msg)" :disabled="loading" title="重新生成">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                    <span>重试</span>
+                  </button>
+                </div>
+              </div>
+              <div v-else-if="msg.video" class="ai-msg-image-wrap">
+                <video :src="msg.video" class="ai-msg-image" controls @click="previewVideo(msg.video)"></video>
+                <div class="ai-msg-image-overlay"><span>{{ msg.prompt }}</span></div>
+                <div class="ai-msg-actions">
+                  <button @click="saveVideoToMedia(msg)" :class="{ saved: msg.saved, error: msg.saveError }" :disabled="msg.saving">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    <span>{{ msg.saving ? '保存中…' : msg.saveError ? msg.saveError : msg.saved ? '已保存' : '存素材库' }}</span>
+                  </button>
+                  <button @click="copyVideo(msg)">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    <span>复制</span>
+                  </button>
+                  <button class="ai-msg-retry-btn" @click="regenerateMessage(msg)" :disabled="loading" title="重新生成">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                    <span>重试</span>
+                  </button>
                 </div>
               </div>
               <div v-else-if="msg.role === 'assistant'" class="ai-msg-bubble ai-msg-bubble-ai" :class="{ 'ai-msg-error': msg.isError }">
                 <span v-html="renderMarkdown(msg.content)"></span>
                 <button v-if="msg.isError" class="ai-msg-retry" @click="retrySend(msg)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                  重试
+                </button>
+                <button v-else class="ai-msg-retry ai-msg-retry-inline" @click="regenerateMessage(msg)" :disabled="loading" title="基于最新上下文重新生成">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                   重试
                 </button>
@@ -177,7 +206,13 @@
               </svg>
             </div>
             <div class="ai-msg-content">
-              <div class="ai-msg-bubble ai-msg-bubble-ai"><div class="ai-typing"><span></span><span></span><span></span></div></div>
+              <div class="ai-msg-bubble ai-msg-bubble-ai">
+                <div class="ai-typing"><span></span><span></span><span></span></div>
+                <button class="ai-msg-stop" @click="stopGeneration" title="停止生成">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                  停止
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -190,18 +225,21 @@
             ref="inputRef"
             v-model="inputText"
             class="ai-chat-input"
-            :placeholder="activeConvo?.mode === 'image' ? '描述图片… 如：白鹅在湖面游泳，水彩风格' : '发送消息…  (Shift+Enter 换行)'"
+            :placeholder="activeConvo?.mode === 'image' ? '描述图片… 如：白鹅在湖面游泳，水彩风格' : activeConvo?.mode === 'video' ? '描述视频画面… 如：白鹅在湖面游动' : '发送消息…  (Shift+Enter 换行)'"
             rows="1"
             @keydown.enter.exact.prevent="send"
             @input="autoGrow"
           ></textarea>
-          <button class="ai-chat-send" :disabled="!inputText.trim() || loading" @click="send">
+          <button v-if="loading" class="ai-chat-send ai-chat-stop" @click="stopGeneration" title="停止生成">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+          </button>
+          <button v-else class="ai-chat-send" :disabled="!inputText.trim()" @click="send">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
           </button>
         </div>
         <div class="ai-chat-hint">
           <span class="ai-hint-dot" :class="activeConvo?.mode"></span>
-          {{ activeConvo?.mode === 'image' ? '图片生成模式' : '智能对话模式' }}
+          {{ activeConvo?.mode === 'image' ? '图片生成模式' : activeConvo?.mode === 'video' ? '视频生成模式（耗时较长，请耐心等待）' : '智能对话模式' }}
         </div>
       </div>
 
@@ -211,6 +249,22 @@
       </div>
     </div>
   </transition>
+
+  <!-- 图片放大预览遮罩 -->
+  <Teleport to="body">
+    <div v-if="previewImageUrl" class="ai-preview-overlay" @click="previewImageUrl = ''">
+      <img :src="previewImageUrl" class="ai-preview-img" @click.stop />
+      <button class="ai-preview-close" @click="previewImageUrl = ''" title="关闭">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div v-if="previewVideoUrl" class="ai-preview-overlay" @click="previewVideoUrl = ''">
+      <video :src="previewVideoUrl" class="ai-preview-img" controls autoplay @click.stop></video>
+      <button class="ai-preview-close" @click="previewVideoUrl = ''" title="关闭">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+  </Teleport>
 </template>
 
 <script setup>
@@ -318,6 +372,7 @@ function switchPanel(target) {
 
 const chatSuggestions = ['帮我润色一段文字', '总结我的笔记要点', '给我一些写作灵感']
 const imageSuggestions = ['白鹅在湖面游泳，水彩画风格', '简约森林背景图，绿色调', '抽象几何图案，蓝白配色']
+const videoSuggestions = ['一只白鹅在湖面游动，阳光明媚', '雨滴落在湖面，慢镜头', '云朵在天空中飘动，延时摄影']
 
 // ===== 多对话管理 =====
 const conversations = ref(loadConversations())
@@ -485,14 +540,64 @@ function quickAsk(text) {
 }
 
 function retrySend(msg) {
-  // 从对话中删除错误消息
+  // 错误消息重试：删除错误消息，用原始 prompt 重新生成
+  regenerateMessage(msg)
+}
+
+// 停止当前生成
+function stopGeneration() {
+  if (currentAbortController) {
+    currentAbortController.abort()
+    currentAbortController = null
+  }
+  loading.value = false
+}
+
+// 重试/重新生成：删除指定的 assistant 消息，基于最新上下文重新生成
+async function regenerateMessage(msg) {
   const convo = activeConvo.value
-  if (!convo) return
+  if (!convo || loading.value) return
   const idx = convo.messages.indexOf(msg)
   if (idx !== -1) convo.messages.splice(idx, 1)
-  // 用原始 prompt 重试
-  inputText.value = msg.retryPrompt
-  send()
+  await runGeneration(convo)
+}
+
+// 核心生成逻辑：基于当前 convo.messages（末尾应为 user 消息）调用 AI
+async function runGeneration(convo) {
+  // 取最后一条 user 消息作为 prompt
+  let prompt = ''
+  for (let i = convo.messages.length - 1; i >= 0; i--) {
+    if (convo.messages[i].role === 'user') { prompt = convo.messages[i].content; break }
+  }
+  if (!prompt) return
+
+  loading.value = true
+  if (currentAbortController) currentAbortController.abort()
+  currentAbortController = new AbortController()
+  scrollToBottom()
+
+  try {
+    if (convo.mode === 'image') {
+      const imageUrl = await callImageGen(prompt, currentAbortController.signal)
+      convo.messages.push({ role: 'assistant', content: '已生成图片', image: imageUrl, prompt })
+    } else if (convo.mode === 'video') {
+      const videoUrl = await callVideoGen(prompt, currentAbortController.signal)
+      convo.messages.push({ role: 'assistant', content: '已生成视频', video: videoUrl, prompt })
+    } else {
+      const reply = await callAI(prompt, convo.messages, currentAbortController.signal)
+      convo.messages.push({ role: 'assistant', content: reply })
+    }
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      // 被新请求中止，不显示错误
+    } else {
+      convo.messages.push({ role: 'assistant', content: `请求失败：${err.message}\n\n请检查 API Key 配置（设置 → AI 设置），或稍后重试。`, isError: true, retryPrompt: prompt, retryMode: convo.mode })
+    }
+  } finally {
+    loading.value = false
+    currentAbortController = null
+    scrollToBottom()
+  }
 }
 
 async function send() {
@@ -509,33 +614,8 @@ async function send() {
   convo.messages.push({ role: 'user', content: text })
   inputText.value = ''
   if (inputRef.value) inputRef.value.style.height = 'auto'
-  loading.value = true
 
-  // 中止之前未完成的请求
-  if (currentAbortController) currentAbortController.abort()
-  currentAbortController = new AbortController()
-
-  scrollToBottom()
-
-  try {
-    if (convo.mode === 'image') {
-      const imageUrl = await callImageGen(text, currentAbortController.signal)
-      convo.messages.push({ role: 'assistant', content: '已生成图片', image: imageUrl, prompt: text })
-    } else {
-      const reply = await callAI(text, convo.messages, currentAbortController.signal)
-      convo.messages.push({ role: 'assistant', content: reply })
-    }
-  } catch (err) {
-    if (err.name === 'AbortError') {
-      // 被新请求中止，不显示错误
-    } else {
-      convo.messages.push({ role: 'assistant', content: `请求失败：${err.message}\n\n请检查 API Key 配置（设置 → AI 设置），或稍后重试。`, isError: true, retryPrompt: text, retryMode: convo.mode })
-    }
-  } finally {
-    loading.value = false
-    currentAbortController = null
-    scrollToBottom()
-  }
+  await runGeneration(convo)
 }
 
 async function fetchWithRetry(url, options, signal, maxRetries = 3) {
@@ -554,8 +634,11 @@ async function callAI(prompt, history, signal) {
   const apiKey = localStorage.getItem('ai_api_key') || ''
   const baseUrl = localStorage.getItem('ai_base_url') || 'https://open.bigmodel.cn/api/paas/v4'
   const model = localStorage.getItem('ai_model') || 'glm-4-flash'
-  const msgs = history.filter(m => m.content && !m.image).map(m => ({ role: m.role, content: m.content }))
-  msgs.push({ role: 'user', content: prompt })
+  // history 已包含当前 user prompt（重试场景），避免重复 push
+  const msgs = history.filter(m => m.content && !m.image && !m.video && !m.isError).map(m => ({ role: m.role, content: m.content }))
+  if (msgs.length === 0 || msgs[msgs.length - 1].role !== 'user') {
+    msgs.push({ role: 'user', content: prompt })
+  }
 
   const response = await fetchWithRetry(`${baseUrl}/chat/completions`, {
     method: 'POST',
@@ -579,6 +662,41 @@ async function callImageGen(prompt, signal) {
   const url = data.data?.[0]?.url
   if (!url) throw new Error('未返回图片')
   return url
+}
+
+// CogVideoX 为异步任务：提交 → 轮询查询结果
+async function callVideoGen(prompt, signal) {
+  const apiKey = localStorage.getItem('ai_api_key') || ''
+  const baseUrl = localStorage.getItem('ai_base_url') || 'https://open.bigmodel.cn/api/paas/v4'
+  const model = localStorage.getItem('ai_video_model') || 'cogvideox-flash'
+  // 1. 提交生成任务
+  const resp = await fetchWithRetry(`${baseUrl}/videos/generations`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, prompt })
+  }, signal)
+  const data = await resp.json()
+  const taskId = data.id || data.task?.id
+  if (!taskId) throw new Error(data?.msg || '视频任务创建失败')
+  // 2. 轮询查询结果（最多等约 5 分钟）
+  for (let i = 0; i < 60; i++) {
+    await new Promise(r => setTimeout(r, 5000))
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+    const r2 = await fetch(`${baseUrl}/async-result/${taskId}`, {
+      headers: { 'Authorization': `Bearer ${apiKey}` },
+      signal
+    })
+    const d2 = await r2.json()
+    const status = d2.task_status
+    if (status === 'SUCCESS') {
+      const url = d2.video_result?.[0]?.url || d2.results?.[0]?.url || d2.video_result?.[0]?.cover_image_url
+      if (url) return url
+      throw new Error('视频生成成功但未返回地址')
+    }
+    if (status === 'FAIL') throw new Error(d2?.fail || '视频生成失败')
+    // PROCESSING 继续轮询
+  }
+  throw new Error('视频生成超时，请稍后重试')
 }
 
 async function downloadAsDataUrl(url) {
@@ -633,18 +751,68 @@ function dataUrlToBlob(dataUrl) {
 }
 
 async function copyImage(msg) {
+  const { success, error } = useToast()
   try {
     const dataUrl = msg.image.startsWith('http') ? await downloadAsDataUrl(msg.image) : msg.image
     const blob = dataUrlToBlob(dataUrl)
     await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })])
-  } catch {
-    try { navigator.clipboard.writeText(msg.image) } catch { /* ignore */ }
+    success('图片已复制到剪贴板')
+  } catch (e) {
+    try {
+      await navigator.clipboard.writeText(msg.image)
+      success('图片链接已复制')
+    } catch {
+      error('复制失败')
+    }
   }
 }
 
-function previewImage(url) { window.open(url, '_blank') }
+// 保存 AI 生成的视频到素材库
+async function saveVideoToMedia(msg) {
+  if (msg.saved) return
+  msg.saving = true
+  try {
+    const dataUrl = msg.video.startsWith('http') ? await downloadAsDataUrl(msg.video) : msg.video
+    const ts = new Date()
+    const pad = (n) => String(n).padStart(2, '0')
+    const name = `AI视频_${ts.getFullYear()}${pad(ts.getMonth()+1)}${pad(ts.getDate())}_${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}`
+    msg.savedRef = await saveImage(dataUrl, name)
+    msg.saved = true
+    const { success } = useToast()
+    success('视频已保存到素材库')
+    window.dispatchEvent(new CustomEvent('media-library-changed'))
+  } catch (err) {
+    console.error('视频保存失败:', err)
+    msg.saveError = err.message || '保存失败'
+    setTimeout(() => { msg.saveError = null }, 5000)
+  } finally {
+    msg.saving = false
+  }
+}
+
+// 复制视频（Electron 环境剪贴板无法写视频文件，退化为复制链接）
+async function copyVideo(msg) {
+  const { success, error } = useToast()
+  try {
+    await navigator.clipboard.writeText(msg.video)
+    success('视频地址已复制')
+  } catch {
+    error('复制失败')
+  }
+}
+
+const previewImageUrl = ref('')
+const previewVideoUrl = ref('')
+function previewImage(url) { previewImageUrl.value = url }
+function previewVideo(url) { previewVideoUrl.value = url }
 function scrollToBottom() { nextTick(() => { if (messagesRef.value) messagesRef.value.scrollTop = messagesRef.value.scrollHeight }) }
-function copyText(text) { navigator.clipboard.writeText(text) }
+function copyText(text) {
+  const { success, error } = useToast()
+  navigator.clipboard.writeText(text).then(
+    () => success('已复制到剪贴板'),
+    () => error('复制失败')
+  )
+}
 
 function renderMarkdown(text) {
   if (!text) return ''
@@ -662,6 +830,54 @@ function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').r
 </script>
 
 <style scoped>
+/* 图片放大预览遮罩 */
+.ai-preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: zoom-out;
+  animation: ai-fade-in 0.2s ease;
+}
+
+.ai-preview-img {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  cursor: default;
+}
+
+.ai-preview-close {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  background: rgba(255,255,255,0.1);
+  border: none;
+  color: #fff;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.ai-preview-close:hover {
+  background: rgba(255,255,255,0.2);
+}
+
+@keyframes ai-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 /* ===== 设计令牌 =====
    极简方向：留白、发丝分隔、单色 + 一点强调色，无渐变 / 无光晕 / 无装饰动效 */
 .ai-float,
@@ -785,6 +1001,7 @@ function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').r
 .ai-conv-tab.active::before { content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 2px; height: 60%; border-radius: 2px; background: var(--primary-color); }
 .ai-conv-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--primary-color); flex-shrink: 0; }
 .ai-conv-dot.image { background: #d97706; }
+.ai-conv-dot.video { background: #8b5cf6; }
 .ai-conv-label { font-size: 10px; color: var(--text-tertiary); text-align: center; line-height: 1.25; word-break: break-all; max-width: 56px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .ai-conv-tab.active .ai-conv-label { color: var(--primary-color); font-weight: 600; }
 .ai-conv-del { position: absolute; top: 2px; right: 2px; width: 14px; height: 14px; border: none; border-radius: 50%; background: rgba(0,0,0,.06); color: var(--text-tertiary); cursor: pointer; display: none; align-items: center; justify-content: center; padding: 0; }
@@ -820,6 +1037,20 @@ function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').r
 .ai-msg-retry { display: inline-flex; align-items: center; gap: 5px; margin-top: 8px; padding: 5px 12px; border: 1px solid var(--primary-color); border-radius: 7px; background: transparent; color: var(--primary-color); font-size: 11.5px; font-weight: 600; cursor: pointer; transition: background .15s, color .15s; }
 .ai-msg-retry:hover { background: var(--primary-color); color: #fff; }
 .ai-msg-retry:active { transform: scale(.97); }
+.ai-msg-retry:disabled { opacity: .5; cursor: wait; }
+/* 加载气泡内的停止按钮 */
+.ai-msg-stop { display: inline-flex; align-items: center; gap: 4px; margin-top: 8px; padding: 3px 10px; border: 1px solid #ef4444; border-radius: 6px; background: transparent; color: #ef4444; font-size: 11px; font-weight: 600; cursor: pointer; transition: background .15s, color .15s; }
+.ai-msg-stop:hover { background: #ef4444; color: #fff; }
+.ai-msg-stop:active { transform: scale(.97); }
+/* 输入区的停止按钮（红色） */
+.ai-chat-send.ai-chat-stop { background: #ef4444; color: #fff; }
+.ai-chat-send.ai-chat-stop:hover { background: #dc2626; }
+/* 文本气泡内的内联重试按钮 */
+.ai-msg-retry-inline { margin-top: 6px; padding: 3px 10px; font-size: 11px; font-weight: 500; opacity: .75; }
+.ai-msg-retry-inline:not(:disabled):hover { opacity: 1; }
+/* 图片/视频操作栏内的重试按钮 */
+.ai-msg-actions .ai-msg-retry-btn { border-color: #8b5cf6; color: #8b5cf6; }
+.ai-msg-actions .ai-msg-retry-btn:hover { background: color-mix(in srgb, #8b5cf6 8%, transparent); }
 .ai-msg-bubble-user { background: var(--primary-color); color: #fff; border-bottom-right-radius: 4px; }
 .ai-msg-copy { flex-shrink: 0; width: 22px; height: 22px; border: none; border-radius: 5px; background: transparent; color: var(--text-tertiary, #bbb); cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .15s, background .15s, color .15s; margin-top: 4px; }
 .ai-msg.assistant:hover .ai-msg-copy { opacity: 1; }
@@ -878,6 +1109,7 @@ function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').r
 .ai-chat-hint { display: flex; align-items: center; gap: 6px; margin-top: 7px; font-size: 10.5px; color: var(--text-tertiary); padding-left: 2px; }
 .ai-hint-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--primary-color); }
 .ai-hint-dot.image { background: #d97706; }
+.ai-hint-dot.video { background: #8b5cf6; }
 
 /* ===== 过渡 ===== */
 .ai-chat-enter-active, .ai-chat-leave-active { transition: opacity .18s ease, transform .2s ease; }

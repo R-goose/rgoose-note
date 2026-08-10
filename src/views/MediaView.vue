@@ -135,11 +135,13 @@
           </div>
 
           <!-- 素材网格 -->
-          <div v-if="filteredItems.length > 0" class="media-grid">
+          <div v-if="filteredItems.length > 0" ref="gridRef" class="media-grid" :style="{ height: gridHeight + 'px' }">
             <div
               v-for="item in filteredItems"
               :key="item.id"
               class="media-card"
+              :data-id="item.id"
+              :style="cardPositions[item.id] || { visibility: 'hidden' }"
               @click.stop="onCardClick($event, item)"
               @contextmenu.prevent="showContextMenu($event, item)"
             >
@@ -543,6 +545,66 @@ const activeFilter = ref('all')
 const searchText = ref('')
 const previewItem_data = ref(null)
 
+// ===== 瀑布流布局 =====
+const gridRef = ref(null)
+const cardPositions = ref({}) // id -> { position, left, top, width, visibility }
+const gridHeight = ref(0)
+const GRID_GAP = 16
+const GRID_MIN_CARD = 180
+let resizeObserver = null
+
+function layoutMasonry() {
+  const grid = gridRef.value
+  if (!grid) return
+  const gridWidth = grid.clientWidth - 48 // 减去左右 padding (24*2)
+  if (gridWidth <= 0) return
+
+  const cards = Array.from(grid.querySelectorAll('.media-card'))
+  if (!cards.length) {
+    gridHeight.value = 0
+    cardPositions.value = {}
+    return
+  }
+
+  // 计算列数与每列宽度
+  const colCount = Math.max(1, Math.floor((gridWidth + GRID_GAP) / (GRID_MIN_CARD + GRID_GAP)))
+  const cardWidth = (gridWidth - (colCount - 1) * GRID_GAP) / colCount
+
+  // 测量每张卡片在指定宽度下的自然高度
+  const heights = cards.map(card => {
+    card.style.position = 'static'
+    card.style.width = cardWidth + 'px'
+    card.style.visibility = 'hidden'
+    const h = card.offsetHeight
+    card.style.position = 'absolute'
+    return h
+  })
+
+  const colHeights = new Array(colCount).fill(0)
+  const positions = {}
+  cards.forEach((card, i) => {
+    const id = card.dataset.id
+    // 找当前最矮列
+    let minCol = 0
+    for (let j = 1; j < colCount; j++) {
+      if (colHeights[j] < colHeights[minCol]) minCol = j
+    }
+    const left = minCol * (cardWidth + GRID_GAP)
+    const top = colHeights[minCol]
+    positions[id] = {
+      position: 'absolute',
+      left: left + 'px',
+      top: top + 'px',
+      width: cardWidth + 'px',
+      visibility: 'visible'
+    }
+    colHeights[minCol] += heights[i] + GRID_GAP
+  })
+
+  cardPositions.value = positions
+  gridHeight.value = Math.max(...colHeights) - GRID_GAP
+}
+
 const tagStore = useTagStore()
 tagStore.init()
 const activeTagFilter = ref(null)
@@ -782,12 +844,20 @@ async function collectMedia() {
   let metaMap = {}
   try {
     const [allRefs, allMeta] = await Promise.all([getAllImageRefs(), getAllImageMeta()])
-    for (const m of allMeta) metaMap[m.id] = { displayName: m.displayName, tags: m.tags }
+    for (const m of allMeta) metaMap[m.id] = { displayName: m.displayName, tags: m.tags, mimeType: m.mimeType }
     // 独立素材也加入 refMap
     for (const ref of allRefs) {
       if (!refMap.has(ref)) {
+        // 用后端记录的 mimeType 精确判断类型，避免 mp4 被识别成音频
+        const mt = (metaMap[ref]?.mimeType || '').toLowerCase()
+        let type = 'image'
+        if (mt.startsWith('video/')) type = 'video'
+        else if (mt.startsWith('audio/')) type = 'audio'
+        else if (isImageRef(ref)) type = 'image'
+        else if (/\.mp4$|\.webm$/i.test(ref)) type = 'video'
+        else if (/\.mp3$|\.wav$/i.test(ref)) type = 'audio'
         refMap.set(ref, {
-          type: ref.startsWith('media_') ? 'audio' : 'image',
+          type,
           blockType: 'standalone',
           name: ref,
           notes: []
@@ -1282,6 +1352,30 @@ async function importMedia(e) {
   const targetFolderId = importTargetFolderId
   toastInfo(`正在导入 ${files.length} 个素材...`)
 
+  // 收集已有素材名称（小写），用于重名检测
+  const existingNames = new Set(
+    allItems.value.map(i => (i.displayName || i.name || '').toLowerCase()).filter(Boolean)
+  )
+  // 本次导入已用名称（避免一次导入多个同名文件时也累加）
+  const usedNames = new Set()
+
+  function makeUniqueName(base) {
+    if (!existingNames.has(base.toLowerCase()) && !usedNames.has(base.toLowerCase())) {
+      existingNames.add(base.toLowerCase())
+      usedNames.add(base.toLowerCase())
+      return base
+    }
+    let n = 1
+    let candidate = `${base}(${n})`
+    while (existingNames.has(candidate.toLowerCase()) || usedNames.has(candidate.toLowerCase())) {
+      n++
+      candidate = `${base}(${n})`
+    }
+    existingNames.add(candidate.toLowerCase())
+    usedNames.add(candidate.toLowerCase())
+    return candidate
+  }
+
   let successCount = 0
   for (const file of files) {
     try {
@@ -1289,8 +1383,9 @@ async function importMedia(e) {
       const ref = await imagesApi.upload(file)
       console.log('[import] 上传返回 ref:', ref)
       if (ref) {
-        // 用原始文件名（去扩展名）作为 displayName
-        const displayName = file.name.replace(/\.[^.]+$/, '')
+        // 用原始文件名（去扩展名）作为基础名称，重名时自动改为 名称(x)
+        const baseName = file.name.replace(/\.[^.]+$/, '')
+        const displayName = makeUniqueName(baseName)
         await imagesApi.rename(ref, displayName)
         // 将素材分配到选定的文件夹
         if (targetFolderId !== undefined) {
@@ -1315,12 +1410,50 @@ onMounted(() => {
   collectMedia()
   document.addEventListener('click', hideAllMenus)
   window.addEventListener('media-library-changed', onMediaLibraryChanged)
+  // 瀑布流：监听容器宽度变化（忽略自身高度变化，避免 JS 设高度时反复触发）
+  nextTick(() => {
+    if (gridRef.value) {
+      let lastWidth = gridRef.value.clientWidth
+      resizeObserver = new ResizeObserver(entries => {
+        for (const e of entries) {
+          if (Math.abs(e.contentRect.width - lastWidth) > 0.5) {
+            lastWidth = e.contentRect.width
+            layoutMasonry()
+          }
+        }
+      })
+      resizeObserver.observe(gridRef.value)
+    }
+    // 兜底：窗口缩放
+    window.addEventListener('resize', scheduleLayout)
+  })
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', hideAllMenus)
   window.removeEventListener('media-library-changed', onMediaLibraryChanged)
+  resizeObserver?.disconnect()
+  resizeObserver = null
+  window.removeEventListener('resize', scheduleLayout)
 })
+
+// 节流布局，避免频繁触发
+let layoutTimer = null
+function scheduleLayout() {
+  if (layoutTimer) return
+  layoutTimer = setTimeout(() => {
+    layoutTimer = null
+    layoutMasonry()
+  }, 100)
+}
+
+// 数据或筛选变化后重新布局
+watch(
+  () => [filteredItems.value, loading.value],
+  () => {
+    if (!loading.value) nextTick(layoutMasonry)
+  }
+)
 </script>
 
 <style scoped>
@@ -1636,6 +1769,11 @@ onUnmounted(() => {
   overflow-y: auto;
   padding: 24px 28px;
   position: relative;
+  scrollbar-width: none; /* Firefox 隐藏滚动条 */
+  -ms-overflow-style: none; /* IE/Edge 隐藏滚动条 */
+}
+.media-content::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/Electron 隐藏滚动条 */
 }
 
 .media-content-inner {
@@ -1770,13 +1908,9 @@ onUnmounted(() => {
 }
 
 .media-grid {
-  flex: 1;
-  overflow-y: auto;
   padding: 20px 24px;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 16px;
-  align-content: start;
+  position: relative;
+  /* 瀑布流由 JS 计算每个卡片位置，容器高度也由 JS 设置；滚动交给外层 .media-content */
 }
 .media-grid > .media-card:nth-child(1) { animation-delay: 0.02s; }
 .media-grid > .media-card:nth-child(2) { animation-delay: 0.05s; }
