@@ -3664,6 +3664,15 @@ function restoreImagesFromDataUrl(target) {
   })
 }
 
+function getBlockDomHeight(block) {
+  const inst = blockRefs[block.id]
+  const el = inst?.$el || inst?.blockRef?.value || inst
+  if (el && el.offsetHeight) {
+    return el.offsetHeight
+  }
+  return getBlockRenderHeight(block)
+}
+
 async function captureCanvasSnapshot() {
   const target = canvasRef.value
   if (!target) return null
@@ -3679,39 +3688,36 @@ async function captureCanvasSnapshot() {
     height: target.style.height,
     minWidth: target.style.minWidth,
     minHeight: target.style.minHeight,
-    flexBasis: target.style.flexBasis,
-    bgDisplay: null
-  }
-
-  const bgEl = target.querySelector('.canvas-bg')
-  if (bgEl) {
-    original.bgDisplay = bgEl.style.display
+    flexBasis: target.style.flexBasis
   }
 
   try {
     selectedBlockIds.value = []
     selectedConnectionId.value = null
 
+    canvasConfig.value.zoom = 1
+
     let contentWidth = 1200
     let contentHeight = 800
     if (blocks.value.length > 0) {
+      await nextTick()
+      const padding = 80
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
       blocks.value.forEach(b => {
         const w = b.width || 240
-        const h = getBlockRenderHeight(b)
+        const h = getBlockDomHeight(b)
         minX = Math.min(minX, b.x)
         minY = Math.min(minY, b.y)
         maxX = Math.max(maxX, b.x + w)
         maxY = Math.max(maxY, b.y + h)
       })
-      const padding = 80
       contentWidth = Math.max(400, (maxX - minX) + padding * 2)
       contentHeight = Math.max(300, (maxY - minY) + padding * 2)
-      canvasConfig.value.zoom = 1
       canvasConfig.value.offsetX = -minX + padding
       canvasConfig.value.offsetY = -minY + padding
     } else {
-      canvasConfig.value.zoom = 1
+      canvasConfig.value.offsetX = 0
+      canvasConfig.value.offsetY = 0
     }
 
     target.style.overflow = 'visible'
@@ -3720,10 +3726,9 @@ async function captureCanvasSnapshot() {
     target.style.minWidth = '0'
     target.style.minHeight = '0'
     target.style.flexBasis = 'auto'
-    if (bgEl) bgEl.style.display = 'none'
 
     await nextTick()
-    await new Promise(r => setTimeout(r, 250))
+    await new Promise(r => setTimeout(r, 300))
 
     await convertImagesToDataUrl(target)
     await new Promise(r => setTimeout(r, 150))
@@ -3748,7 +3753,6 @@ async function captureCanvasSnapshot() {
           el.classList.contains('block-actions') ||
           el.classList.contains('block-drag-handle') ||
           el.classList.contains('block-group-badge') ||
-          el.classList.contains('canvas-bg') ||
           el.classList.contains('marquee-rect')
       }
     })
@@ -3767,7 +3771,6 @@ async function captureCanvasSnapshot() {
     target.style.minWidth = original.minWidth
     target.style.minHeight = original.minHeight
     target.style.flexBasis = original.flexBasis
-    if (bgEl && original.bgDisplay !== null) bgEl.style.display = original.bgDisplay
   }
 }
 
