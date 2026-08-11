@@ -3892,22 +3892,22 @@ async function restoreCanvasAfterExport(ctx) {
   await nextTick()
 }
 
-// 稳定使用 2x 清晰度（窗口会临时扩大，不再受可视区限制）
-function computeExportScale(_contentWidth, _contentHeight) {
-  return 2
+// 清晰度由系统 DPR 提供，capturePage 返回的图像自带 DPR 倍数的物理像素
+// 这里仅返回 1（不再额外放大），避免 zoomFactor 副作用导致内容缺失
+function computeExportScale() {
+  return 1
 }
 
-async function captureViaElectron(target, contentWidth, contentHeight) {
-  // 在 zoom=1 时读取 rect（DIP 坐标），主进程按 rect × scale 截图
+async function captureViaElectron(target) {
+  // 读取画布在窗口中的位置（DIP），主进程按此 rect 截图
   const rect = target.getBoundingClientRect()
-  const scale = computeExportScale(contentWidth, contentHeight)
   const captureRect = {
     x: Math.round(rect.left),
     y: Math.round(rect.top),
     width: Math.round(rect.width),
     height: Math.round(rect.height)
   }
-  const dataUrl = await window.electronAPI.capturePage({ rect: captureRect, scale })
+  const dataUrl = await window.electronAPI.capturePage({ rect: captureRect })
   if (!dataUrl) throw new Error('原生截图失败')
 
   const img = await new Promise((resolve, reject) => {
@@ -3964,10 +3964,13 @@ async function captureCanvasSnapshot() {
   if (!ctx) return null
   const target = canvasRef.value
   try {
+    let canvas
     if (window.electronAPI?.capturePage) {
-      return await captureViaElectron(target, ctx.contentWidth, ctx.contentHeight)
+      canvas = await captureViaElectron(target, ctx.contentWidth, ctx.contentHeight)
+    } else {
+      canvas = await captureViaHtml2Canvas(target, ctx.contentWidth, ctx.contentHeight)
     }
-    return await captureViaHtml2Canvas(target, ctx.contentWidth, ctx.contentHeight)
+    return { canvas, contentWidth: ctx.contentWidth, contentHeight: ctx.contentHeight }
   } finally {
     await restoreCanvasAfterExport(ctx)
   }
@@ -3983,23 +3986,25 @@ async function exportAsPDF() {
   const toastId = showToast('正在生成 PDF...', 'info', 0)
 
   try {
-    const canvas = await captureCanvasSnapshot()
-    if (!canvas) {
+    const result = await captureCanvasSnapshot()
+    if (!result || !result.canvas) {
       removeToast(toastId)
       showToast('导出失败：画布不可用', 'error')
       return
     }
+    const { canvas, contentWidth, contentHeight } = result
 
     const imgData = canvas.toDataURL('image/png')
-    const orientation = canvas.width >= canvas.height ? 'landscape' : 'portrait'
-
+    // PDF 页面尺寸用逻辑尺寸（contentWidth × contentHeight），
+    // 图片以高清物理像素绘制再缩放到页面尺寸，保证清晰度且 PDF 大小正常
+    const orientation = contentWidth >= contentHeight ? 'landscape' : 'portrait'
     const pdf = new jsPDF({
       orientation,
       unit: 'px',
-      format: [canvas.width, canvas.height],
+      format: [contentWidth, contentHeight],
       hotfixes: ['px_scaling']
     })
-    pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height)
+    pdf.addImage(imgData, 'PNG', 0, 0, contentWidth, contentHeight, undefined, 'FAST')
     pdf.save(`${note.value?.title || '笔记'}.pdf`)
 
     removeToast(toastId)
@@ -4021,12 +4026,13 @@ async function exportAsImage() {
   const toastId = showToast('正在生成图片...', 'info', 0)
 
   try {
-    const canvas = await captureCanvasSnapshot()
-    if (!canvas) {
+    const result = await captureCanvasSnapshot()
+    if (!result || !result.canvas) {
       removeToast(toastId)
       showToast('导出失败：画布不可用', 'error')
       return
     }
+    const { canvas } = result
 
     const link = document.createElement('a')
     link.download = `${note.value?.title || '笔记'}.png`
