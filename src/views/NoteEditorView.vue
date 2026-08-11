@@ -3767,9 +3767,6 @@ async function prepareCanvasForExport() {
   const target = canvasRef.value
   if (!target) return null
 
-  const blocksLayer = target.querySelector('.blocks-layer')
-  if (!blocksLayer) return null
-
   const original = {
     zoom: canvasConfig.value.zoom,
     offsetX: canvasConfig.value.offsetX,
@@ -3787,19 +3784,14 @@ async function prepareCanvasForExport() {
       flexGrow: target.style.flexGrow,
       flexShrink: target.style.flexShrink
     },
-    blocksLayerTransform: blocksLayer.style.transform,
     blockSizes: { ...blockSizes.value },
     overlaysHidden: [],
     parentStyle: null
   }
 
-  // 计算所有块的边界
-  canvasConfig.value.zoom = 1
-  await nextTick()
+  // 计算所有块的边界，确定导出画布的完整尺寸
   let contentWidth = 1200
   let contentHeight = 800
-  let boundsX = 0
-  let boundsY = 0
   if (blocks.value.length > 0) {
     const padding = 80
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
@@ -3813,20 +3805,19 @@ async function prepareCanvasForExport() {
     })
     contentWidth = Math.max(400, (maxX - minX) + padding * 2)
     contentHeight = Math.max(300, (maxY - minY) + padding * 2)
-    // blocks-layer 不再做 transform 平移，直接在容器原点绘制
-    // 但块本身用 absolute 定位，为了让最左上块出现在 padding 位置，
-    // 我们让 blocks-layer 整体偏移 (-minX+padding, -minY+padding)
-    boundsX = -minX + padding
-    boundsY = -minY + padding
+    // 通过响应式数据驱动 transform：canvasTransformStyle(computed) 会自动应用到
+    // blocks-layer 和 connections-layer(svg 连线)，让所有块平移到容器内的可见区域
+    // 最左上块(minX,minY) 出现在 padding 位置，确保超出视野的块也被完整渲染
+    canvasConfig.value.offsetX = -minX + padding
+    canvasConfig.value.offsetY = -minY + padding
+  } else {
+    canvasConfig.value.offsetX = 0
+    canvasConfig.value.offsetY = 0
   }
 
+  canvasConfig.value.zoom = 1
   selectedBlockIds.value = []
   selectedConnectionId.value = null
-
-  // 关键：把 blocks-layer 的 transform 重置为 translate(boundsX, boundsY) scale(1)
-  // 这样所有块都按 zoom=1 在容器内可见位置渲染，不存在"超出可视区被截"的问题
-  blocksLayer.style.transform = `translate(${boundsX}px, ${boundsY}px) scale(1)`
-  blocksLayer.style.transformOrigin = '0 0'
 
   // 撑大画布容器到完整内容尺寸
   // 必须设 flex:none 否则 CSS 的 flex:1 会压缩显式 height
@@ -3834,13 +3825,13 @@ async function prepareCanvasForExport() {
   target.style.flexGrow = '0'
   target.style.flexShrink = '0'
   target.style.flexBasis = 'auto'
-  target.style.overflow = 'visible'
+  target.style.overflow = 'hidden'
   target.style.width = contentWidth + 'px'
   target.style.height = contentHeight + 'px'
   target.style.minWidth = '0'
   target.style.minHeight = '0'
 
-  // 同时解除父级 .note-editor-view 的 overflow 约束（flex column 布局会裁剪溢出）
+  // 同时解除父级 .note-editor-view 的 overflow/flex 约束（否则会裁剪溢出的画布）
   const parent = target.parentElement
   if (parent) {
     original.parentStyle = {
@@ -3849,13 +3840,15 @@ async function prepareCanvasForExport() {
       overflowX: parent.style.overflowX,
       overflowY: parent.style.overflowY,
       height: parent.style.height,
-      maxHeight: parent.style.maxHeight
+      maxHeight: parent.style.maxHeight,
+      flex: parent.style.flex
     }
     parent.style.overflow = 'visible'
     parent.style.overflowX = 'visible'
     parent.style.overflowY = 'visible'
     parent.style.height = 'auto'
     parent.style.maxHeight = 'none'
+    parent.style.flex = 'none'
   }
 
   await nextTick()
@@ -3874,18 +3867,15 @@ async function prepareCanvasForExport() {
 
   original.overlaysHidden = hideOverlays(target)
 
-  return { original, contentWidth, contentHeight, blocksLayer }
+  return { original, contentWidth, contentHeight }
 }
 
 async function restoreCanvasAfterExport(ctx) {
   if (!ctx) return
-  const { original, blocksLayer } = ctx
+  const { original } = ctx
   restoreOverlays(original.overlaysHidden)
   restoreImagesFromDataUrl(canvasRef.value)
   cleanupListMarkers(canvasRef.value)
-  if (blocksLayer) {
-    blocksLayer.style.transform = original.blocksLayerTransform
-  }
   // 还原父级样式
   if (original.parentStyle) {
     const ps = original.parentStyle
@@ -3894,6 +3884,7 @@ async function restoreCanvasAfterExport(ctx) {
     ps.el.style.overflowY = ps.overflowY
     ps.el.style.height = ps.height
     ps.el.style.maxHeight = ps.maxHeight
+    ps.el.style.flex = ps.flex
   }
   const target = canvasRef.value
   if (target) {
