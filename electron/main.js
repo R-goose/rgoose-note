@@ -151,6 +151,66 @@ ipcMain.handle('window-is-maximized', () => {
   return mainWindow ? mainWindow.isMaximized() : false
 })
 
+// 截取窗口内指定 DIP 矩形，返回高清 PNG dataURL（用于笔记导出）
+// 渲染端已通过 canvasConfig 撑大画布容器，这里只需：
+// 1. 临时扩大窗口容纳整个画布
+// 2. setZoomFactor 提升清晰度
+// 3. capturePage 截取（原生渲染 SVG/伪元素/CSS变量，所见即所得）
+// 4. 恢复
+ipcMain.handle('capture-page', async (_event, payload) => {
+  if (!mainWindow) return null
+  const opts = payload || {}
+  const rect = opts.rect
+  const scale = opts.scale || 2
+  try {
+    const [origW, origH] = mainWindow.getContentSize()
+    const [origMaxW, origMaxH] = mainWindow.getMaximumSize()
+    const origZoom = mainWindow.webContents.getZoomFactor()
+
+    // 1. 先放大页面（zoomFactor 改变布局缩放，内容在窗口中放大 scale 倍）
+    mainWindow.webContents.setZoomFactor(scale)
+    await new Promise(r => setTimeout(r, 300))
+
+    // 2. 临时扩大窗口以容纳放大后的画布（rect 是 zoom=1 的 DIP，放大后 = rect × scale）
+    if (rect) {
+      const needW = Math.ceil(rect.width * scale + rect.x * scale + 16)
+      const needH = Math.ceil(rect.height * scale + rect.y * scale + 16)
+      if (needW > origW || needH > origH) {
+        mainWindow.setMaximumSize(16000, 16000)
+        mainWindow.setContentSize(needW, needH)
+        await new Promise(r => setTimeout(r, 400))
+      }
+    }
+
+    // 3. capturePage：放大后的画布在窗口坐标 = rect × scale
+    let image
+    if (rect) {
+      const dip = {
+        x: Math.round(rect.x * scale),
+        y: Math.round(rect.y * scale),
+        width: Math.round(rect.width * scale),
+        height: Math.round(rect.height * scale)
+      }
+      image = await mainWindow.webContents.capturePage(dip)
+    } else {
+      image = await mainWindow.webContents.capturePage()
+    }
+
+    // 4. 恢复
+    mainWindow.webContents.setZoomFactor(origZoom)
+    mainWindow.setContentSize(origW, origH)
+    mainWindow.setMaximumSize(origMaxW, origMaxH)
+
+    return image.toDataURL()
+  } catch (e) {
+    console.error('capture-page failed:', e)
+    try {
+      mainWindow.webContents.setZoomFactor(1)
+    } catch (_) {}
+    return null
+  }
+})
+
 ipcMain.handle('get-data-path', () => {
   return path.join(app.getPath('userData'), 'rgoose_note_data.json')
 })

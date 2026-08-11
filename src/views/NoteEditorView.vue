@@ -3763,7 +3763,8 @@ function restoreOverlays(hidden) {
   })
 }
 
-async function prepareCanvasForExport() {
+// useNative=true 走 Electron capturePage（原生渲染，无需注入 marker/同步表单值）
+async function prepareCanvasForExport(useNative = false) {
   const target = canvasRef.value
   if (!target) return null
 
@@ -3859,11 +3860,13 @@ async function prepareCanvasForExport() {
   await nextTick()
   await new Promise(r => setTimeout(r, 100))
 
-  // 同步表单值 + 注入列表符号 + 转换图片
-  syncFormValues(target)
-  injectListMarkers(target)
-  await convertImagesToDataUrl(target)
-  await new Promise(r => setTimeout(r, 150))
+  // 同步表单值 + 注入列表符号 + 转换图片（仅 html2canvas 需要，capturePage 原生渲染）
+  if (!useNative) {
+    syncFormValues(target)
+    injectListMarkers(target)
+    await convertImagesToDataUrl(target)
+    await new Promise(r => setTimeout(r, 150))
+  }
 
   original.overlaysHidden = hideOverlays(target)
 
@@ -3899,34 +3902,72 @@ async function restoreCanvasAfterExport(ctx) {
   await nextTick()
 }
 
+// 用 Electron 原生截图：完美渲染 SVG 连线、伪元素、CSS 变量
+async function captureViaElectron(target, contentWidth, contentHeight) {
+  const rect = target.getBoundingClientRect()
+  const captureRect = {
+    x: Math.round(rect.left),
+    y: Math.round(rect.top),
+    width: Math.round(rect.width),
+    height: Math.round(rect.height)
+  }
+  const dataUrl = await window.electronAPI.capturePage({ rect: captureRect, scale: 2 })
+  if (!dataUrl) throw new Error('原生截图失败')
+
+  const img = await new Promise((resolve, reject) => {
+    const i = new Image()
+    i.onload = () => resolve(i)
+    i.onerror = reject
+    i.src = dataUrl
+  })
+  const canvas = document.createElement('canvas')
+  canvas.width = img.width
+  canvas.height = img.height
+  canvas.getContext('2d').drawImage(img, 0, 0)
+  return canvas
+}
+
+// 浏览器环境降级：html2canvas-pro
+async function captureViaHtml2Canvas(target, contentWidth, contentHeight) {
+  return await html2canvas(target, {
+    backgroundColor: '#f8faf8',
+    scale: 2,
+    useCORS: true,
+    allowTaint: false,
+    logging: false,
+    width: contentWidth,
+    height: contentHeight,
+    windowWidth: contentWidth,
+    windowHeight: contentHeight,
+    scrollX: 0,
+    scrollY: 0,
+    x: 0,
+    y: 0,
+    ignoreElements: (el) => {
+      if (!el.classList) return false
+      return el.classList.contains('multi-select-toolbar') ||
+        el.classList.contains('block-actions') ||
+        el.classList.contains('block-drag-handle') ||
+        el.classList.contains('block-group-badge') ||
+        el.classList.contains('marquee-rect')
+    }
+  })
+}
+
 async function captureCanvasSnapshot() {
-  const ctx = await prepareCanvasForExport()
+  const useNative = !!(window.electronAPI && window.electronAPI.capturePage)
+  const ctx = await prepareCanvasForExport(useNative)
   if (!ctx) return null
   const target = canvasRef.value
   try {
-    const canvas = await html2canvas(target, {
-      backgroundColor: '#f8faf8',
-      scale: 2,
-      useCORS: true,
-      allowTaint: false,
-      logging: false,
-      width: ctx.contentWidth,
-      height: ctx.contentHeight,
-      windowWidth: ctx.contentWidth,
-      windowHeight: ctx.contentHeight,
-      scrollX: 0,
-      scrollY: 0,
-      x: 0,
-      y: 0,
-      ignoreElements: (el) => {
-        if (!el.classList) return false
-        return el.classList.contains('multi-select-toolbar') ||
-          el.classList.contains('block-actions') ||
-          el.classList.contains('block-drag-handle') ||
-          el.classList.contains('block-group-badge') ||
-          el.classList.contains('marquee-rect')
-      }
-    })
+    let canvas
+    if (useNative) {
+      // Electron 环境：原生截图，完美渲染连线/伪元素/样式
+      canvas = await captureViaElectron(target, ctx.contentWidth, ctx.contentHeight)
+    } else {
+      // 浏览器降级
+      canvas = await captureViaHtml2Canvas(target, ctx.contentWidth, ctx.contentHeight)
+    }
     return { canvas, contentWidth: ctx.contentWidth, contentHeight: ctx.contentHeight }
   } finally {
     await restoreCanvasAfterExport(ctx)
