@@ -3695,17 +3695,44 @@ function refreshBlockSizes() {
   })
 }
 
-// 计算 canvasRef 的所有需要隐藏/还原的同级元素（侧栏、header、缩放控件、小地图、面板等）
-function getEditorChromeSiblings(canvasEl) {
-  const parent = canvasEl.parentElement
-  if (!parent) return []
-  const siblings = []
-  Array.from(parent.children).forEach(el => {
-    if (el === canvasEl) return
-    // 跳过 toast、preview 等浮层（不影响截图但隐藏它们也安全）
-    siblings.push(el)
+// 列表项目符号用 ::marker 渲染，html2canvas 无法捕获，注入真实文本节点
+function injectListMarkers(target) {
+  const editors = target.querySelectorAll('.text-editor')
+  editors.forEach(editor => {
+    const allLis = editor.querySelectorAll('li')
+    allLis.forEach(li => {
+      if (li.dataset.exportMarker) return
+      let depth = 0
+      let p = li.parentElement
+      while (p && p !== editor) {
+        if (p.tagName === 'LI') depth++
+        p = p.parentElement
+      }
+      const parentList = li.parentElement
+      const isOl = parentList && parentList.tagName === 'OL'
+      let text
+      if (isOl) {
+        const idx = Array.from(parentList.children).filter(c => c.tagName === 'LI').indexOf(li)
+        text = (idx + 1) + '.'
+      } else {
+        text = depth === 0 ? '•' : (depth === 1 ? '◦' : '▪')
+      }
+      const marker = document.createElement('span')
+      marker.className = 'export-list-marker'
+      marker.textContent = text
+      const color = depth === 0 ? 'var(--primary-color, #6bbd8f)' : 'var(--text-tertiary, #999)'
+      const weight = isOl || depth === 0 ? '600' : '400'
+      marker.style.cssText = `color: ${color}; margin-right: 6px; font-weight: ${weight};`
+      li.insertBefore(marker, li.firstChild)
+      li.dataset.exportMarker = '1'
+    })
   })
-  return siblings
+}
+
+function cleanupListMarkers(target) {
+  if (!target) return
+  target.querySelectorAll('.export-list-marker').forEach(el => el.remove())
+  target.querySelectorAll('[data-export-marker]').forEach(el => delete el.dataset.exportMarker)
 }
 
 // 隐藏 toast 容器等浮层（fixed 定位会盖在画布上被截到）
@@ -3739,6 +3766,9 @@ async function prepareCanvasForExport() {
   const target = canvasRef.value
   if (!target) return null
 
+  const blocksLayer = target.querySelector('.blocks-layer')
+  if (!blocksLayer) return null
+
   const original = {
     zoom: canvasConfig.value.zoom,
     offsetX: canvasConfig.value.offsetX,
@@ -3751,23 +3781,21 @@ async function prepareCanvasForExport() {
       height: target.style.height,
       minWidth: target.style.minWidth,
       minHeight: target.style.minHeight,
-      flexBasis: target.style.flexBasis,
-      position: target.style.position
+      flexBasis: target.style.flexBasis
     },
+    blocksLayerTransform: blocksLayer.style.transform,
     blockSizes: { ...blockSizes.value },
-    chromeHidden: [],
-    overlaysHidden: [],
-    parentStyles: [],
-    scrollX: window.scrollX,
-    scrollY: window.scrollY
+    overlaysHidden: []
   }
 
-  // 计算 content 尺寸
+  // 计算所有块的边界
   canvasConfig.value.zoom = 1
+  await nextTick()
   let contentWidth = 1200
   let contentHeight = 800
+  let boundsX = 0
+  let boundsY = 0
   if (blocks.value.length > 0) {
-    await nextTick()
     const padding = 80
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
     blocks.value.forEach(b => {
@@ -3780,104 +3808,57 @@ async function prepareCanvasForExport() {
     })
     contentWidth = Math.max(400, (maxX - minX) + padding * 2)
     contentHeight = Math.max(300, (maxY - minY) + padding * 2)
-    canvasConfig.value.offsetX = -minX + padding
-    canvasConfig.value.offsetY = -minY + padding
-  } else {
-    canvasConfig.value.offsetX = 0
-    canvasConfig.value.offsetY = 0
+    // blocks-layer 不再做 transform 平移，直接在容器原点绘制
+    // 但块本身用 absolute 定位，为了让最左上块出现在 padding 位置，
+    // 我们让 blocks-layer 整体偏移 (-minX+padding, -minY+padding)
+    boundsX = -minX + padding
+    boundsY = -minY + padding
   }
 
   selectedBlockIds.value = []
   selectedConnectionId.value = null
 
-  // 临时撑大画布容器，使其内容完全可见不被裁剪
-  target.style.overflow = 'visible'
+  // 关键：把 blocks-layer 的 transform 重置为 translate(boundsX, boundsY) scale(1)
+  // 这样所有块都按 zoom=1 在容器内可见位置渲染，不存在"超出可视区被截"的问题
+  blocksLayer.style.transform = `translate(${boundsX}px, ${boundsY}px) scale(1)`
+  blocksLayer.style.transformOrigin = '0 0'
+
+  // 撑大画布容器到完整内容尺寸，且不裁剪
+  target.style.overflow = 'hidden'
   target.style.width = contentWidth + 'px'
   target.style.height = contentHeight + 'px'
   target.style.minWidth = '0'
   target.style.minHeight = '0'
   target.style.flexBasis = 'auto'
-  target.style.position = 'relative'
-
-  // 同时修改所有祖先元素的 overflow/flex 约束，避免裁剪画布
-  let p = target.parentElement
-  while (p && p !== document.body) {
-    const cs = getComputedStyle(p)
-    const snapshot = {
-      el: p,
-      overflow: p.style.overflow,
-      overflowX: p.style.overflowX,
-      overflowY: p.style.overflowY,
-      flex: p.style.flex,
-      flexBasis: p.style.flexBasis,
-      display: p.style.display,
-      width: p.style.width,
-      height: p.style.height,
-      minHeight: p.style.minHeight,
-      position: p.style.position
-    }
-    original.parentStyles.push(snapshot)
-    // 解除滚动容器
-    if (cs.overflow !== 'visible') p.style.overflow = 'visible'
-    if (cs.overflowX !== 'visible') p.style.overflowX = 'visible'
-    if (cs.overflowY !== 'visible') p.style.overflowY = 'visible'
-    // 解除 flex 子项限制，让目标元素按设置的 width/height 渲染
-    p.style.flex = 'none'
-    p.style.flexBasis = 'auto'
-    p.style.minHeight = '0'
-    p = p.parentElement
-  }
 
   await nextTick()
   await new Promise(r => setTimeout(r, 300))
 
+  // 刷新连线尺寸缓存
   refreshBlockSizes()
   await nextTick()
   await new Promise(r => setTimeout(r, 100))
 
+  // 同步表单值 + 注入列表符号 + 转换图片
   syncFormValues(target)
-
-  // 隐藏画布外其他 UI（编辑器 header、右侧面板、底部缩放栏等）
-  const chromeEls = getEditorChromeSiblings(target)
-  chromeEls.forEach(el => {
-    if (el.style.display === 'none') return
-    el.dataset.exportOrigDisplay = el.style.display
-    el.style.display = 'none'
-    original.chromeHidden.push(el)
-  })
+  injectListMarkers(target)
+  await convertImagesToDataUrl(target)
+  await new Promise(r => setTimeout(r, 150))
 
   original.overlaysHidden = hideOverlays(target)
 
-  // 滚动到顶部，确保画布左上角对齐到窗口原点附近
-  window.scrollTo(0, 0)
-
-  await nextTick()
-  await new Promise(r => setTimeout(r, 200))
-
-  return { original, contentWidth, contentHeight }
+  return { original, contentWidth, contentHeight, blocksLayer }
 }
 
 async function restoreCanvasAfterExport(ctx) {
   if (!ctx) return
-  const { original } = ctx
+  const { original, blocksLayer } = ctx
   restoreOverlays(original.overlaysHidden)
-  original.chromeHidden.forEach(el => {
-    el.style.display = el.dataset.exportOrigDisplay || ''
-    delete el.dataset.exportOrigDisplay
-  })
-  // 还原父级样式
-  original.parentStyles.forEach(s => {
-    s.el.style.overflow = s.overflow
-    s.el.style.overflowX = s.overflowX
-    s.el.style.overflowY = s.overflowY
-    s.el.style.flex = s.flex
-    s.el.style.flexBasis = s.flexBasis
-    s.el.style.display = s.display
-    s.el.style.width = s.width
-    s.el.style.height = s.height
-    s.el.style.minHeight = s.minHeight
-    s.el.style.position = s.position
-  })
+  restoreImagesFromDataUrl(canvasRef.value)
+  cleanupListMarkers(canvasRef.value)
+  if (blocksLayer) {
+    blocksLayer.style.transform = original.blocksLayerTransform
+  }
   const target = canvasRef.value
   if (target) {
     Object.assign(target.style, original.canvasStyle)
@@ -3888,59 +3869,26 @@ async function restoreCanvasAfterExport(ctx) {
   canvasConfig.value.offsetY = original.offsetY
   selectedBlockIds.value = original.selectedBlockIds
   selectedConnectionId.value = original.selectedConnectionId
-  window.scrollTo(original.scrollX, original.scrollY)
   await nextTick()
 }
 
-// 清晰度由系统 DPR 提供，capturePage 返回的图像自带 DPR 倍数的物理像素
-// 这里仅返回 1（不再额外放大），避免 zoomFactor 副作用导致内容缺失
-function computeExportScale() {
-  return 1
-}
-
-async function captureViaElectron(target) {
-  // 读取画布在窗口中的位置（DIP），主进程按此 rect 截图
-  const rect = target.getBoundingClientRect()
-  const captureRect = {
-    x: Math.round(rect.left),
-    y: Math.round(rect.top),
-    width: Math.round(rect.width),
-    height: Math.round(rect.height)
-  }
-  const dataUrl = await window.electronAPI.capturePage({ rect: captureRect })
-  if (!dataUrl) throw new Error('原生截图失败')
-
-  const img = await new Promise((resolve, reject) => {
-    const i = new Image()
-    i.onload = () => resolve(i)
-    i.onerror = reject
-    i.src = dataUrl
-  })
-  const canvas = document.createElement('canvas')
-  canvas.width = img.width
-  canvas.height = img.height
-  canvas.getContext('2d').drawImage(img, 0, 0)
-  return canvas
-}
-
-// 浏览器环境降级方案：html2canvas-pro
-async function captureViaHtml2Canvas(target, contentWidth, contentHeight) {
-  const mod = await import('html2canvas-pro')
-  const html2canvas = mod.default
-  // html2canvas 无法处理自定义协议图片，先转 dataURL
-  await convertImagesToDataUrl(target)
-  await new Promise(r => setTimeout(r, 150))
+async function captureCanvasSnapshot() {
+  const ctx = await prepareCanvasForExport()
+  if (!ctx) return null
+  const target = canvasRef.value
   try {
-    return await html2canvas(target, {
+    const mod = await import('html2canvas-pro')
+    const html2canvas = mod.default
+    const canvas = await html2canvas(target, {
       backgroundColor: '#f8faf8',
       scale: 2,
       useCORS: true,
       allowTaint: false,
       logging: false,
-      width: contentWidth,
-      height: contentHeight,
-      windowWidth: contentWidth,
-      windowHeight: contentHeight,
+      width: ctx.contentWidth,
+      height: ctx.contentHeight,
+      windowWidth: ctx.contentWidth,
+      windowHeight: ctx.contentHeight,
       scrollX: 0,
       scrollY: 0,
       x: 0,
@@ -3954,22 +3902,6 @@ async function captureViaHtml2Canvas(target, contentWidth, contentHeight) {
           el.classList.contains('marquee-rect')
       }
     })
-  } finally {
-    restoreImagesFromDataUrl(target)
-  }
-}
-
-async function captureCanvasSnapshot() {
-  const ctx = await prepareCanvasForExport()
-  if (!ctx) return null
-  const target = canvasRef.value
-  try {
-    let canvas
-    if (window.electronAPI?.capturePage) {
-      canvas = await captureViaElectron(target, ctx.contentWidth, ctx.contentHeight)
-    } else {
-      canvas = await captureViaHtml2Canvas(target, ctx.contentWidth, ctx.contentHeight)
-    }
     return { canvas, contentWidth: ctx.contentWidth, contentHeight: ctx.contentHeight }
   } finally {
     await restoreCanvasAfterExport(ctx)

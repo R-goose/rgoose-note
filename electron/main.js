@@ -151,52 +151,6 @@ ipcMain.handle('window-is-maximized', () => {
   return mainWindow ? mainWindow.isMaximized() : false
 })
 
-// 截取当前窗口指定矩形区域，返回 PNG dataURL（用于笔记导出图片/PDF）
-// 参数：{ rect: {x,y,width,height}（DIP） }
-// 大尺寸内容时，先临时扩大窗口尺寸确保画布完全可见，截图完毕恢复
-// 清晰度由系统 DPR 提供（capturePage 返回 rect × DPR 物理像素）
-ipcMain.handle('capture-page', async (_event, payload) => {
-  if (!mainWindow) return null
-  const opts = payload || {}
-  const rect = opts.rect
-  try {
-    // 1. 如果内容尺寸超过当前窗口可视区，临时扩大窗口
-    const contentW = rect ? rect.width : 0
-    const contentH = rect ? rect.height : 0
-    const [winW, winH] = mainWindow.getContentSize()
-    // 留 24px 余量确保边缘完整
-    const needW = Math.max(winW, Math.ceil(contentW + (rect ? rect.x : 0) + 24))
-    const needH = Math.max(winH, Math.ceil(contentH + (rect ? rect.y : 0) + 24))
-    let needResize = false
-    if (needW > winW || needH > winH) needResize = true
-    if (needResize) {
-      mainWindow.setMaximumSize(8000, 8000)
-      mainWindow.setContentSize(needW, needH)
-      await new Promise(r => setTimeout(r, 400))
-    }
-
-    let image
-    if (rect && typeof rect.x === 'number') {
-      image = await mainWindow.webContents.capturePage(rect)
-    } else {
-      image = await mainWindow.webContents.capturePage()
-    }
-
-    // 2. 恢复窗口
-    if (needResize) {
-      mainWindow.setContentSize(winW, winH)
-      mainWindow.setMaximumSize(0, 0)
-    }
-    return image.toDataURL()
-  } catch (e) {
-    console.error('capture-page failed:', e)
-    try {
-      mainWindow.setMaximumSize(0, 0)
-    } catch (_) {}
-    return null
-  }
-})
-
 ipcMain.handle('get-data-path', () => {
   return path.join(app.getPath('userData'), 'rgoose_note_data.json')
 })
