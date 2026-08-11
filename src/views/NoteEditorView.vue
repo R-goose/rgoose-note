@@ -3673,6 +3673,77 @@ function getBlockDomHeight(block) {
   return getBlockRenderHeight(block)
 }
 
+// 同步 input/textarea 的当前值到 defaultValue（html2canvas 渲染表单值依赖此属性）
+function syncFormValues(target) {
+  const inputs = target.querySelectorAll('input, textarea')
+  inputs.forEach(el => {
+    if (el.type === 'file' || el.type === 'checkbox' || el.type === 'radio') return
+    try {
+      el.setAttribute('value', el.value)
+      if (el.tagName === 'TEXTAREA') {
+        el.textContent = el.value
+      }
+    } catch (_) {}
+  })
+}
+
+// 列表项目符号用 ::marker 渲染，html2canvas 无法捕获，注入真实文本节点
+function injectListMarkers(target) {
+  const editors = target.querySelectorAll('.text-editor')
+  editors.forEach(editor => {
+    // 遍历所有 li，按嵌套深度决定符号
+    const allLis = editor.querySelectorAll('li')
+    allLis.forEach(li => {
+      if (li.dataset.exportMarker) return
+      // 计算嵌套深度：向上数 li 祖先
+      let depth = 0
+      let p = li.parentElement
+      while (p && p !== editor) {
+        if (p.tagName === 'LI') depth++
+        p = p.parentElement
+      }
+      // 父级是 ol 还是 ul
+      const parentList = li.parentElement
+      const isOl = parentList && parentList.tagName === 'OL'
+      let text
+      if (isOl) {
+        // 计算在同级中的位置
+        const idx = Array.from(parentList.children).filter(c => c.tagName === 'LI').indexOf(li)
+        text = (idx + 1) + '.'
+      } else {
+        // ul 按深度选符号
+        text = depth === 0 ? '•' : (depth === 1 ? '◦' : '▪')
+      }
+      const marker = document.createElement('span')
+      marker.className = 'export-list-marker'
+      marker.textContent = text
+      const color = depth === 0
+        ? 'var(--primary-color, #6bbd8f)'
+        : 'var(--text-tertiary, #999)'
+      const weight = isOl || depth === 0 ? '600' : '400'
+      marker.style.cssText = `color: ${color}; margin-right: 6px; font-weight: ${weight};`
+      li.insertBefore(marker, li.firstChild)
+      li.dataset.exportMarker = '1'
+    })
+  })
+}
+
+function cleanupListMarkers(target) {
+  target.querySelectorAll('.export-list-marker').forEach(el => el.remove())
+  target.querySelectorAll('[data-export-marker]').forEach(el => delete el.dataset.exportMarker)
+}
+
+// 刷新块尺寸缓存，确保连线计算基于最新 DOM 尺寸
+function refreshBlockSizes() {
+  blocks.value.forEach(b => {
+    const inst = blockRefs[b.id]
+    const el = inst?.$el || inst?.blockRef?.value || inst
+    if (el && el.offsetWidth && el.offsetHeight) {
+      blockSizes.value = { ...blockSizes.value, [b.id]: { width: el.offsetWidth, height: el.offsetHeight } }
+    }
+  })
+}
+
 async function captureCanvasSnapshot() {
   const target = canvasRef.value
   if (!target) return null
@@ -3688,7 +3759,8 @@ async function captureCanvasSnapshot() {
     height: target.style.height,
     minWidth: target.style.minWidth,
     minHeight: target.style.minHeight,
-    flexBasis: target.style.flexBasis
+    flexBasis: target.style.flexBasis,
+    blockSizes: { ...blockSizes.value }
   }
 
   try {
@@ -3730,7 +3802,14 @@ async function captureCanvasSnapshot() {
     await nextTick()
     await new Promise(r => setTimeout(r, 300))
 
+    // 刷新块尺寸缓存（zoom 重置后 DOM 尺寸可能变化），让连线 path 重新计算
+    refreshBlockSizes()
+    await nextTick()
+    await new Promise(r => setTimeout(r, 80))
+
     await convertImagesToDataUrl(target)
+    syncFormValues(target)
+    injectListMarkers(target)
     await new Promise(r => setTimeout(r, 150))
 
     const canvas = await html2canvas(target, {
@@ -3759,7 +3838,9 @@ async function captureCanvasSnapshot() {
 
     return canvas
   } finally {
+    cleanupListMarkers(target)
     restoreImagesFromDataUrl(target)
+    blockSizes.value = original.blockSizes
     canvasConfig.value.zoom = original.zoom
     canvasConfig.value.offsetX = original.offsetX
     canvasConfig.value.offsetY = original.offsetY
