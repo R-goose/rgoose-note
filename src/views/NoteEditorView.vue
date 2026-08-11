@@ -3782,11 +3782,15 @@ async function prepareCanvasForExport() {
       height: target.style.height,
       minWidth: target.style.minWidth,
       minHeight: target.style.minHeight,
-      flexBasis: target.style.flexBasis
+      flex: target.style.flex,
+      flexBasis: target.style.flexBasis,
+      flexGrow: target.style.flexGrow,
+      flexShrink: target.style.flexShrink
     },
     blocksLayerTransform: blocksLayer.style.transform,
     blockSizes: { ...blockSizes.value },
-    overlaysHidden: []
+    overlaysHidden: [],
+    parentStyle: null
   }
 
   // 计算所有块的边界
@@ -3824,13 +3828,35 @@ async function prepareCanvasForExport() {
   blocksLayer.style.transform = `translate(${boundsX}px, ${boundsY}px) scale(1)`
   blocksLayer.style.transformOrigin = '0 0'
 
-  // 撑大画布容器到完整内容尺寸，且不裁剪
-  target.style.overflow = 'hidden'
+  // 撑大画布容器到完整内容尺寸
+  // 必须设 flex:none 否则 CSS 的 flex:1 会压缩显式 height
+  target.style.flex = 'none'
+  target.style.flexGrow = '0'
+  target.style.flexShrink = '0'
+  target.style.flexBasis = 'auto'
+  target.style.overflow = 'visible'
   target.style.width = contentWidth + 'px'
   target.style.height = contentHeight + 'px'
   target.style.minWidth = '0'
   target.style.minHeight = '0'
-  target.style.flexBasis = 'auto'
+
+  // 同时解除父级 .note-editor-view 的 overflow 约束（flex column 布局会裁剪溢出）
+  const parent = target.parentElement
+  if (parent) {
+    original.parentStyle = {
+      el: parent,
+      overflow: parent.style.overflow,
+      overflowX: parent.style.overflowX,
+      overflowY: parent.style.overflowY,
+      height: parent.style.height,
+      maxHeight: parent.style.maxHeight
+    }
+    parent.style.overflow = 'visible'
+    parent.style.overflowX = 'visible'
+    parent.style.overflowY = 'visible'
+    parent.style.height = 'auto'
+    parent.style.maxHeight = 'none'
+  }
 
   await nextTick()
   await new Promise(r => setTimeout(r, 300))
@@ -3859,6 +3885,15 @@ async function restoreCanvasAfterExport(ctx) {
   cleanupListMarkers(canvasRef.value)
   if (blocksLayer) {
     blocksLayer.style.transform = original.blocksLayerTransform
+  }
+  // 还原父级样式
+  if (original.parentStyle) {
+    const ps = original.parentStyle
+    ps.el.style.overflow = ps.overflow
+    ps.el.style.overflowX = ps.overflowX
+    ps.el.style.overflowY = ps.overflowY
+    ps.el.style.height = ps.height
+    ps.el.style.maxHeight = ps.maxHeight
   }
   const target = canvasRef.value
   if (target) {
