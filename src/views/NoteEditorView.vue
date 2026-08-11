@@ -1227,6 +1227,7 @@ import { useClickOutside } from '@/composables/useClickOutside'
 import { saveImage, resolveImageUrl, preloadImages, isImageRef } from '@/utils/imageStore'
 import { imagesApi } from '@/api/images'
 import { jsPDF } from 'jspdf'
+import html2canvas from 'html2canvas-pro'
 
 const { error: toastError, showToast, removeToast, success: toastSuccess } = useToast()
 
@@ -3877,8 +3878,6 @@ async function captureCanvasSnapshot() {
   if (!ctx) return null
   const target = canvasRef.value
   try {
-    const mod = await import('html2canvas-pro')
-    const html2canvas = mod.default
     const canvas = await html2canvas(target, {
       backgroundColor: '#f8faf8',
       scale: 2,
