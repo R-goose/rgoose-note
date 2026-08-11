@@ -151,6 +151,76 @@ ipcMain.handle('window-is-maximized', () => {
   return mainWindow ? mainWindow.isMaximized() : false
 })
 
+// 截取当前窗口指定矩形区域，返回 PNG dataURL（用于笔记导出图片/PDF）
+// 参数：{ rect: {x,y,width,height}（zoom 前的 DIP）, scale: 缩放倍数（提高清晰度，2=2倍像素） }
+// 大尺寸内容时，先临时扩大窗口尺寸确保画布完全可见，截图完毕恢复
+ipcMain.handle('capture-page', async (_event, payload) => {
+  if (!mainWindow) return null
+  const opts = payload || {}
+  const rect = opts.rect
+  const scale = Number.isFinite(opts.scale) && opts.scale > 0 ? opts.scale : 1
+  try {
+    // 1. 临时放大 zoomFactor（提高清晰度）
+    let originalZoom = 1
+    let needRestoreZoom = false
+    if (scale !== 1) {
+      originalZoom = mainWindow.webContents.getZoomFactor()
+      mainWindow.webContents.setZoomFactor(originalZoom * scale)
+      needRestoreZoom = true
+      await new Promise(r => setTimeout(r, 300))
+    }
+
+    // 2. 如果 zoom 后的内容尺寸超过当前窗口可视区，临时扩大窗口
+    // 计算需要的总尺寸：rect 是 zoom 前的 DIP，放大后变成 rect × scale
+    const contentW = (rect ? rect.width : 0) * scale
+    const contentH = (rect ? rect.height : 0) * scale
+    const [winW, winH] = mainWindow.getContentSize()
+    const needW = Math.max(winW, Math.ceil(contentW + 20))
+    const needH = Math.max(winH, Math.ceil(contentH + 20))
+    let needResize = false
+    if (needW > winW || needH > winH) needResize = true
+    if (needResize) {
+      // 临时取消窗口最大尺寸限制
+      mainWindow.setMaximumSize(8000, 8000)
+      mainWindow.setContentSize(needW, needH)
+      await new Promise(r => setTimeout(r, 300))
+    }
+
+    // 3. 计算截图矩形（rect × scale，单位 DIP）
+    const scaledRect = rect && typeof rect.x === 'number' ? {
+      x: Math.round(rect.x * scale),
+      y: Math.round(rect.y * scale),
+      width: Math.round(rect.width * scale),
+      height: Math.round(rect.height * scale)
+    } : null
+
+    let image
+    if (scaledRect) {
+      image = await mainWindow.webContents.capturePage(scaledRect)
+    } else {
+      image = await mainWindow.webContents.capturePage()
+    }
+
+    // 4. 恢复窗口
+    if (needResize) {
+      mainWindow.setContentSize(winW, winH)
+      // 恢复默认最大尺寸限制
+      mainWindow.setMaximumSize(0, 0)
+    }
+    if (needRestoreZoom) {
+      mainWindow.webContents.setZoomFactor(originalZoom)
+    }
+    return image.toDataURL()
+  } catch (e) {
+    console.error('capture-page failed:', e)
+    try {
+      mainWindow.webContents.setZoomFactor(1)
+      mainWindow.setMaximumSize(0, 0)
+    } catch (_) {}
+    return null
+  }
+})
+
 ipcMain.handle('get-data-path', () => {
   return path.join(app.getPath('userData'), 'rgoose_note_data.json')
 })

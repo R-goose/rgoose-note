@@ -1226,7 +1226,6 @@ import { useToast } from '@/composables/useToast'
 import { useClickOutside } from '@/composables/useClickOutside'
 import { saveImage, resolveImageUrl, preloadImages, isImageRef } from '@/utils/imageStore'
 import { imagesApi } from '@/api/images'
-import html2canvas from 'html2canvas-pro'
 import { jsPDF } from 'jspdf'
 
 const { error: toastError, showToast, removeToast, success: toastSuccess } = useToast()
@@ -3673,64 +3672,16 @@ function getBlockDomHeight(block) {
   return getBlockRenderHeight(block)
 }
 
-// 同步 input/textarea 的当前值到 defaultValue（html2canvas 渲染表单值依赖此属性）
+// 同步 input/textarea 的当前值到 value 属性（截图表单值依赖此属性）
 function syncFormValues(target) {
   const inputs = target.querySelectorAll('input, textarea')
   inputs.forEach(el => {
     if (el.type === 'file' || el.type === 'checkbox' || el.type === 'radio') return
     try {
       el.setAttribute('value', el.value)
-      if (el.tagName === 'TEXTAREA') {
-        el.textContent = el.value
-      }
+      if (el.tagName === 'TEXTAREA') el.textContent = el.value
     } catch (_) {}
   })
-}
-
-// 列表项目符号用 ::marker 渲染，html2canvas 无法捕获，注入真实文本节点
-function injectListMarkers(target) {
-  const editors = target.querySelectorAll('.text-editor')
-  editors.forEach(editor => {
-    // 遍历所有 li，按嵌套深度决定符号
-    const allLis = editor.querySelectorAll('li')
-    allLis.forEach(li => {
-      if (li.dataset.exportMarker) return
-      // 计算嵌套深度：向上数 li 祖先
-      let depth = 0
-      let p = li.parentElement
-      while (p && p !== editor) {
-        if (p.tagName === 'LI') depth++
-        p = p.parentElement
-      }
-      // 父级是 ol 还是 ul
-      const parentList = li.parentElement
-      const isOl = parentList && parentList.tagName === 'OL'
-      let text
-      if (isOl) {
-        // 计算在同级中的位置
-        const idx = Array.from(parentList.children).filter(c => c.tagName === 'LI').indexOf(li)
-        text = (idx + 1) + '.'
-      } else {
-        // ul 按深度选符号
-        text = depth === 0 ? '•' : (depth === 1 ? '◦' : '▪')
-      }
-      const marker = document.createElement('span')
-      marker.className = 'export-list-marker'
-      marker.textContent = text
-      const color = depth === 0
-        ? 'var(--primary-color, #6bbd8f)'
-        : 'var(--text-tertiary, #999)'
-      const weight = isOl || depth === 0 ? '600' : '400'
-      marker.style.cssText = `color: ${color}; margin-right: 6px; font-weight: ${weight};`
-      li.insertBefore(marker, li.firstChild)
-      li.dataset.exportMarker = '1'
-    })
-  })
-}
-
-function cleanupListMarkers(target) {
-  target.querySelectorAll('.export-list-marker').forEach(el => el.remove())
-  target.querySelectorAll('[data-export-marker]').forEach(el => delete el.dataset.exportMarker)
 }
 
 // 刷新块尺寸缓存，确保连线计算基于最新 DOM 尺寸
@@ -3744,7 +3695,47 @@ function refreshBlockSizes() {
   })
 }
 
-async function captureCanvasSnapshot() {
+// 计算 canvasRef 的所有需要隐藏/还原的同级元素（侧栏、header、缩放控件、小地图、面板等）
+function getEditorChromeSiblings(canvasEl) {
+  const parent = canvasEl.parentElement
+  if (!parent) return []
+  const siblings = []
+  Array.from(parent.children).forEach(el => {
+    if (el === canvasEl) return
+    // 跳过 toast、preview 等浮层（不影响截图但隐藏它们也安全）
+    siblings.push(el)
+  })
+  return siblings
+}
+
+// 隐藏 toast 容器等浮层（fixed 定位会盖在画布上被截到）
+function hideOverlays(target) {
+  const hidden = []
+  // toast 容器
+  document.querySelectorAll('.toast-container').forEach(el => {
+    if (el.style.display === 'none') return
+    el.dataset.exportOrigDisplay = el.style.display
+    el.style.display = 'none'
+    hidden.push(el)
+  })
+  // 画布内的多选工具栏、块操作按钮、拖拽手柄等（也隐藏避免误截）
+  target.querySelectorAll('.multi-select-toolbar, .block-actions, .block-drag-handle, .block-group-badge, .marquee-rect').forEach(el => {
+    if (el.style.display === 'none') return
+    el.dataset.exportOrigDisplay = el.style.display
+    el.style.display = 'none'
+    hidden.push(el)
+  })
+  return hidden
+}
+
+function restoreOverlays(hidden) {
+  hidden.forEach(el => {
+    el.style.display = el.dataset.exportOrigDisplay || ''
+    delete el.dataset.exportOrigDisplay
+  })
+}
+
+async function prepareCanvasForExport() {
   const target = canvasRef.value
   if (!target) return null
 
@@ -3754,65 +3745,193 @@ async function captureCanvasSnapshot() {
     offsetY: canvasConfig.value.offsetY,
     selectedBlockIds: [...selectedBlockIds.value],
     selectedConnectionId: selectedConnectionId.value,
-    overflow: target.style.overflow,
-    width: target.style.width,
-    height: target.style.height,
-    minWidth: target.style.minWidth,
-    minHeight: target.style.minHeight,
-    flexBasis: target.style.flexBasis,
-    blockSizes: { ...blockSizes.value }
+    canvasStyle: {
+      overflow: target.style.overflow,
+      width: target.style.width,
+      height: target.style.height,
+      minWidth: target.style.minWidth,
+      minHeight: target.style.minHeight,
+      flexBasis: target.style.flexBasis,
+      position: target.style.position
+    },
+    blockSizes: { ...blockSizes.value },
+    chromeHidden: [],
+    overlaysHidden: [],
+    parentStyles: [],
+    scrollX: window.scrollX,
+    scrollY: window.scrollY
   }
 
-  try {
-    selectedBlockIds.value = []
-    selectedConnectionId.value = null
+  // 计算 content 尺寸
+  canvasConfig.value.zoom = 1
+  let contentWidth = 1200
+  let contentHeight = 800
+  if (blocks.value.length > 0) {
+    await nextTick()
+    const padding = 80
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    blocks.value.forEach(b => {
+      const w = b.width || 240
+      const h = getBlockDomHeight(b)
+      minX = Math.min(minX, b.x)
+      minY = Math.min(minY, b.y)
+      maxX = Math.max(maxX, b.x + w)
+      maxY = Math.max(maxY, b.y + h)
+    })
+    contentWidth = Math.max(400, (maxX - minX) + padding * 2)
+    contentHeight = Math.max(300, (maxY - minY) + padding * 2)
+    canvasConfig.value.offsetX = -minX + padding
+    canvasConfig.value.offsetY = -minY + padding
+  } else {
+    canvasConfig.value.offsetX = 0
+    canvasConfig.value.offsetY = 0
+  }
 
-    canvasConfig.value.zoom = 1
+  selectedBlockIds.value = []
+  selectedConnectionId.value = null
 
-    let contentWidth = 1200
-    let contentHeight = 800
-    if (blocks.value.length > 0) {
-      await nextTick()
-      const padding = 80
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-      blocks.value.forEach(b => {
-        const w = b.width || 240
-        const h = getBlockDomHeight(b)
-        minX = Math.min(minX, b.x)
-        minY = Math.min(minY, b.y)
-        maxX = Math.max(maxX, b.x + w)
-        maxY = Math.max(maxY, b.y + h)
-      })
-      contentWidth = Math.max(400, (maxX - minX) + padding * 2)
-      contentHeight = Math.max(300, (maxY - minY) + padding * 2)
-      canvasConfig.value.offsetX = -minX + padding
-      canvasConfig.value.offsetY = -minY + padding
-    } else {
-      canvasConfig.value.offsetX = 0
-      canvasConfig.value.offsetY = 0
+  // 临时撑大画布容器，使其内容完全可见不被裁剪
+  target.style.overflow = 'visible'
+  target.style.width = contentWidth + 'px'
+  target.style.height = contentHeight + 'px'
+  target.style.minWidth = '0'
+  target.style.minHeight = '0'
+  target.style.flexBasis = 'auto'
+  target.style.position = 'relative'
+
+  // 同时修改所有祖先元素的 overflow/flex 约束，避免裁剪画布
+  let p = target.parentElement
+  while (p && p !== document.body) {
+    const cs = getComputedStyle(p)
+    const snapshot = {
+      el: p,
+      overflow: p.style.overflow,
+      overflowX: p.style.overflowX,
+      overflowY: p.style.overflowY,
+      flex: p.style.flex,
+      flexBasis: p.style.flexBasis,
+      display: p.style.display,
+      width: p.style.width,
+      height: p.style.height,
+      minHeight: p.style.minHeight,
+      position: p.style.position
     }
+    original.parentStyles.push(snapshot)
+    // 解除滚动容器
+    if (cs.overflow !== 'visible') p.style.overflow = 'visible'
+    if (cs.overflowX !== 'visible') p.style.overflowX = 'visible'
+    if (cs.overflowY !== 'visible') p.style.overflowY = 'visible'
+    // 解除 flex 子项限制，让目标元素按设置的 width/height 渲染
+    p.style.flex = 'none'
+    p.style.flexBasis = 'auto'
+    p.style.minHeight = '0'
+    p = p.parentElement
+  }
 
-    target.style.overflow = 'visible'
-    target.style.width = contentWidth + 'px'
-    target.style.height = contentHeight + 'px'
-    target.style.minWidth = '0'
-    target.style.minHeight = '0'
-    target.style.flexBasis = 'auto'
+  await nextTick()
+  await new Promise(r => setTimeout(r, 300))
 
-    await nextTick()
-    await new Promise(r => setTimeout(r, 300))
+  refreshBlockSizes()
+  await nextTick()
+  await new Promise(r => setTimeout(r, 100))
 
-    // 刷新块尺寸缓存（zoom 重置后 DOM 尺寸可能变化），让连线 path 重新计算
-    refreshBlockSizes()
-    await nextTick()
-    await new Promise(r => setTimeout(r, 80))
+  syncFormValues(target)
 
-    await convertImagesToDataUrl(target)
-    syncFormValues(target)
-    injectListMarkers(target)
-    await new Promise(r => setTimeout(r, 150))
+  // 隐藏画布外其他 UI（编辑器 header、右侧面板、底部缩放栏等）
+  const chromeEls = getEditorChromeSiblings(target)
+  chromeEls.forEach(el => {
+    if (el.style.display === 'none') return
+    el.dataset.exportOrigDisplay = el.style.display
+    el.style.display = 'none'
+    original.chromeHidden.push(el)
+  })
 
-    const canvas = await html2canvas(target, {
+  original.overlaysHidden = hideOverlays(target)
+
+  // 滚动到顶部，确保画布左上角对齐到窗口原点附近
+  window.scrollTo(0, 0)
+
+  await nextTick()
+  await new Promise(r => setTimeout(r, 200))
+
+  return { original, contentWidth, contentHeight }
+}
+
+async function restoreCanvasAfterExport(ctx) {
+  if (!ctx) return
+  const { original } = ctx
+  restoreOverlays(original.overlaysHidden)
+  original.chromeHidden.forEach(el => {
+    el.style.display = el.dataset.exportOrigDisplay || ''
+    delete el.dataset.exportOrigDisplay
+  })
+  // 还原父级样式
+  original.parentStyles.forEach(s => {
+    s.el.style.overflow = s.overflow
+    s.el.style.overflowX = s.overflowX
+    s.el.style.overflowY = s.overflowY
+    s.el.style.flex = s.flex
+    s.el.style.flexBasis = s.flexBasis
+    s.el.style.display = s.display
+    s.el.style.width = s.width
+    s.el.style.height = s.height
+    s.el.style.minHeight = s.minHeight
+    s.el.style.position = s.position
+  })
+  const target = canvasRef.value
+  if (target) {
+    Object.assign(target.style, original.canvasStyle)
+  }
+  blockSizes.value = original.blockSizes
+  canvasConfig.value.zoom = original.zoom
+  canvasConfig.value.offsetX = original.offsetX
+  canvasConfig.value.offsetY = original.offsetY
+  selectedBlockIds.value = original.selectedBlockIds
+  selectedConnectionId.value = original.selectedConnectionId
+  window.scrollTo(original.scrollX, original.scrollY)
+  await nextTick()
+}
+
+// 稳定使用 2x 清晰度（窗口会临时扩大，不再受可视区限制）
+function computeExportScale(_contentWidth, _contentHeight) {
+  return 2
+}
+
+async function captureViaElectron(target, contentWidth, contentHeight) {
+  // 在 zoom=1 时读取 rect（DIP 坐标），主进程按 rect × scale 截图
+  const rect = target.getBoundingClientRect()
+  const scale = computeExportScale(contentWidth, contentHeight)
+  const captureRect = {
+    x: Math.round(rect.left),
+    y: Math.round(rect.top),
+    width: Math.round(rect.width),
+    height: Math.round(rect.height)
+  }
+  const dataUrl = await window.electronAPI.capturePage({ rect: captureRect, scale })
+  if (!dataUrl) throw new Error('原生截图失败')
+
+  const img = await new Promise((resolve, reject) => {
+    const i = new Image()
+    i.onload = () => resolve(i)
+    i.onerror = reject
+    i.src = dataUrl
+  })
+  const canvas = document.createElement('canvas')
+  canvas.width = img.width
+  canvas.height = img.height
+  canvas.getContext('2d').drawImage(img, 0, 0)
+  return canvas
+}
+
+// 浏览器环境降级方案：html2canvas-pro
+async function captureViaHtml2Canvas(target, contentWidth, contentHeight) {
+  const mod = await import('html2canvas-pro')
+  const html2canvas = mod.default
+  // html2canvas 无法处理自定义协议图片，先转 dataURL
+  await convertImagesToDataUrl(target)
+  await new Promise(r => setTimeout(r, 150))
+  try {
+    return await html2canvas(target, {
       backgroundColor: '#f8faf8',
       scale: 2,
       useCORS: true,
@@ -3835,23 +3954,22 @@ async function captureCanvasSnapshot() {
           el.classList.contains('marquee-rect')
       }
     })
-
-    return canvas
   } finally {
-    cleanupListMarkers(target)
     restoreImagesFromDataUrl(target)
-    blockSizes.value = original.blockSizes
-    canvasConfig.value.zoom = original.zoom
-    canvasConfig.value.offsetX = original.offsetX
-    canvasConfig.value.offsetY = original.offsetY
-    selectedBlockIds.value = original.selectedBlockIds
-    selectedConnectionId.value = original.selectedConnectionId
-    target.style.overflow = original.overflow
-    target.style.width = original.width
-    target.style.height = original.height
-    target.style.minWidth = original.minWidth
-    target.style.minHeight = original.minHeight
-    target.style.flexBasis = original.flexBasis
+  }
+}
+
+async function captureCanvasSnapshot() {
+  const ctx = await prepareCanvasForExport()
+  if (!ctx) return null
+  const target = canvasRef.value
+  try {
+    if (window.electronAPI?.capturePage) {
+      return await captureViaElectron(target, ctx.contentWidth, ctx.contentHeight)
+    }
+    return await captureViaHtml2Canvas(target, ctx.contentWidth, ctx.contentHeight)
+  } finally {
+    await restoreCanvasAfterExport(ctx)
   }
 }
 
