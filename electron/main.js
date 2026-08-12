@@ -158,13 +158,15 @@ ipcMain.handle('window-is-maximized', () => {
 ipcMain.handle('capture-export', async (_event, payload) => {
   const opts = payload || {}
   const noteId = opts.noteId
-  if (!noteId) return null
+  if (!noteId) { console.error('[export] no noteId'); return null }
+  console.log('[export] start, noteId:', noteId)
 
-  // 创建屏幕外窗口（Windows 上 show:false 的 capturePage 返回空图，必须 show:true）
+  // 创建导出窗口（必须在可见屏幕区域内，否则 Windows 不渲染窗口，capturePage 返回 0x0）
+  // 放在 (0,0)，用主窗口遮挡，capturePage 截取的是该窗口自己的渲染缓冲区，不受遮挡影响
   const exportWin = new BrowserWindow({
     show: true,
-    x: -20000,
-    y: -20000,
+    x: 0,
+    y: 0,
     width: 1200,
     height: 800,
     frame: false,
@@ -177,21 +179,30 @@ ipcMain.handle('capture-export', async (_event, payload) => {
     }
   })
 
+  // 用主窗口遮挡导出窗口（用户不会看到导出窗口闪烁）
+  if (mainWindow) {
+    mainWindow.focus()
+    mainWindow.setAlwaysOnTop(true)
+  }
+
   try {
     const baseUrl = process.env.VITE_DEV_SERVER_URL
       ? process.env.VITE_DEV_SERVER_URL
       : `file://${path.join(__dirname, '../dist/index.html').replace(/\\/g, '/')}`
+    const url = `${baseUrl}#/note/${noteId}?export=1`
 
-    await exportWin.loadURL(`${baseUrl}#/note/${noteId}?export=1`)
-
-    // 等待渲染端通知 ready（含画布尺寸），超时 15s
-    const { width, height } = await new Promise((resolve, reject) => {
+    // 先注册 listener 再 loadURL，防止 race condition
+    const readyPromise = new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error('export-ready 超时')), 15000)
       ipcMain.once('export-ready', (_e, data) => {
         clearTimeout(timer)
         resolve(data || { width: 1200, height: 800 })
       })
     })
+
+    await exportWin.loadURL(url)
+
+    const { width, height } = await readyPromise
 
     // 放大提升清晰度
     const scale = 2
@@ -219,6 +230,10 @@ ipcMain.handle('capture-export', async (_event, payload) => {
     return null
   } finally {
     exportWin.destroy()
+    // 恢复主窗口 alwaysOnTop
+    if (mainWindow) {
+      mainWindow.setAlwaysOnTop(false)
+    }
   }
 })
 
