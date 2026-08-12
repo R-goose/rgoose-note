@@ -5368,7 +5368,12 @@ function deleteSelectedConnection() {
 }
 .note-editor-view.export-mode .editor-header,
 .note-editor-view.export-mode .zoom-controls-bottom,
-.note-editor-view.export-mode .zoom-controls {
+.note-editor-view.export-mode .zoom-controls,
+.note-editor-view.export-mode .right-panel,
+.note-editor-view.export-mode .find-in-note-bar,
+.note-editor-view.export-mode .link-selection-bar,
+.note-editor-view.export-mode .multi-select-toolbar,
+.note-editor-view.export-mode .connection-toolbar {
   display: none !important;
 }
 .note-editor-view.export-mode .canvas-container {
