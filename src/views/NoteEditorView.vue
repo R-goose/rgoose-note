@@ -3816,6 +3816,9 @@ function initExportMode() {
   target.style.minHeight = '0'
   target.style.flex = 'none'
 
+  // 用 CSS zoom 放大（纯 CSS 样式，不会污染 Chromium session 的 zoom level）
+  document.documentElement.style.zoom = '2'
+
   nextTick(() => {
     refreshBlockSizes()
     setTimeout(() => {

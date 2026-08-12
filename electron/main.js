@@ -110,8 +110,6 @@ function createWindow() {
   mainWindow.on('move', persistWindowState)
 
   mainWindow.webContents.on('did-finish-load', () => {
-    // 强制重置 zoom（防止历史污染的 zoom level 残留）
-    mainWindow.webContents.setZoomFactor(1)
     mainWindow.webContents.send('window-maximize-changed', mainWindow.isMaximized())
   })
   mainWindow.on('maximize', () => {
@@ -202,26 +200,19 @@ ipcMain.handle('capture-export', async (_event, payload) => {
 
     const { width, height } = await readyPromise
 
-    // 放大提升清晰度
+    // 窗口扩大到 2 倍容纳 CSS zoom 放大后的画布（不用 setZoomFactor，避免污染主窗口 session）
     const scale = 2
-    exportWin.webContents.setZoomFactor(scale)
-    await new Promise(r => setTimeout(r, 300))
-
-    // 扩大窗口容纳放大后的画布
     exportWin.setMaximumSize(16000, 16000)
     exportWin.setContentSize(
       Math.ceil(width * scale + 16),
       Math.ceil(height * scale + 16)
     )
-    await new Promise(r => setTimeout(r, 400))
+    await new Promise(r => setTimeout(r, 500))
 
     // 原生截图（完美渲染 SVG/伪元素/CSS变量）
     const image = await exportWin.webContents.capturePage()
 
-    // 重置 zoom 防止持久化污染主窗口（与主窗口共享同一 session/origin）
-    exportWin.webContents.setZoomFactor(1)
-
-    // 返回 PNG Buffer（避免 dataURL 过大导致渲染端 Image 加载失败）
+    // 返回 PNG Buffer
     return image.toPNG()
   } catch (e) {
     console.error('capture-export failed:', e)
