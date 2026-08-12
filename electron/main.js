@@ -110,6 +110,8 @@ function createWindow() {
   mainWindow.on('move', persistWindowState)
 
   mainWindow.webContents.on('did-finish-load', () => {
+    // 强制重置 zoom（防止历史污染的 zoom level 残留）
+    mainWindow.webContents.setZoomFactor(1)
     mainWindow.webContents.send('window-maximize-changed', mainWindow.isMaximized())
   })
   mainWindow.on('maximize', () => {
