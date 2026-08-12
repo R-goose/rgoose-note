@@ -179,11 +179,9 @@ ipcMain.handle('capture-export', async (_event, payload) => {
     }
   })
 
-  // 用主窗口遮挡导出窗口（用户不会看到导出窗口闪烁）
-  if (mainWindow) {
-    mainWindow.focus()
-    mainWindow.setAlwaysOnTop(true)
-  }
+  // 导出窗口设为完全透明：用户看不见任何缩放/窗口变化
+  // 但 backing store 仍正常渲染，capturePage 可正常工作
+  exportWin.setOpacity(0)
 
   try {
     const baseUrl = process.env.VITE_DEV_SERVER_URL
@@ -230,10 +228,6 @@ ipcMain.handle('capture-export', async (_event, payload) => {
     return null
   } finally {
     exportWin.destroy()
-    // 恢复主窗口 alwaysOnTop
-    if (mainWindow) {
-      mainWindow.setAlwaysOnTop(false)
-    }
   }
 })
 
