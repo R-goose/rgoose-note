@@ -34,7 +34,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   windowToggleMaximize: () => ipcRenderer.invoke('window-toggle-maximize'),
   windowClose: () => ipcRenderer.invoke('window-close'),
   windowIsMaximized: () => ipcRenderer.invoke('window-is-maximized'),
-  capturePage: payload => ipcRenderer.invoke('capture-page', payload),
+  captureExport: payload => ipcRenderer.invoke('capture-export', payload),
+  sendExportReady: data => ipcRenderer.send('export-ready', data),
   onMaximizeChange: cb => {
     const handler = (_e, isMaximized) => cb(isMaximized)
     ipcRenderer.on('window-maximize-changed', handler)

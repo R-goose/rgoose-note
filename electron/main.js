@@ -151,46 +151,68 @@ ipcMain.handle('window-is-maximized', () => {
   return mainWindow ? mainWindow.isMaximized() : false
 })
 
-// 截取窗口内指定 DIP 矩形，返回高清 PNG dataURL（用于笔记导出）
-// 渲染端已把 canvas-container position:fixed 到 (0,0)，
-// 主进程只需：扩大窗口 → zoomFactor 高清 → 截取全窗口 → 恢复
-ipcMain.handle('capture-page', async (_event, payload) => {
-  if (!mainWindow) return null
+// 导出截图：创建屏幕外隐藏窗口，加载应用 export 模式，原生截图
+// 主窗口完全不受影响（无缩放、无跳动），导出内容纯净（只有画布）
+ipcMain.handle('capture-export', async (_event, payload) => {
   const opts = payload || {}
-  const contentW = opts.width || 1200
-  const contentH = opts.height || 800
-  const scale = opts.scale || 2
-  try {
-    const [origW, origH] = mainWindow.getContentSize()
-    const [origMaxW, origMaxH] = mainWindow.getMaximumSize()
-    const origZoom = mainWindow.webContents.getZoomFactor()
+  const noteId = opts.noteId
+  if (!noteId) return null
 
-    // 1. 放大页面提升清晰度
-    mainWindow.webContents.setZoomFactor(scale)
+  // 创建屏幕外窗口（Windows 上 show:false 的 capturePage 返回空图，必须 show:true）
+  const exportWin = new BrowserWindow({
+    show: true,
+    x: -20000,
+    y: -20000,
+    width: 1200,
+    height: 800,
+    frame: false,
+    resizable: false,
+    backgroundColor: '#f8faf8',
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js')
+    }
+  })
+
+  try {
+    // 加载应用（带 export 参数，路由到笔记编辑器 export 模式）
+    const baseUrl = process.env.VITE_DEV_SERVER_URL
+      ? process.env.VITE_DEV_SERVER_URL
+      : `file://${path.join(__dirname, '../dist/index.html').replace(/\\/g, '/')}`
+
+    await exportWin.loadURL(`${baseUrl}#/note/${noteId}?export=1`)
+
+    // 等待渲染端通知 ready（含画布尺寸），超时 15s
+    const { width, height } = await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('export-ready 超时')), 15000)
+      ipcMain.once('export-ready', (_e, data) => {
+        clearTimeout(timer)
+        resolve(data || { width: 1200, height: 800 })
+      })
+    })
+
+    // 放大提升清晰度
+    const scale = 2
+    exportWin.webContents.setZoomFactor(scale)
     await new Promise(r => setTimeout(r, 300))
 
-    // 2. 扩大窗口容纳放大后的画布（canvas 在 0,0 所以只需 width*scale × height*scale）
-    const needW = Math.ceil(contentW * scale + 16)
-    const needH = Math.ceil(contentH * scale + 16)
-    mainWindow.setMaximumSize(16000, 16000)
-    mainWindow.setContentSize(needW, needH)
+    // 扩大窗口容纳放大后的画布
+    exportWin.setMaximumSize(16000, 16000)
+    exportWin.setContentSize(
+      Math.ceil(width * scale + 16),
+      Math.ceil(height * scale + 16)
+    )
     await new Promise(r => setTimeout(r, 400))
 
-    // 3. 截取整个窗口（canvas fixed 在 0,0 铺满窗口左上角）
-    const image = await mainWindow.webContents.capturePage()
-
-    // 4. 恢复
-    mainWindow.webContents.setZoomFactor(origZoom)
-    mainWindow.setContentSize(origW, origH)
-    mainWindow.setMaximumSize(origMaxW, origMaxH)
-
+    // 原生截图（完美渲染 SVG/伪元素/CSS变量）
+    const image = await exportWin.webContents.capturePage()
     return image.toDataURL()
   } catch (e) {
-    console.error('capture-page failed:', e)
-    try {
-      mainWindow.webContents.setZoomFactor(1)
-    } catch (_) {}
+    console.error('capture-export failed:', e)
     return null
+  } finally {
+    exportWin.destroy()
   }
 })
 

@@ -2286,12 +2286,21 @@ function onSelectionChange() {
   }
 }
 
+const isExportMode = computed(() => route.query.export === '1')
+
 onMounted(async () => {
   await noteStore.init()
   if (note.value) {
     noteStore.setCurrentNote(route.params.id)
     noteTitle.value = note.value.title
     canvasConfig.value = normalizeCanvasConfig(note.value.canvasConfig)
+  }
+  if (isExportMode.value) {
+    // export 模式：不加事件监听，加载后直接撑大画布并通知主进程截图
+    await nextTick()
+    await new Promise(r => setTimeout(r, 500)) // 等待块和图片渲染
+    initExportMode()
+    return
   }
   window.addEventListener('keydown', onKeyDown)
   window.addEventListener('keyup', onKeyUp)
@@ -3763,183 +3772,159 @@ function restoreOverlays(hidden) {
   })
 }
 
-// useNative=true 走 Electron capturePage（原生渲染，无需注入 marker/同步表单值）
-async function prepareCanvasForExport(useNative = false) {
+// 计算所有块的完整边界尺寸
+function computeExportBounds() {
+  const padding = 80
+  if (blocks.value.length === 0) {
+    return { width: 1200, height: 800, offsetX: 0, offsetY: 0 }
+  }
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  blocks.value.forEach(b => {
+    const w = b.width || 240
+    const h = getBlockDomHeight(b)
+    minX = Math.min(minX, b.x)
+    minY = Math.min(minY, b.y)
+    maxX = Math.max(maxX, b.x + w)
+    maxY = Math.max(maxY, b.y + h)
+  })
+  return {
+    width: Math.max(400, (maxX - minX) + padding * 2),
+    height: Math.max(300, (maxY - minY) + padding * 2),
+    offsetX: -minX + padding,
+    offsetY: -minY + padding
+  }
+}
+
+// ===== 屏幕外窗口 export 模式 =====
+// 在屏幕外窗口中调用：撑大画布，通知主进程截图
+function initExportMode() {
   const target = canvasRef.value
-  if (!target) return null
-
-  const original = {
-    zoom: canvasConfig.value.zoom,
-    offsetX: canvasConfig.value.offsetX,
-    offsetY: canvasConfig.value.offsetY,
-    selectedBlockIds: [...selectedBlockIds.value],
-    selectedConnectionId: selectedConnectionId.value,
-    canvasStyle: {
-      overflow: target.style.overflow,
-      width: target.style.width,
-      height: target.style.height,
-      minWidth: target.style.minWidth,
-      minHeight: target.style.minHeight,
-      flex: target.style.flex,
-      flexBasis: target.style.flexBasis,
-      flexGrow: target.style.flexGrow,
-      flexShrink: target.style.flexShrink,
-      position: target.style.position,
-      top: target.style.top,
-      left: target.style.left,
-      zIndex: target.style.zIndex
-    },
-    blockSizes: { ...blockSizes.value },
-    overlaysHidden: []
+  if (!target) {
+    window.electronAPI?.sendExportReady?.({ width: 1200, height: 800 })
+    return
   }
-
-  // 计算所有块的边界，确定导出画布的完整尺寸
-  let contentWidth = 1200
-  let contentHeight = 800
-  if (blocks.value.length > 0) {
-    const padding = 80
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-    blocks.value.forEach(b => {
-      const w = b.width || 240
-      const h = getBlockDomHeight(b)
-      minX = Math.min(minX, b.x)
-      minY = Math.min(minY, b.y)
-      maxX = Math.max(maxX, b.x + w)
-      maxY = Math.max(maxY, b.y + h)
-    })
-    contentWidth = Math.max(400, (maxX - minX) + padding * 2)
-    contentHeight = Math.max(300, (maxY - minY) + padding * 2)
-    canvasConfig.value.offsetX = -minX + padding
-    canvasConfig.value.offsetY = -minY + padding
-  } else {
-    canvasConfig.value.offsetX = 0
-    canvasConfig.value.offsetY = 0
-  }
-
+  const bounds = computeExportBounds()
   canvasConfig.value.zoom = 1
+  canvasConfig.value.offsetX = bounds.offsetX
+  canvasConfig.value.offsetY = bounds.offsetY
   selectedBlockIds.value = []
   selectedConnectionId.value = null
-
-  // 关键：position:fixed 让 canvas-container 脱离文档流，铺满窗口左上角
-  // 不受任何祖先容器的 overflow/flex 约束，彻底解决视野外块被裁剪的问题
-  target.style.position = 'fixed'
-  target.style.top = '0'
-  target.style.left = '0'
-  target.style.zIndex = '99999'
   target.style.overflow = 'hidden'
-  target.style.width = contentWidth + 'px'
-  target.style.height = contentHeight + 'px'
+  target.style.width = bounds.width + 'px'
+  target.style.height = bounds.height + 'px'
   target.style.minWidth = '0'
   target.style.minHeight = '0'
+  target.style.flex = 'none'
 
-  await nextTick()
-  await new Promise(r => setTimeout(r, 300))
-
-  // 刷新连线尺寸缓存
-  refreshBlockSizes()
-  await nextTick()
-  await new Promise(r => setTimeout(r, 100))
-
-  // 同步表单值 + 注入列表符号 + 转换图片（仅 html2canvas 需要，capturePage 原生渲染）
-  if (!useNative) {
-    syncFormValues(target)
-    injectListMarkers(target)
-    await convertImagesToDataUrl(target)
-    await new Promise(r => setTimeout(r, 150))
-  }
-
-  original.overlaysHidden = hideOverlays(target)
-
-  return { original, contentWidth, contentHeight }
-}
-
-async function restoreCanvasAfterExport(ctx) {
-  if (!ctx) return
-  const { original } = ctx
-  restoreOverlays(original.overlaysHidden)
-  restoreImagesFromDataUrl(canvasRef.value)
-  cleanupListMarkers(canvasRef.value)
-  const target = canvasRef.value
-  if (target) {
-    Object.assign(target.style, original.canvasStyle)
-  }
-  blockSizes.value = original.blockSizes
-  canvasConfig.value.zoom = original.zoom
-  canvasConfig.value.offsetX = original.offsetX
-  canvasConfig.value.offsetY = original.offsetY
-  selectedBlockIds.value = original.selectedBlockIds
-  selectedConnectionId.value = original.selectedConnectionId
-  await nextTick()
-}
-
-// 用 Electron 原生截图：完美渲染 SVG 连线、伪元素、CSS 变量
-async function captureViaElectron(target, contentWidth, contentHeight) {
-  // canvas-container 已 position:fixed 在窗口 (0,0)，直接截取全窗口
-  const dataUrl = await window.electronAPI.capturePage({
-    width: contentWidth,
-    height: contentHeight,
-    scale: 2
+  nextTick(() => {
+    refreshBlockSizes()
+    setTimeout(() => {
+      window.electronAPI?.sendExportReady?.({ width: bounds.width, height: bounds.height })
+    }, 300)
   })
-  if (!dataUrl) throw new Error('原生截图失败')
-
-  const img = await new Promise((resolve, reject) => {
-    const i = new Image()
-    i.onload = () => resolve(i)
-    i.onerror = reject
-    i.src = dataUrl
-  })
-  const canvas = document.createElement('canvas')
-  canvas.width = img.width
-  canvas.height = img.height
-  canvas.getContext('2d').drawImage(img, 0, 0)
-  return canvas
 }
 
 // 浏览器环境降级：html2canvas-pro
-async function captureViaHtml2Canvas(target, contentWidth, contentHeight) {
-  return await html2canvas(target, {
-    backgroundColor: '#f8faf8',
-    scale: 2,
-    useCORS: true,
-    allowTaint: false,
-    logging: false,
-    width: contentWidth,
-    height: contentHeight,
-    windowWidth: contentWidth,
-    windowHeight: contentHeight,
-    scrollX: 0,
-    scrollY: 0,
-    x: 0,
-    y: 0,
-    ignoreElements: (el) => {
-      if (!el.classList) return false
-      return el.classList.contains('multi-select-toolbar') ||
-        el.classList.contains('block-actions') ||
-        el.classList.contains('block-drag-handle') ||
-        el.classList.contains('block-group-badge') ||
-        el.classList.contains('marquee-rect')
-    }
-  })
+async function captureViaHtml2Canvas() {
+  const target = canvasRef.value
+  if (!target) return null
+
+  const bounds = computeExportBounds()
+  const saved = {
+    zoom: canvasConfig.value.zoom,
+    offsetX: canvasConfig.value.offsetX,
+    offsetY: canvasConfig.value.offsetY,
+    style: { ...target.style },
+    blockSizes: { ...blockSizes.value },
+    selIds: [...selectedBlockIds.value],
+    selConn: selectedConnectionId.value
+  }
+  canvasConfig.value.zoom = 1
+  canvasConfig.value.offsetX = bounds.offsetX
+  canvasConfig.value.offsetY = bounds.offsetY
+  selectedBlockIds.value = []
+  selectedConnectionId.value = null
+  target.style.overflow = 'hidden'
+  target.style.width = bounds.width + 'px'
+  target.style.height = bounds.height + 'px'
+  target.style.minWidth = '0'
+  target.style.minHeight = '0'
+  target.style.flex = 'none'
+
+  await nextTick()
+  await new Promise(r => setTimeout(r, 300))
+  refreshBlockSizes()
+  await nextTick()
+  syncFormValues(target)
+  injectListMarkers(target)
+  await convertImagesToDataUrl(target)
+  await new Promise(r => setTimeout(r, 150))
+  const hidden = hideOverlays(target)
+
+  try {
+    const canvas = await html2canvas(target, {
+      backgroundColor: '#f8faf8',
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      width: bounds.width,
+      height: bounds.height,
+      windowWidth: bounds.width,
+      windowHeight: bounds.height,
+      scrollX: 0,
+      scrollY: 0,
+      x: 0,
+      y: 0,
+      ignoreElements: (el) => {
+        if (!el.classList) return false
+        return el.classList.contains('multi-select-toolbar') ||
+          el.classList.contains('block-actions') ||
+          el.classList.contains('block-drag-handle') ||
+          el.classList.contains('block-group-badge') ||
+          el.classList.contains('marquee-rect')
+      }
+    })
+    return { canvas, contentWidth: bounds.width, contentHeight: bounds.height }
+  } finally {
+    restoreOverlays(hidden)
+    restoreImagesFromDataUrl(target)
+    cleanupListMarkers(target)
+    Object.assign(target.style, saved.style)
+    blockSizes.value = saved.blockSizes
+    canvasConfig.value.zoom = saved.zoom
+    canvasConfig.value.offsetX = saved.offsetX
+    canvasConfig.value.offsetY = saved.offsetY
+    selectedBlockIds.value = saved.selIds
+    selectedConnectionId.value = saved.selConn
+    await nextTick()
+  }
 }
 
+// 主窗口调用：通过屏幕外窗口截图，主窗口完全不受影响
 async function captureCanvasSnapshot() {
-  const useNative = !!(window.electronAPI && window.electronAPI.capturePage)
-  const ctx = await prepareCanvasForExport(useNative)
-  if (!ctx) return null
-  const target = canvasRef.value
-  try {
-    let canvas
-    if (useNative) {
-      // Electron 环境：原生截图，完美渲染连线/伪元素/样式
-      canvas = await captureViaElectron(target, ctx.contentWidth, ctx.contentHeight)
-    } else {
-      // 浏览器降级
-      canvas = await captureViaHtml2Canvas(target, ctx.contentWidth, ctx.contentHeight)
-    }
-    return { canvas, contentWidth: ctx.contentWidth, contentHeight: ctx.contentHeight }
-  } finally {
-    await restoreCanvasAfterExport(ctx)
+  // Electron 环境：创建屏幕外窗口截图
+  if (window.electronAPI?.captureExport) {
+    const noteId = route.params.id
+    const dataUrl = await window.electronAPI.captureExport({ noteId })
+    if (!dataUrl) throw new Error('导出失败')
+
+    const img = await new Promise((resolve, reject) => {
+      const i = new Image()
+      i.onload = () => resolve(i)
+      i.onerror = reject
+      i.src = dataUrl
+    })
+    const canvas = document.createElement('canvas')
+    canvas.width = img.width
+    canvas.height = img.height
+    canvas.getContext('2d').drawImage(img, 0, 0)
+
+    const bounds = computeExportBounds()
+    return { canvas, contentWidth: bounds.width, contentHeight: bounds.height }
   }
+
+  // 浏览器降级
+  return await captureViaHtml2Canvas()
 }
 
 async function exportAsPDF() {
