@@ -171,12 +171,12 @@ ipcMain.handle('capture-export', async (_event, payload) => {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      partition: 'export-session',
       preload: path.join(__dirname, 'preload.js')
     }
   })
 
   try {
-    // 加载应用（带 export 参数，路由到笔记编辑器 export 模式）
     const baseUrl = process.env.VITE_DEV_SERVER_URL
       ? process.env.VITE_DEV_SERVER_URL
       : `file://${path.join(__dirname, '../dist/index.html').replace(/\\/g, '/')}`
