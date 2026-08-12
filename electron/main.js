@@ -173,7 +173,6 @@ ipcMain.handle('capture-export', async (_event, payload) => {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      partition: 'export-session',
       preload: path.join(__dirname, 'preload.js')
     }
   })
@@ -209,6 +208,10 @@ ipcMain.handle('capture-export', async (_event, payload) => {
 
     // 原生截图（完美渲染 SVG/伪元素/CSS变量）
     const image = await exportWin.webContents.capturePage()
+
+    // 重置 zoom 防止持久化污染主窗口（与主窗口共享同一 session/origin）
+    exportWin.webContents.setZoomFactor(1)
+
     // 返回 PNG Buffer（避免 dataURL 过大导致渲染端 Image 加载失败）
     return image.toPNG()
   } catch (e) {
