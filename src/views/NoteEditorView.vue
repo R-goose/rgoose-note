@@ -3905,22 +3905,31 @@ async function captureCanvasSnapshot() {
   // Electron 环境：创建屏幕外窗口截图
   if (window.electronAPI?.captureExport) {
     const noteId = route.params.id
-    const dataUrl = await window.electronAPI.captureExport({ noteId })
-    if (!dataUrl) throw new Error('导出失败')
+    const pngBuffer = await window.electronAPI.captureExport({ noteId })
+    if (!pngBuffer) throw new Error('导出失败')
 
-    const img = await new Promise((resolve, reject) => {
-      const i = new Image()
-      i.onload = () => resolve(i)
-      i.onerror = reject
-      i.src = dataUrl
-    })
-    const canvas = document.createElement('canvas')
-    canvas.width = img.width
-    canvas.height = img.height
-    canvas.getContext('2d').drawImage(img, 0, 0)
+    // Buffer → Blob → ObjectURL（避免 dataURL 大小限制）
+    const bytes = pngBuffer instanceof Uint8Array ? pngBuffer : new Uint8Array(pngBuffer)
+    const blob = new Blob([bytes], { type: 'image/png' })
+    const objUrl = URL.createObjectURL(blob)
 
-    const bounds = computeExportBounds()
-    return { canvas, contentWidth: bounds.width, contentHeight: bounds.height }
+    try {
+      const img = await new Promise((resolve, reject) => {
+        const i = new Image()
+        i.onload = () => resolve(i)
+        i.onerror = (e) => reject(new Error('截图加载失败'))
+        i.src = objUrl
+      })
+      const canvas = document.createElement('canvas')
+      canvas.width = img.width
+      canvas.height = img.height
+      canvas.getContext('2d').drawImage(img, 0, 0)
+
+      const bounds = computeExportBounds()
+      return { canvas, contentWidth: bounds.width, contentHeight: bounds.height }
+    } finally {
+      URL.revokeObjectURL(objUrl)
+    }
   }
 
   // 浏览器降级
