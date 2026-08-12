@@ -1,5 +1,5 @@
 <template>
-  <div class="note-editor-view" @paste="onViewPaste">
+  <div class="note-editor-view" :class="{ 'export-mode': isExportMode }" @paste="onViewPaste">
     <header class="editor-header">
       <div class="header-left">
         <button class="btn btn-ghost btn-icon" @click="goBack" title="返回">
@@ -5360,6 +5360,19 @@ function deleteSelectedConnection() {
   display: flex;
   flex-direction: column;
   background: var(--bg-primary);
+}
+
+/* export 模式：隐藏所有 chrome，canvas-container 铺满 */
+.note-editor-view.export-mode {
+  overflow: visible;
+}
+.note-editor-view.export-mode .editor-header,
+.note-editor-view.export-mode .zoom-controls-bottom,
+.note-editor-view.export-mode .zoom-controls {
+  display: none !important;
+}
+.note-editor-view.export-mode .canvas-container {
+  flex: none !important;
 }
 
 .editor-header {

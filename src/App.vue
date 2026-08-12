@@ -159,6 +159,11 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
+.app-container.export-mode {
+  overflow: visible;
+  border-radius: 0;
+}
+
 .app-container.maximized {
   border-radius: 0;
 }
