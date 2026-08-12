@@ -3783,11 +3783,14 @@ async function prepareCanvasForExport(useNative = false) {
       flex: target.style.flex,
       flexBasis: target.style.flexBasis,
       flexGrow: target.style.flexGrow,
-      flexShrink: target.style.flexShrink
+      flexShrink: target.style.flexShrink,
+      position: target.style.position,
+      top: target.style.top,
+      left: target.style.left,
+      zIndex: target.style.zIndex
     },
     blockSizes: { ...blockSizes.value },
-    overlaysHidden: [],
-    parentStyle: null
+    overlaysHidden: []
   }
 
   // 计算所有块的边界，确定导出画布的完整尺寸
@@ -3806,9 +3809,6 @@ async function prepareCanvasForExport(useNative = false) {
     })
     contentWidth = Math.max(400, (maxX - minX) + padding * 2)
     contentHeight = Math.max(300, (maxY - minY) + padding * 2)
-    // 通过响应式数据驱动 transform：canvasTransformStyle(computed) 会自动应用到
-    // blocks-layer 和 connections-layer(svg 连线)，让所有块平移到容器内的可见区域
-    // 最左上块(minX,minY) 出现在 padding 位置，确保超出视野的块也被完整渲染
     canvasConfig.value.offsetX = -minX + padding
     canvasConfig.value.offsetY = -minY + padding
   } else {
@@ -3820,37 +3820,17 @@ async function prepareCanvasForExport(useNative = false) {
   selectedBlockIds.value = []
   selectedConnectionId.value = null
 
-  // 撑大画布容器到完整内容尺寸
-  // 必须设 flex:none 否则 CSS 的 flex:1 会压缩显式 height
-  target.style.flex = 'none'
-  target.style.flexGrow = '0'
-  target.style.flexShrink = '0'
-  target.style.flexBasis = 'auto'
+  // 关键：position:fixed 让 canvas-container 脱离文档流，铺满窗口左上角
+  // 不受任何祖先容器的 overflow/flex 约束，彻底解决视野外块被裁剪的问题
+  target.style.position = 'fixed'
+  target.style.top = '0'
+  target.style.left = '0'
+  target.style.zIndex = '99999'
   target.style.overflow = 'hidden'
   target.style.width = contentWidth + 'px'
   target.style.height = contentHeight + 'px'
   target.style.minWidth = '0'
   target.style.minHeight = '0'
-
-  // 同时解除父级 .note-editor-view 的 overflow/flex 约束（否则会裁剪溢出的画布）
-  const parent = target.parentElement
-  if (parent) {
-    original.parentStyle = {
-      el: parent,
-      overflow: parent.style.overflow,
-      overflowX: parent.style.overflowX,
-      overflowY: parent.style.overflowY,
-      height: parent.style.height,
-      maxHeight: parent.style.maxHeight,
-      flex: parent.style.flex
-    }
-    parent.style.overflow = 'visible'
-    parent.style.overflowX = 'visible'
-    parent.style.overflowY = 'visible'
-    parent.style.height = 'auto'
-    parent.style.maxHeight = 'none'
-    parent.style.flex = 'none'
-  }
 
   await nextTick()
   await new Promise(r => setTimeout(r, 300))
@@ -3879,16 +3859,6 @@ async function restoreCanvasAfterExport(ctx) {
   restoreOverlays(original.overlaysHidden)
   restoreImagesFromDataUrl(canvasRef.value)
   cleanupListMarkers(canvasRef.value)
-  // 还原父级样式
-  if (original.parentStyle) {
-    const ps = original.parentStyle
-    ps.el.style.overflow = ps.overflow
-    ps.el.style.overflowX = ps.overflowX
-    ps.el.style.overflowY = ps.overflowY
-    ps.el.style.height = ps.height
-    ps.el.style.maxHeight = ps.maxHeight
-    ps.el.style.flex = ps.flex
-  }
   const target = canvasRef.value
   if (target) {
     Object.assign(target.style, original.canvasStyle)
@@ -3904,14 +3874,12 @@ async function restoreCanvasAfterExport(ctx) {
 
 // 用 Electron 原生截图：完美渲染 SVG 连线、伪元素、CSS 变量
 async function captureViaElectron(target, contentWidth, contentHeight) {
-  const rect = target.getBoundingClientRect()
-  const captureRect = {
-    x: Math.round(rect.left),
-    y: Math.round(rect.top),
-    width: Math.round(rect.width),
-    height: Math.round(rect.height)
-  }
-  const dataUrl = await window.electronAPI.capturePage({ rect: captureRect, scale: 2 })
+  // canvas-container 已 position:fixed 在窗口 (0,0)，直接截取全窗口
+  const dataUrl = await window.electronAPI.capturePage({
+    width: contentWidth,
+    height: contentHeight,
+    scale: 2
+  })
   if (!dataUrl) throw new Error('原生截图失败')
 
   const img = await new Promise((resolve, reject) => {
