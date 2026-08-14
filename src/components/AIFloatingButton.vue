@@ -678,7 +678,7 @@ async function fetchWithRetry(url, options, signal, maxRetries = 3) {
 async function callAI(prompt, history, signal) {
   const apiKey = localStorage.getItem('ai_api_key') || ''
   const baseUrl = localStorage.getItem('ai_base_url') || 'https://open.bigmodel.cn/api/paas/v4'
-  const model = localStorage.getItem('ai_model') || 'glm-4-flash'
+  const model = localStorage.getItem('ai_model') || 'glm-4.7-flash'
   // history 已包含当前 user prompt（重试场景），避免重复 push
   const msgs = history.filter(m => m.content && !m.image && !m.video && !m.isError).map(m => ({ role: m.role, content: m.content }))
   if (msgs.length === 0 || msgs[msgs.length - 1].role !== 'user') {

@@ -598,36 +598,39 @@ const showClearCacheConfirm = ref(false)
 
 // ============ AI 设置 ============
 const aiApiKey = ref(localStorage.getItem('ai_api_key') || '')
-const aiModel = ref(localStorage.getItem('ai_model') || 'glm-4-flash')
+const aiModel = ref(localStorage.getItem('ai_model') || 'glm-4.7-flash')
 const aiImageModel = ref(localStorage.getItem('ai_image_model') || 'cogview-3-flash')
 const aiVideoModel = ref(localStorage.getItem('ai_video_model') || 'cogvideox-flash')
 
-// 智谱内置模型清单（免费 + 收费），API 返回可能不全，以此为基础与 API 合并
-// price 单位：元/百万 tokens（文本）/ 元/百张（图片）/ 元/次（视频），仅用于排序与展示，0 = 免费
+// 智谱 GLM 内置模型清单（按官方文档 https://docs.bigmodel.cn/cn/guide/start/model-overview 维护）
+// 官方无 /models 列表 API，以下清单为唯一数据源；用户可在下拉框手动输入自定义模型 id
+// price 仅用于排序展示，0 = 免费
 const BUILTIN_TEXT_MODELS = [
-  { id: 'glm-4.7-flash', free: true,  price: 0,    tag: '免费 · 混合思考 30B' },
-  { id: 'glm-4-flash',   free: true,  price: 0,    tag: '免费 · 旧版' },
-  { id: 'glm-4v-flash',  free: true,  price: 0,    tag: '免费 · 视觉' },
-  { id: 'glm-4',         free: false, price: 100,  tag: '收费 · 标准' },
-  { id: 'glm-4-plus',    free: false, price: 50,   tag: '收费 · 增强' },
-  { id: 'glm-4-long',    free: false, price: 1,    tag: '收费 · 长上下文' },
-  { id: 'glm-4.5',       free: false, price: 80,   tag: '收费' },
-  { id: 'glm-4.5-flash', free: false, price: 20,   tag: '收费 · 轻量' },
-  { id: 'glm-4.6',       free: false, price: 120,  tag: '收费' },
-  { id: 'glm-4.7',       free: false, price: 150,  tag: '收费 · 旗舰' },
-  { id: 'glm-4v',        free: false, price: 90,   tag: '收费 · 视觉' },
-  { id: 'glm-4v-plus',   free: false, price: 70,   tag: '收费 · 视觉增强' }
+  { id: 'glm-4.7-flash',         free: true,  price: 0,   tag: '免费 · GLM-4.7 基座 · 200K 上下文' },
+  { id: 'glm-4-flash-250414',    free: true,  price: 0,   tag: '免费 · 128K 上下文' },
+  { id: 'glm-4.5-flash',         free: true,  price: 0,   tag: '免费 · 即将下线 · 支持深度思考' },
+  { id: 'glm-5.2',               free: false, price: 200, tag: '收费 · 旗舰 · 1M 上下文' },
+  { id: 'glm-5.1',               free: false, price: 180, tag: '收费 · 200K · 对齐 Claude 4.6' },
+  { id: 'glm-5',                 free: false, price: 160, tag: '收费 · 200K · 对齐 Claude 4.5' },
+  { id: 'glm-5-turbo',           free: false, price: 100, tag: '收费 · 200K · 长任务优化' },
+  { id: 'glm-4.7',               free: false, price: 150, tag: '收费 · 200K · 通用旗舰' },
+  { id: 'glm-4.7-flashx',        free: false, price: 30,  tag: '收费 · 轻量高速' },
+  { id: 'glm-4.6',               free: false, price: 120, tag: '收费 · 200K · 工具调用' },
+  { id: 'glm-4.5-air',           free: false, price: 20,  tag: '收费 · 128K · 高性价比' },
+  { id: 'glm-4.5-airx',          free: false, price: 25,  tag: '收费 · 128K · 极速版' },
+  { id: 'glm-4-long',            free: false, price: 1,   tag: '收费 · 1M 上下文' },
+  { id: 'glm-4-flashx-250414',   free: false, price: 10,  tag: '收费 · 128K · 高速版' }
 ]
 const BUILTIN_IMAGE_MODELS = [
-  { id: 'cogview-3-flash', free: true,  price: 0,   tag: '免费 · 旧版' },
-  { id: 'cogview-4-plus',  free: false, price: 50,  tag: '收费 · CogView4 支持 中文' },
-  { id: 'cogview-4',       free: false, price: 30,  tag: '收费' },
-  { id: 'cogview-3-plus',  free: false, price: 10,  tag: '收费' }
+  { id: 'cogview-3-flash', free: true,  price: 0,  tag: '免费 · 快速生成' },
+  { id: 'glm-image',       free: false, price: 50, tag: '收费 · 旗舰 · 文字渲染强' },
+  { id: 'cogview-4',       free: false, price: 30, tag: '收费 · 通用 · 支持中文' }
 ]
 const BUILTIN_VIDEO_MODELS = [
-  { id: 'cogvideox-flash', free: true,  price: 0,   tag: '免费 · 清影' },
-  { id: 'cogvideox-2',     free: false, price: 100, tag: '收费 · 旗舰' },
-  { id: 'cogvideox',       free: false, price: 50,  tag: '收费 · 标准 · 0.5元/次' }
+  { id: 'cogvideox-flash', free: true,  price: 0,   tag: '免费 · 最长 10 秒 · 4K/60fps' },
+  { id: 'cogvideox-3',     free: false, price: 100, tag: '收费 · 旗舰 · 首尾帧生成' },
+  { id: 'vidu-q1',         free: false, price: 80,  tag: '收费 · 高质量 · 首尾帧' },
+  { id: 'vidu-2',          free: false, price: 30,  tag: '收费 · 高速低价' }
 ]
 
 // 排序：免费在前，收费按价格从高到低
@@ -770,24 +773,29 @@ async function fetchAiModels() {
   }
   loadingModels.value = true
   try {
-    const resp = await fetch('https://open.bigmodel.cn/api/paas/v4/models', {
-      headers: { Authorization: `Bearer ${key}` }
+    // 用 chat/completions 发一个极简请求验证 API Key 有效性
+    const baseUrl = 'https://open.bigmodel.cn/api/paas/v4'
+    const resp = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'glm-4.7-flash', messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 })
     })
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
-    const json = await resp.json()
-    const all = (json?.data || []).map(m => m.id).filter(Boolean)
-    // API 返回 + 内置清单合并去重
-    const merged = mergeBuiltin(all)
-    textModels.value = merged.text
-    imageModels.value = merged.image
-    videoModels.value = merged.video
-    // 只缓存 id 列表，结构由内置清单驱动
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}))
+      const msg = body?.error?.message || `HTTP ${resp.status}`
+      throw new Error(msg)
+    }
+    // Key 有效，直接使用内置清单（官方无 /models 列表 API）
+    textModels.value = sortByPrice([...BUILTIN_TEXT_MODELS])
+    imageModels.value = sortByPrice([...BUILTIN_IMAGE_MODELS])
+    videoModels.value = sortByPrice([...BUILTIN_VIDEO_MODELS])
     localStorage.setItem('ai_text_models', JSON.stringify(textModels.value.map(m => m.id)))
     localStorage.setItem('ai_image_models', JSON.stringify(imageModels.value.map(m => m.id)))
     localStorage.setItem('ai_video_models', JSON.stringify(videoModels.value.map(m => m.id)))
-    toastSuccess(`已获取 ${all.length} 个，合并后共 ${textModels.value.length + imageModels.value.length + videoModels.value.length} 个模型`)
+    const total = textModels.value.length + imageModels.value.length + videoModels.value.length
+    toastSuccess(`API Key 验证成功，已加载 ${total} 个官方模型`)
   } catch (e) {
-    toastError('获取模型列表失败：' + e.message)
+    toastError('API Key 验证失败：' + e.message)
   } finally {
     loadingModels.value = false
   }
