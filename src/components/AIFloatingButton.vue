@@ -618,16 +618,61 @@ async function send() {
   await runGeneration(convo)
 }
 
+// GLM 业务错误码 → 用户可读提示
+const GLM_ERROR_MAP = {
+  '1113': '账户已欠费，请充值后重试',
+  '1302': '请求频率过快被限流，请稍等几秒再试',
+  '1305': '模型当前访问量过大，请稍后再试',
+  '1308': '已达到使用上限，限额将在指定时间后重置',
+  '1310': '已达到每周/每月使用上限',
+  '1311': '当前套餐暂未开放此模型权限',
+  '1313': '账户触发公平使用策略限制，请前往智谱官网申请解除',
+}
+
 async function fetchWithRetry(url, options, signal, maxRetries = 3) {
+  let lastError = null
   for (let i = 0; i <= maxRetries; i++) {
     const response = await fetch(url, { ...options, signal })
+
     if (response.ok) return response
+
+    // 尝试读取响应体获取 GLM 业务错误码
+    let body = null
+    try { body = await response.json() } catch {}
+
+    const errCode = body?.error?.code || ''
+    const errMsg = body?.error?.message || ''
+
+    // 不可恢复的 429（额度用完/套餐限制等）→ 立即抛出，不重试
+    const nonRetryable = ['1113', '1308', '1310', '1311', '1313', '1314', '1315', '1316', '1317']
+    if (nonRetryable.includes(errCode)) {
+      throw new Error(GLM_ERROR_MAP[errCode] || `请求失败(${errCode})：${errMsg}`)
+    }
+
+    // 可重试的 429（频率限制/模型繁忙）→ 指数退避
     if (response.status === 429 && i < maxRetries) {
-      await new Promise(r => setTimeout(r, 2000 * Math.pow(2, i)))
+      lastError = new Error(GLM_ERROR_MAP[errCode] || `请求被限流：${errMsg}`)
+      const delay = 2000 * Math.pow(2, i) // 2s → 4s → 8s
+      // 重试等待可被 abort 立即中断
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(resolve, delay)
+        if (signal) {
+          signal.addEventListener('abort', () => {
+            clearTimeout(timer)
+            reject(new DOMException('Aborted', 'AbortError'))
+          }, { once: true })
+        }
+      })
       continue
+    }
+
+    // 其他错误
+    if (errCode) {
+      throw new Error(GLM_ERROR_MAP[errCode] || `请求失败(${errCode})：${errMsg}`)
     }
     throw new Error(`HTTP ${response.status}`)
   }
+  throw lastError || new Error('请求失败')
 }
 
 async function callAI(prompt, history, signal) {
@@ -643,7 +688,7 @@ async function callAI(prompt, history, signal) {
   const response = await fetchWithRetry(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, messages: msgs, temperature: 0.7, max_tokens: 2048 })
+    body: JSON.stringify({ model, messages: msgs, temperature: 0.7, max_tokens: 4096 })
   }, signal)
   const data = await response.json()
   return data.choices?.[0]?.message?.content || '(空回复)'
@@ -678,9 +723,17 @@ async function callVideoGen(prompt, signal) {
   const data = await resp.json()
   const taskId = data.id || data.task?.id
   if (!taskId) throw new Error(data?.msg || '视频任务创建失败')
-  // 2. 轮询查询结果（最多等约 5 分钟）
+  // 2. 轮询查询结果（最多等约 5 分钟），轮询间隔可被 abort 立即中断
   for (let i = 0; i < 60; i++) {
-    await new Promise(r => setTimeout(r, 5000))
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(resolve, 5000)
+      if (signal) {
+        signal.addEventListener('abort', () => {
+          clearTimeout(timer)
+          reject(new DOMException('Aborted', 'AbortError'))
+        }, { once: true })
+      }
+    })
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
     const r2 = await fetch(`${baseUrl}/async-result/${taskId}`, {
       headers: { 'Authorization': `Bearer ${apiKey}` },
