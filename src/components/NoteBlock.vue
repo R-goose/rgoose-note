@@ -1760,38 +1760,48 @@ function getSelectionFormat() {
   if (range.collapsed) return null
   if (!editorRef.value.contains(range.commonAncestorContainer)) return null
 
-  // Use queryCommandState for execCommand-based formats
-  const bold = document.queryCommandState('bold')
-  const italic = document.queryCommandState('italic')
-  const underline = document.queryCommandState('underline')
-  const strikeThrough = document.queryCommandState('strikeThrough')
-  const foreColor = normalizeColor(document.queryCommandValue('foreColor'))
-
-  // For fontSize and fontWeight, inspect the actual DOM
-  let fontSize = null
-  let fontWeight = null
+  // 纯 DOM 检查选区起始节点的祖先链，不依赖 queryCommandState
+  // （queryCommandState 在 file:// 协议下行为不一致）
   let node = range.startContainer
   if (node.nodeType === 3) node = node.parentElement
-  if (node && node.nodeType === 1) {
-    const el = node.closest('[style*="font-size"], [style*="font-weight"]')
-    if (el) {
-      const fs = el.style.fontSize
-      if (fs) fontSize = parseInt(fs)
-      const fw = el.style.fontWeight
-      if (fw) fontWeight = parseInt(fw)
-    }
-    // Also check parent chain for inherited font-size/font-weight
-    if (!fontSize || !fontWeight) {
-      let cur = node
-      while (cur && cur !== editorRef.value) {
-        if (cur.style) {
-          if (!fontSize && cur.style.fontSize) fontSize = parseInt(cur.style.fontSize)
-          if (!fontWeight && cur.style.fontWeight) fontWeight = parseInt(cur.style.fontWeight)
+
+  let bold = false, italic = false, underline = false, strikeThrough = false
+  let foreColor = null
+  let fontSize = null
+  let fontWeight = null
+
+  let cur = node
+  while (cur && cur !== editorRef.value) {
+    if (cur.nodeType === 1) {
+      const tag = cur.tagName
+      if (tag === 'B' || tag === 'STRONG') bold = true
+      if (tag === 'I' || tag === 'EM') italic = true
+      if (tag === 'U') underline = true
+      if (tag === 'S' || tag === 'STRIKE' || tag === 'DEL') strikeThrough = true
+      const style = cur.style
+      if (style) {
+        const fw = style.fontWeight
+        if (fw && (fw === 'bold' || parseInt(fw) >= 600)) bold = true
+        if (style.fontStyle === 'italic' || style.fontStyle === 'oblique') italic = true
+        if (style.textDecoration) {
+          const td = style.textDecoration
+          if (td.includes('underline')) underline = true
+          if (td.includes('line-through')) strikeThrough = true
         }
-        cur = cur.parentElement
+        if (style.color && !foreColor) foreColor = normalizeColor(style.color)
+        if (style.fontSize && !fontSize) fontSize = parseInt(style.fontSize)
+        if (style.fontWeight && !fontWeight) fontWeight = parseInt(fw)
       }
     }
+    cur = cur.parentElement
   }
+
+  // 兜底：尝试 queryCommandState（dev 模式可能更准确）
+  if (!bold) bold = document.queryCommandState('bold')
+  if (!italic) italic = document.queryCommandState('italic')
+  if (!underline) underline = document.queryCommandState('underline')
+  if (!strikeThrough) strikeThrough = document.queryCommandState('strikeThrough')
+  if (!foreColor) foreColor = normalizeColor(document.queryCommandValue('foreColor'))
 
   return { bold, italic, underline, strikeThrough, foreColor, fontSize, fontWeight, hasSelection: true }
 }
