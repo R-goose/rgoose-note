@@ -1048,6 +1048,7 @@ const linkUrl = ref('')
 const imageOverflow = ref(false)
 let resizeObserver = null
 let caretTextOffset = -1
+let themeAttrObserver = null
 
 const linkedNoteTitle = computed(() => {
   const note = noteStore.notes.find(n => n.id === props.block.linkedNoteId && !n.deleted)
@@ -1100,7 +1101,7 @@ watch(
   () => props.block.content,
   value => {
     if (editorRef.value && document.activeElement !== editorRef.value) {
-      editorRef.value.innerHTML = value || ''
+      editorRef.value.innerHTML = applyDisplayThemeColors(value, isDarkThemeNow())
     }
   }
 )
@@ -1109,7 +1110,7 @@ watch(
   () => props.syncVersion,
   () => {
     if (editorRef.value) {
-      editorRef.value.innerHTML = props.block.content || ''
+      editorRef.value.innerHTML = applyDisplayThemeColors(props.block.content, isDarkThemeNow())
       if (caretTextOffset >= 0) {
         const newRange = offsetToRange(editorRef.value, caretTextOffset)
         const sel = window.getSelection()
@@ -1123,7 +1124,7 @@ watch(
 
 function syncEditorContent() {
   if (editorRef.value && document.activeElement !== editorRef.value) {
-    editorRef.value.innerHTML = props.block.content || ''
+    editorRef.value.innerHTML = applyDisplayThemeColors(props.block.content, isDarkThemeNow())
   }
 }
 
@@ -1816,6 +1817,44 @@ function normalizeColor(color) {
   return color
 }
 
+const THEME_TEXT_COLOR_LIGHT = '#1a1f1c'
+const THEME_TEXT_COLOR_DARK = '#f5f7f4'
+const LIGHT_THEME_COLOR_RE = /(?:#1a1f1c|rgba?\(\s*26\s*,\s*31\s*,\s*28\s*(?:,\s*[\d.]+\s*)?\))/gi
+const DARK_THEME_COLOR_RE = /(?:#f5f7f4|rgba?\(\s*245\s*,\s*247\s*,\s*244\s*(?:,\s*[\d.]+\s*)?\))/gi
+
+function isDarkThemeNow() {
+  return document.documentElement.getAttribute('data-theme') === 'dark'
+}
+
+function applyDisplayThemeColors(html, isDark) {
+  if (!html) return html || ''
+  return isDark
+    ? html.replace(LIGHT_THEME_COLOR_RE, THEME_TEXT_COLOR_DARK)
+    : html.replace(DARK_THEME_COLOR_RE, THEME_TEXT_COLOR_LIGHT)
+}
+
+function convertEditorThemeColorsInPlace() {
+  if (!editorRef.value) return
+  const isDark = isDarkThemeNow()
+  const toHex = c => {
+    const s = (c || '').trim().toLowerCase()
+    const m = s.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/)
+    if (m) {
+      return '#' + [m[1], m[2], m[3]].map(n => parseInt(n).toString(16).padStart(2, '0')).join('')
+    }
+    return s
+  }
+  editorRef.value.querySelectorAll('[style]').forEach(el => {
+    if (!el.style.color) return
+    const hex = toHex(el.style.color)
+    if (isDark && hex === THEME_TEXT_COLOR_LIGHT) {
+      el.style.color = THEME_TEXT_COLOR_DARK
+    } else if (!isDark && hex === THEME_TEXT_COLOR_DARK) {
+      el.style.color = THEME_TEXT_COLOR_LIGHT
+    }
+  })
+}
+
 defineExpose({ formatSelection, clearInlineStyle, getSelectionFormat })
 
 function insertList(type) {
@@ -2024,6 +2063,11 @@ function closeInsertMenu(e) {
 onMounted(() => {
   document.addEventListener('click', closeInsertMenu, true)
   document.addEventListener('selectionchange', onSelectionChange)
+  themeAttrObserver = new MutationObserver(convertEditorThemeColorsInPlace)
+  themeAttrObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme']
+  })
   nextTick(() => {
     syncEditorContent()
     reportResize()
@@ -2043,6 +2087,10 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('click', closeInsertMenu, true)
   document.removeEventListener('selectionchange', onSelectionChange)
+  if (themeAttrObserver) {
+    themeAttrObserver.disconnect()
+    themeAttrObserver = null
+  }
   if (resizeObserver) {
     resizeObserver.disconnect()
     resizeObserver = null
