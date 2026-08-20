@@ -1390,7 +1390,23 @@ function focusBlock(id) {
 
 function focusAndCenterBlock(id) {
   focusBlock(id)
-  nextTick(() => centerBlockInView(id))
+  nextTick(() => {
+    centerBlockInView(id)
+    // 新建的文本块自动进入编辑状态：光标落到编辑区末尾
+    const block = blocks.value.find(b => b.id === id)
+    if (block && block.type === 'text' && !block.locked) {
+      const el = document.querySelector(`[data-block-id="${id}"] .text-editor`)
+      if (el && el.getAttribute('contenteditable') !== 'false') {
+        el.focus()
+        const range = document.createRange()
+        range.selectNodeContents(el)
+        range.collapse(false)
+        const sel = window.getSelection()
+        sel.removeAllRanges()
+        sel.addRange(range)
+      }
+    }
+  })
 }
 
 // ===== 笔记内大纲 =====
@@ -1765,13 +1781,29 @@ const blockFontWeights = [
   { value: 500, label: '中等' },
   { value: 700, label: '粗体' }
 ]
-const blockTextColors = [
-  { value: '#1a1f1c', swatch: '#5a625e' },
-  { value: '#52a377', swatch: '#6bbd8f' },
-  { value: '#4d8cbe', swatch: '#6fa8d6' },
-  { value: '#b8955a', swatch: '#d4b27a' },
-  { value: '#d97676', swatch: '#e08080' }
-]
+// 主题跟随：监听根元素 data-theme 变化（覆盖 light/dark/auto 三种模式）
+const isDarkTheme = ref(document.documentElement.getAttribute('data-theme') === 'dark')
+let themeAttrObserver = null
+onMounted(() => {
+  themeAttrObserver = new MutationObserver(() => {
+    isDarkTheme.value = document.documentElement.getAttribute('data-theme') === 'dark'
+  })
+  themeAttrObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+})
+onUnmounted(() => { themeAttrObserver?.disconnect() })
+
+// 文字色板：浅色模式提供近黑，深色模式提供近白，其余颜色不变
+const blockTextColors = computed(() => {
+  const base = [
+    { value: '#52a377', swatch: '#6bbd8f' },
+    { value: '#4d8cbe', swatch: '#6fa8d6' },
+    { value: '#b8955a', swatch: '#d4b27a' },
+    { value: '#d97676', swatch: '#e08080' }
+  ]
+  return isDarkTheme.value
+    ? [{ value: '#f5f7f4', swatch: '#ffffff' }, ...base]
+    : [{ value: '#1a1f1c', swatch: '#5a625e' }, ...base]
+})
 const blockBorderStyles = [
   { value: 'solid', label: '实线' },
   { value: 'dashed', label: '虚线' },
