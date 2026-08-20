@@ -676,7 +676,7 @@ async function fetchWithRetry(url, options, signal, maxRetries = 3) {
 }
 
 async function callAI(prompt, history, signal) {
-  const apiKey = localStorage.getItem('ai_api_key') || ''
+  const apiKey = (localStorage.getItem('ai_api_key') || '').trim()
   const baseUrl = localStorage.getItem('ai_base_url') || 'https://open.bigmodel.cn/api/coding/paas/v4'
   const model = localStorage.getItem('ai_model') || 'glm-4.7-flash'
   // history 已包含当前 user prompt（重试场景），避免重复 push
@@ -695,7 +695,7 @@ async function callAI(prompt, history, signal) {
 }
 
 async function callImageGen(prompt, signal) {
-  const apiKey = localStorage.getItem('ai_api_key') || ''
+  const apiKey = (localStorage.getItem('ai_api_key') || '').trim()
   const baseUrl = localStorage.getItem('ai_base_url') || 'https://open.bigmodel.cn/api/coding/paas/v4'
   const model = localStorage.getItem('ai_image_model') || 'cogview-3-flash'
   const response = await fetchWithRetry(`${baseUrl}/images/generations`, {
@@ -711,7 +711,7 @@ async function callImageGen(prompt, signal) {
 
 // CogVideoX 为异步任务：提交 → 轮询查询结果
 async function callVideoGen(prompt, signal) {
-  const apiKey = localStorage.getItem('ai_api_key') || ''
+  const apiKey = (localStorage.getItem('ai_api_key') || '').trim()
   const baseUrl = localStorage.getItem('ai_base_url') || 'https://open.bigmodel.cn/api/coding/paas/v4'
   const model = localStorage.getItem('ai_video_model') || 'cogvideox-flash'
   // 1. 提交生成任务
