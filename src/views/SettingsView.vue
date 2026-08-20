@@ -415,7 +415,7 @@
           <div id="set-about-version" class="setting-item">
             <div class="setting-info">
               <div class="setting-name brand-name">R-Goose Note</div>
-              <div class="setting-desc">版本 1.9.6</div>
+              <div class="setting-desc">版本 1.9.7</div>
             </div>
           </div>
           <div id="set-about-platform" class="setting-item">
@@ -774,7 +774,7 @@ async function fetchAiModels() {
   loadingModels.value = true
   try {
     // 用 chat/completions 发一个极简请求验证 API Key 有效性
-    const baseUrl = 'https://open.bigmodel.cn/api/paas/v4'
+    const baseUrl = 'https://open.bigmodel.cn/api/coding/paas/v4'
     const resp = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
