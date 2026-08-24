@@ -1184,11 +1184,22 @@ function onSearchShortcut(e) {
   }
 }
 
+function onOpenCreateNoteEvent() {
+  window.__rgooseCreateNotePending = false
+  createNote()
+}
+
 onMounted(() => {
+  if (window.__rgooseCreateNotePending) {
+    window.__rgooseCreateNotePending = false
+    nextTick(() => createNote())
+  }
+  window.addEventListener('rgoose:open-create-note', onOpenCreateNoteEvent)
   window.addEventListener('keydown', onSearchShortcut)
   window.addEventListener('mousedown', onGlobalClick)
 })
 onUnmounted(() => {
+  window.removeEventListener('rgoose:open-create-note', onOpenCreateNoteEvent)
   window.removeEventListener('keydown', onSearchShortcut)
   window.removeEventListener('mousedown', onGlobalClick)
 })
@@ -1811,18 +1822,21 @@ onUnmounted(() => {
 .create-tag-add-row {
   display: flex;
   gap: 8px;
-  align-items: center;
+  align-items: stretch;
 }
 
 .create-tag-input {
   flex: 1;
   margin-bottom: 0;
   font-size: 13px;
+  height: 36px;
+  padding: 0 12px;
 }
 
 .create-tag-add-btn {
   flex-shrink: 0;
-  padding: 6px 14px;
+  height: 36px;
+  padding: 0 16px;
   font-size: 13px;
 }
 

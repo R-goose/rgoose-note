@@ -314,28 +314,6 @@
     </div>
 
     <Teleport to="body">
-      <div v-if="showCreateNoteModal" class="modal-overlay" @click.self="cancelCreateNote">
-        <div class="modal-content create-note-modal">
-          <h3>新建笔记</h3>
-          <input
-            ref="noteTitleInputRef"
-            v-model="newNoteTitle"
-            type="text"
-            class="input"
-            placeholder="请输入笔记名称"
-            maxlength="100"
-            @keyup.enter="confirmCreateNote"
-            @keyup.esc="cancelCreateNote"
-          />
-          <div class="modal-actions">
-            <button class="btn btn-secondary" @click="cancelCreateNote">取消</button>
-            <button class="btn btn-primary" @click="confirmCreateNote">创建</button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
-
-    <Teleport to="body">
       <div v-if="showCreateFolderModal" class="modal-overlay" @click.self="cancelCreateFolderModal">
         <div class="modal-content create-folder-modal">
           <h3>新建文件夹</h3>
@@ -609,9 +587,6 @@ function toggleSection(key) {
 function isSectionCollapsed(key) {
   return !!collapsedSections.value[key]
 }
-const showCreateNoteModal = ref(false)
-const newNoteTitle = ref('')
-const noteTitleInputRef = ref(null)
 const noteToDelete = ref(null)
 const folderToDelete = ref(null)
 const showCreateFolderModal = ref(false)
@@ -844,27 +819,12 @@ function createNoteInFolder() {
   const folder = folderContextMenu.value.folder
   if (folder) noteStore.setCurrentFolder(folder.id)
   hideFolderContextMenu()
-  newNoteTitle.value = ''
-  showCreateNoteModal.value = true
-  nextTick(() => focusRef(noteTitleInputRef))
+  // 复用笔记页的新建笔记弹窗（含标签/模板选择）
+  window.__rgooseCreateNotePending = true
+  router.push('/notes')
+  window.dispatchEvent(new CustomEvent('rgoose:open-create-note'))
 }
 
-function confirmCreateNote() {
-  const title = newNoteTitle.value.trim()
-  if (!title) {
-    toastError('请输入笔记名称')
-    return
-  }
-  const note = noteStore.createNote(title)
-  showCreateNoteModal.value = false
-  newNoteTitle.value = ''
-  router.push(`/note/${note.id}`)
-}
-
-function cancelCreateNote() {
-  showCreateNoteModal.value = false
-  newNoteTitle.value = ''
-}
 
 function confirmCreateFolderModal() {
   const name = newFolderModalName.value.trim()
@@ -1974,29 +1934,6 @@ function closeFolderModalTagDropdown(e) {
   margin-left: 0;
 }
 
-.create-note-modal {
-  width: 380px;
-  max-width: 90vw;
-  padding: 24px;
-}
-
-.create-note-modal h3 {
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 16px;
-  color: var(--text-primary);
-}
-
-.create-note-modal .input {
-  margin-bottom: 20px;
-  font-size: 15px;
-}
-
-.create-note-modal .modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
 
 .create-folder-modal {
   width: 380px;
