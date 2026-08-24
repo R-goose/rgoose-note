@@ -589,6 +589,7 @@
           spellcheck="false"
           :data-placeholder="block.content ? '' : '输入内容...'"
           @input="onInput"
+          @click="onEditorClick"
           @blur="onBlur"
           @paste="onPaste"
           @keydown="onEditorKeyDown"
@@ -610,6 +611,7 @@
         :style="editorStyle"
         :data-placeholder="block.content ? '' : '点击输入内容...'"
         @input="onInput"
+        @click="onEditorClick"
         @blur="onBlur"
         @paste="onPaste"
         @keydown="onEditorKeyDown"
@@ -1340,6 +1342,69 @@ function onMilestoneField(field, value) {
   emit('update', props.block.id, { [field]: value })
 }
 
+const AUTO_LINK_URL_RE = /\b(?:https?:\/\/|www\.)\S+/gi
+const AUTO_LINK_URL_DETECT = /\b(?:https?:\/\/|www\.)\S+/i
+
+function trimUrlTail(url) {
+  return url.replace(/[.,;:!?，。；：！？、）)\]】>]+$/u, '')
+}
+
+function makeAutolinkNode(url) {
+  const href = /^https?:\/\//i.test(url) ? url : 'https://' + url
+  const a = document.createElement('a')
+  a.setAttribute('href', href)
+  a.setAttribute('target', '_blank')
+  a.setAttribute('rel', 'noopener noreferrer')
+  a.textContent = url
+  return a
+}
+
+function autolinkDom(root) {
+  if (!root) return
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const value = node.nodeValue
+      if (!value || !AUTO_LINK_URL_DETECT.test(value)) return NodeFilter.FILTER_REJECT
+      const parent = node.parentElement
+      if (!parent || parent.closest('a, code, pre')) return NodeFilter.FILTER_REJECT
+      return NodeFilter.FILTER_ACCEPT
+    }
+  })
+  const targets = []
+  while (walker.nextNode()) targets.push(walker.currentNode)
+  targets.forEach(node => {
+    const text = node.nodeValue
+    const frag = document.createDocumentFragment()
+    let last = 0
+    let m
+    AUTO_LINK_URL_RE.lastIndex = 0
+    while ((m = AUTO_LINK_URL_RE.exec(text)) !== null) {
+      const url = trimUrlTail(m[0])
+      const start = m.index
+      const end = start + url.length
+      if (end <= start) continue
+      if (start > last) frag.appendChild(document.createTextNode(text.slice(last, start)))
+      frag.appendChild(makeAutolinkNode(url))
+      last = end
+      AUTO_LINK_URL_RE.lastIndex = end
+    }
+    if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)))
+    if (node.parentNode) node.parentNode.replaceChild(frag, node)
+  })
+}
+
+function onEditorClick(e) {
+  const target = e.target
+  if (!target || !target.closest) return
+  const a = target.closest('a')
+  if (!a) return
+  const href = a.getAttribute('href') || ''
+  if (!/^https?:\/\//i.test(href)) return
+  e.preventDefault()
+  e.stopPropagation()
+  window.open(href, '_blank', 'noopener,noreferrer')
+}
+
 function onInput(e) {
   emit('update', props.block.id, { content: e.target.innerHTML })
   saveSelection()
@@ -1347,6 +1412,7 @@ function onInput(e) {
 
 function onBlur() {
   if (editorRef.value) {
+    autolinkDom(editorRef.value)
     emit('update', props.block.id, { content: editorRef.value.innerHTML })
     emit('blur', props.block.id)
   }
@@ -2372,6 +2438,8 @@ onUnmounted(() => {
 .text-editor :deep(a) {
   color: var(--primary-dark);
   text-decoration: underline;
+  cursor: pointer;
+  word-break: break-all;
 }
 
 .text-editor :deep(ul),

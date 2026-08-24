@@ -793,6 +793,15 @@
                 <span class="source-option-desc">从已有素材中选择</span>
               </div>
             </button>
+            <button v-if="sourcePicker.mode === 'image'" class="source-option" @click="pickFromClipboard">
+              <div class="source-option-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+              </div>
+              <div class="source-option-text">
+                <span class="source-option-title">从剪贴板导入</span>
+                <span class="source-option-desc">读取剪贴板中的图片</span>
+              </div>
+            </button>
           </div>
         </div>
       </div>
@@ -4263,6 +4272,46 @@ function pickFromLibrary() {
   }
 }
 
+async function readClipboardImage() {
+  try {
+    if (!navigator.clipboard || !navigator.clipboard.read) return null
+    const items = await navigator.clipboard.read()
+    for (const item of items) {
+      const type = (item.types || []).find(t => t.startsWith('image/'))
+      if (type) return await item.getType(type)
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+async function pickFromClipboard() {
+  const mode = sourcePicker.value.mode
+  sourcePicker.value.show = false
+  if (mode !== 'image') return
+  const blob = await readClipboardImage()
+  if (!blob) {
+    toastError('剪贴板中没有可用的图片')
+    return
+  }
+  isImageLoading.value = true
+  try {
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = ev => resolve(ev.target.result)
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
+    const imgRef = await saveImage(dataUrl)
+    applyImageRef(imgRef)
+  } catch {
+    toastError('剪贴板图片导入失败，请重试')
+  } finally {
+    isImageLoading.value = false
+  }
+}
+
 function onMediaPickerSelect(ref) {
   const mode = mediaPicker.value.multiple ? 'gallery' : sourcePicker.value.mode || 'image'
   mediaPicker.value.show = false
@@ -5713,16 +5762,12 @@ function deleteSelectedConnection() {
 }
 
 .connection-path.selected {
-  stroke-width: 3px;
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.45));
 }
 
 .connection-hit {
   pointer-events: stroke;
   cursor: pointer;
-}
-
-.connection-hit:hover + .connection-path {
-  stroke-width: 3px;
 }
 
 .conn-label-bg {

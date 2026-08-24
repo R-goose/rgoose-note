@@ -88,6 +88,20 @@ function createWindow() {
 
   mainWindow = new BrowserWindow(windowOptions)
 
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//i.test(url)) {
+      shell.openExternal(url)
+    }
+    return { action: 'deny' }
+  })
+
+  mainWindow.webContents.on('will-navigate', (e, url) => {
+    if (/^https?:\/\//i.test(url)) {
+      e.preventDefault()
+      shell.openExternal(url)
+    }
+  })
+
   if (wasMaximized) {
     mainWindow.maximize()
   }
