@@ -6,7 +6,7 @@
 const fs = require('fs')
 const path = require('path')
 
-const CURRENT_VER = 2
+const CURRENT_VER = 3
 
 /**
  * 对已存在的 blocks 表补齐缺失列（v1 → v2）
@@ -69,6 +69,23 @@ function ensureConnectionColumns(db) {
   }
 }
 
+/**
+ * 清理无效主键行（v3）
+ * SQLite 的 TEXT PRIMARY KEY 允许 NULL，历史测试数据曾写入 id=NULL 的笔记，
+ * 该数据流到前端会令渲染函数崩溃（白屏）。幂等操作，干净库为 no-op。
+ */
+function purgeInvalidRows(db) {
+  db.exec(`
+    DELETE FROM notes       WHERE id IS NULL OR id = '';
+    DELETE FROM folders     WHERE id IS NULL OR id = '';
+    DELETE FROM blocks      WHERE id IS NULL OR id = '' OR noteId IS NULL OR noteId = '';
+    DELETE FROM connections WHERE id IS NULL OR id = '' OR noteId IS NULL OR noteId = '';
+    DELETE FROM plans       WHERE id IS NULL OR id = '';
+    DELETE FROM tags        WHERE id IS NULL OR id = '';
+    DELETE FROM images      WHERE id IS NULL OR id = '';
+  `)
+}
+
 function runMigrations(db) {
   // 1. 建表脚本（幂等）
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf-8')
@@ -80,11 +97,14 @@ function runMigrations(db) {
   ensureImageColumns(db)
   ensureConnectionColumns(db)
 
-  // 3. 种子数据（幂等，使用 ON CONFLICT）
+  // 3. 清理无效主键行（修复历史毒数据）
+  purgeInvalidRows(db)
+
+  // 4. 种子数据（幂等，使用 ON CONFLICT）
   const seed = fs.readFileSync(path.join(__dirname, 'seed.sql'), 'utf-8')
   db.exec(seed)
 
-  // 4. 版本号记录
+  // 5. 版本号记录
   const ver = db.prepare('PRAGMA user_version').get()
   if (ver.user_version < CURRENT_VER) {
     db.prepare(`PRAGMA user_version = ${CURRENT_VER}`).run()

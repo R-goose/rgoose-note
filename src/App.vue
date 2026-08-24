@@ -19,6 +19,7 @@
           </button>
         </div>
       </div>
+      <div v-show="apiLoading" class="global-loading-bar"><div class="glb-inner"></div></div>
       <div class="app-body">
         <Sidebar :collapsed="sidebarCollapsed" @toggle-collapse="toggleSidebar" />
         <div class="main-content" :class="{ expanded: !sidebarCollapsed }">
@@ -54,6 +55,28 @@ import { useToast } from '@/composables/useToast'
 const sidebarCollapsed = ref(false)
 const isMaximized = ref(false)
 const showCmdPalette = ref(false)
+
+// 全局接口 loading：监听 client.js 派发的请求计数事件
+// 150ms 防抖：快请求不闪烁
+const apiLoading = ref(false)
+let loadingShowTimer = null
+function handleApiLoading(e) {
+  const pending = e.detail?.pending > 0
+  if (pending) {
+    if (!apiLoading.value && !loadingShowTimer) {
+      loadingShowTimer = setTimeout(() => {
+        apiLoading.value = true
+        loadingShowTimer = null
+      }, 150)
+    }
+  } else {
+    if (loadingShowTimer) {
+      clearTimeout(loadingShowTimer)
+      loadingShowTimer = null
+    }
+    apiLoading.value = false
+  }
+}
 const route = useRoute()
 const isExportMode = computed(() => route.query.export === '1')
 const { warning: toastWarning, error: toastError } = useToast()
@@ -131,6 +154,7 @@ onMounted(() => {
   window.addEventListener('keydown', onGlobalKeydown)
   window.addEventListener('plan-reminder', handlePlanReminder)
   window.addEventListener('rgoose-storage-error', handleStorageError)
+  window.addEventListener('rgoose-loading', handleApiLoading)
 })
 
 onUnmounted(() => {
@@ -145,6 +169,11 @@ onUnmounted(() => {
   window.removeEventListener('keydown', onGlobalKeydown)
   window.removeEventListener('plan-reminder', handlePlanReminder)
   window.removeEventListener('rgoose-storage-error', handleStorageError)
+  window.removeEventListener('rgoose-loading', handleApiLoading)
+  if (loadingShowTimer) {
+    clearTimeout(loadingShowTimer)
+    loadingShowTimer = null
+  }
 })
 </script>
 
@@ -154,6 +183,7 @@ onUnmounted(() => {
   flex-direction: column;
   height: 100%;
   width: 100%;
+  position: relative;
   background: var(--bg-primary);
   border-radius: 10px;
   overflow: hidden;
@@ -220,6 +250,32 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   min-height: 0;
+}
+
+/* 全局接口 loading 进度条：标题栏下方 2px 细条，不确定进度滚动动画 */
+.global-loading-bar {
+  position: absolute;
+  top: 36px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 9999;
+  overflow: hidden;
+  pointer-events: none;
+  background: transparent;
+}
+
+.glb-inner {
+  height: 100%;
+  width: 35%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--primary-color), var(--primary-light));
+  animation: glb-slide 1.1s ease-in-out infinite;
+}
+
+@keyframes glb-slide {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(320%); }
 }
 
 .main-content {

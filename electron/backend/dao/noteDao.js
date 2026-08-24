@@ -5,6 +5,7 @@
 
 const { getDb } = require('../db/connection')
 const { safeParse, safeStringify } = require('../common/utils')
+const crypto = require('crypto')
 
 function deserialize(row) {
   if (!row) return null
@@ -47,11 +48,12 @@ module.exports = {
 
   insert(note) {
     const db = getDb()
+    const id = note.id || crypto.randomUUID()
     db.prepare(`
       INSERT INTO notes (id, title, folderId, tags, canvasConfig, createdAt, updatedAt, deleted)
       VALUES (@id, @title, @folderId, @tags, @canvasConfig, @createdAt, @updatedAt, @deleted)
     `).run({
-      id: note.id,
+      id,
       title: note.title || '',
       folderId: note.folderId || null,
       tags: safeStringify(note.tags || []),
@@ -60,7 +62,7 @@ module.exports = {
       updatedAt: note.updatedAt,
       deleted: note.deleted ? 1 : 0
     })
-    return this.getById(note.id)
+    return this.getById(id)
   },
 
   update(id, note) {

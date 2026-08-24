@@ -184,17 +184,35 @@ async function httpRequest(path, options = {}) {
 }
 
 /**
+ * 全局请求计数：所有接口调用（含图片上传）统一计入
+ * pending 变化时向 window 派发 rgoose-loading 事件，供全局 loading 条监听
+ */
+let pendingCount = 0
+function notifyLoading() {
+  if (typeof window !== 'undefined' && window.dispatchEvent) {
+    window.dispatchEvent(new CustomEvent('rgoose-loading', { detail: { pending: pendingCount } }))
+  }
+}
+
+/**
  * 统一请求入口
  */
 export async function request(path, options = {}) {
-  if (isElectron) {
-    // FormData（图片上传）特殊处理：IPC 模式下转 base64
-    if (options.body instanceof FormData) {
-      return ipcUploadFormData(path, options.body)
+  pendingCount++
+  notifyLoading()
+  try {
+    if (isElectron) {
+      // FormData（图片上传）特殊处理：IPC 模式下转 base64
+      if (options.body instanceof FormData) {
+        return await ipcUploadFormData(path, options.body)
+      }
+      return await ipcRequest(path, options)
     }
-    return ipcRequest(path, options)
+    return await httpRequest(path, options)
+  } finally {
+    pendingCount--
+    notifyLoading()
   }
-  return httpRequest(path, options)
 }
 
 /**

@@ -701,7 +701,7 @@ function folderStyle(folderId) {
   // 气泡尺寸：宽高协调，笔记越多越大
   const base = 120 + t * 90                              // 120~210px 基准边长
   // hash 决定每个文件夹的宽高比偏移，让气泡有胖有瘦
-  const hash = folderId.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
+  const hash = String(folderId || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0)
   const wRatio = 1 + ((hash % 5) - 2) * 0.06             // 0.88~1.08
   const hRatio = 1 + ((hash >> 4) % 5 - 2) * 0.06        // 0.88~1.08
   const width = Math.round(base * wRatio)
@@ -740,7 +740,7 @@ const filteredNotes = computed(() => {
     const keyword = searchKeyword.value.toLowerCase()
     notes = notes.filter(note => noteMatchesKeyword(note, keyword))
   }
-  return notes.sort((a, b) => b.updatedAt - a.updatedAt)
+  return notes.filter(n => n.id).sort((a, b) => b.updatedAt - a.updatedAt)
 })
 
 const filteredFolders = computed(() => {
@@ -895,6 +895,7 @@ function getNotePreview(note) {
 
 /** 计算笔记内容大小，返回 CSS 变量控制卡片尺寸/圆角/装饰 */
 function noteStyle(note) {
+  if (!note?.id) return {}
   // 估算笔记内容量：blocks 数量 + 各块 content 长度
   let size = 0
   if (note.blocks?.length) {
