@@ -266,6 +266,32 @@
               </div>
             </div>
           </div>
+          <div class="template-section">
+            <div class="template-section-label">关联标签（可选）</div>
+            <div v-if="tagStore.sortedTags.length" class="create-tag-list">
+              <span
+                v-for="t in tagStore.sortedTags"
+                :key="t.id"
+                class="create-tag-chip"
+                :class="{ selected: newNoteTagIds.includes(t.id) }"
+                :style="newNoteTagIds.includes(t.id) ? { background: t.color + '22', color: t.color, borderColor: t.color } : {}"
+                @click="toggleNewNoteTag(t.id)"
+              >
+                <span class="tag-dot" :style="{ background: t.color }"></span>{{ t.name }}
+              </span>
+            </div>
+            <div class="create-tag-add-row">
+              <input
+                v-model="newTagName"
+                type="text"
+                class="input create-tag-input"
+                placeholder="输入名称，回车新建标签并关联"
+                maxlength="20"
+                @keyup.enter="addNewNoteTag"
+              />
+              <button class="btn btn-secondary create-tag-add-btn" @click="addNewNoteTag">添加</button>
+            </div>
+          </div>
           <div class="modal-actions">
             <button class="btn btn-secondary" @click="cancelCreateNote">取消</button>
             <button class="btn btn-primary" @click="confirmCreateNote">创建</button>
@@ -552,6 +578,27 @@ const showCreateModal = ref(false)
 const newNoteTitle = ref('')
 const createError = ref('')
 const selectedTemplate = ref(null)
+const newNoteTagIds = ref([])
+const newTagName = ref('')
+
+function toggleNewNoteTag(tagId) {
+  const idx = newNoteTagIds.value.indexOf(tagId)
+  if (idx >= 0) newNoteTagIds.value.splice(idx, 1)
+  else newNoteTagIds.value.push(tagId)
+}
+
+function addNewNoteTag() {
+  const name = newTagName.value.trim()
+  if (!name) return
+  let tag = tagStore.tags.find(t => t.name.toLowerCase() === name.toLowerCase())
+  if (!tag) {
+    tag = tagStore.createTag(name, TAG_PRESET_COLORS[tagStore.tags.length % TAG_PRESET_COLORS.length])
+  }
+  if (tag && !newNoteTagIds.value.includes(tag.id)) {
+    newNoteTagIds.value.push(tag.id)
+  }
+  newTagName.value = ''
+}
 const noteTitleInputRef = ref(null)
 const showCreateFolderModal = ref(false)
 const newFolderName = ref('')
@@ -803,6 +850,8 @@ function createNote() {
   newNoteTitle.value = ''
   createError.value = ''
   selectedTemplate.value = null
+  newNoteTagIds.value = []
+  newTagName.value = ''
   showCreateModal.value = true
   nextTick(() => noteTitleInputRef.value?.focus())
 }
@@ -815,7 +864,7 @@ function confirmCreateNote() {
     noteTitleInputRef.value?.focus()
     return
   }
-  const note = noteStore.createNote(title)
+  const note = noteStore.createNote(title, null, newNoteTagIds.value)
   // 应用模板：向新笔记追加预设块
   if (selectedTemplate.value && selectedTemplate.value !== 'blank') {
     const tplBlocks = buildTemplateBlocks(selectedTemplate.value)
@@ -827,13 +876,18 @@ function confirmCreateNote() {
   newNoteTitle.value = ''
   createError.value = ''
   selectedTemplate.value = null
+  newNoteTagIds.value = []
+  newTagName.value = ''
   router.push(`/note/${note.id}`)
 }
 
 function cancelCreateNote() {
   showCreateModal.value = false
   newNoteTitle.value = ''
+  createError.value = ''
   selectedTemplate.value = null
+  newNoteTagIds.value = []
+  newTagName.value = ''
 }
 
 function openCreateFolderModal() {
@@ -1714,6 +1768,62 @@ onUnmounted(() => {
   font-weight: 600;
   color: var(--text-secondary);
   margin-bottom: 10px;
+}
+
+.create-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.create-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  transition: all var(--transition-fast);
+  user-select: none;
+}
+
+.create-tag-chip:hover {
+  transform: translateY(-1px);
+}
+
+.create-tag-chip.selected {
+  font-weight: 600;
+}
+
+.create-tag-chip .tag-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.create-tag-add-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.create-tag-input {
+  flex: 1;
+  margin-bottom: 0;
+  font-size: 13px;
+}
+
+.create-tag-add-btn {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  font-size: 13px;
 }
 
 .template-grid {

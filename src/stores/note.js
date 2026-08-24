@@ -378,13 +378,13 @@ export const useNoteStore = defineStore('note', () => {
 
   // ==================== 笔记操作 ====================
 
-  function createNote(title = '新笔记', folderId = null) {
+  function createNote(title = '新笔记', folderId = null, tags = []) {
     const now = getTimestamp()
     const note = {
       id: generateId(),
       title,
       folderId: folderId || currentFolderId.value || null,
-      tags: [],
+      tags: Array.isArray(tags) ? [...tags] : [],
       blocks: [],
       connections: [],
       canvasConfig: {
