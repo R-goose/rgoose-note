@@ -555,6 +555,28 @@
           ></div>
         </div>
 
+        <div class="images-overview">
+          <div class="overview-header">
+            <span class="overview-title">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              图片总览
+              <span class="overview-count">{{ overviewImages.length }}</span>
+            </span>
+          </div>
+          <div v-if="overviewImages.length" class="overview-grid">
+            <div
+              v-for="img in overviewImages"
+              :key="img.key"
+              class="overview-thumb"
+              :title="`图片 ${img.index + 1}`"
+              @click="showImagePreview({ urls: img.groupUrls, index: img.index })"
+            >
+              <img :src="img.url" alt="" draggable="false" />
+            </div>
+          </div>
+          <div v-else class="overview-empty">暂无图片</div>
+        </div>
+
         <div class="backlinks-panel">
           <div class="backlinks-header" @click="showBacklinks = !showBacklinks">
             <span class="backlinks-title">
@@ -1075,7 +1097,10 @@
       @mouseup="onPreviewMouseUp"
       @mouseleave="onPreviewMouseUp"
     >
-        <div class="image-preview-container" @click.stop>
+      <button v-if="previewImageUrls.length > 1" class="image-preview-nav prev" title="上一张（←）" @click.stop="switchPreviewImage(-1)">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="image-preview-container" @click.stop>
           <img
             :src="previewImageUrl"
             alt="预览图片"
@@ -1112,6 +1137,10 @@
             </svg>
           </button>
         </div>
+        <button v-if="previewImageUrls.length > 1" class="image-preview-nav next" title="下一张（→）" @click.stop="switchPreviewImage(1)">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+        <span v-if="previewImageUrls.length > 1" class="image-preview-counter">{{ previewImageIndex + 1 }} / {{ previewImageUrls.length }}</span>
       </div>
     </Teleport>
 
@@ -1624,6 +1653,8 @@ const pendingTextHighlight = ref(null)
 
 const showImagePreviewModal = ref(false)
 const previewImageUrl = ref('')
+const previewImageUrls = ref([])
+const previewImageIndex = ref(0)
 const previewImageScale = ref(1)
 const previewImageX = ref(0)
 const previewImageY = ref(0)
@@ -2038,6 +2069,39 @@ const note = computed(() => {
 
 const blocks = computed(() => note.value?.blocks || [])
 const connections = computed(() => note.value?.connections || [])
+
+const overviewImages = ref([])
+const overviewSignature = computed(() => JSON.stringify(
+  blocks.value
+    .map(b => {
+      if (b.type === 'image' && b.imageUrl) return [b.id, b.imageUrl]
+      if (b.type === 'gallery' && (b.images || []).filter(Boolean).length) return [b.id, ...b.images.filter(Boolean)]
+      return null
+    })
+    .filter(Boolean)
+))
+watch(
+  overviewSignature,
+  async () => {
+    const groups = []
+    for (const b of blocks.value) {
+      if (b.type === 'image' && b.imageUrl) groups.push({ blockId: b.id, urls: [b.imageUrl] })
+      else if (b.type === 'gallery' && (b.images || []).filter(Boolean).length) groups.push({ blockId: b.id, urls: b.images.filter(Boolean) })
+    }
+    const resolvedGroups = await Promise.all(
+      groups.map(async g => ({
+        ...g,
+        urls: await Promise.all(g.urls.map(async u => (isImageRef(u) ? await resolveImageUrl(u) : u)))
+      }))
+    )
+    const items = []
+    for (const g of resolvedGroups) {
+      g.urls.forEach((u, i) => items.push({ key: `${g.blockId}-${i}`, url: u, index: i, groupUrls: g.urls }))
+    }
+    overviewImages.value = items
+  },
+  { immediate: true }
+)
 const linkedPlans = computed(() => note.value ? planStore.plansByNote(note.value.id) : [])
 
 const canvasBgStyle = computed(() => {
@@ -2674,6 +2738,19 @@ function findPrev() {
 watch(findKeyword, () => computeFindMatches())
 
 function onKeyDown(e) {
+  if (showImagePreviewModal.value) {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      closeImagePreview()
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault()
+      switchPreviewImage(-1)
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault()
+      switchPreviewImage(1)
+    }
+    return
+  }
   if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
     e.preventDefault()
     openFindInNote()
@@ -3645,17 +3722,41 @@ function onPreviewImageClick() {
   togglePreviewFit()
 }
 
-function showImagePreview(url) {
-  previewImageUrl.value = url
+function showImagePreview(payload) {
+  let urls = []
+  let index = 0
+  if (typeof payload === 'string') {
+    urls = [payload]
+  } else if (payload && Array.isArray(payload.urls)) {
+    urls = payload.urls.filter(Boolean)
+    index = payload.index || 0
+  }
+  if (!urls.length) return
+  previewImageUrls.value = urls
+  previewImageIndex.value = Math.min(Math.max(index, 0), urls.length - 1)
+  previewImageUrl.value = urls[previewImageIndex.value]
   previewImageScale.value = 1.2
   previewImageX.value = 0
   previewImageY.value = 0
   showImagePreviewModal.value = true
 }
 
+function switchPreviewImage(dir) {
+  const len = previewImageUrls.value.length
+  if (len < 2) return
+  const next = (previewImageIndex.value + dir + len) % len
+  previewImageIndex.value = next
+  previewImageUrl.value = previewImageUrls.value[next]
+  previewImageScale.value = 1.2
+  previewImageX.value = 0
+  previewImageY.value = 0
+}
+
 function closeImagePreview() {
   showImagePreviewModal.value = false
   previewImageUrl.value = ''
+  previewImageUrls.value = []
+  previewImageIndex.value = 0
   previewImageScale.value = 1
   previewImageX.value = 0
   previewImageY.value = 0
@@ -6082,6 +6183,75 @@ function deleteSelectedConnection() {
   opacity: 1;
 }
 
+/* ===== 图片总览面板 ===== */
+.images-overview {
+  border-top: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 300px;
+  flex-shrink: 0;
+}
+.overview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  user-select: none;
+}
+.overview-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.overview-count {
+  background: var(--bg-tertiary, #eef0f2);
+  color: var(--text-secondary);
+  border-radius: 8px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 16px;
+  text-align: center;
+}
+.overview-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 2px 8px 8px;
+  overflow-y: auto;
+  min-height: 0;
+}
+.overview-thumb {
+  width: calc(50% - 3px);
+  aspect-ratio: 4 / 3;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid var(--border-light);
+  background: var(--bg-tertiary, #eef0f2);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.overview-thumb:hover {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 1px var(--primary-color);
+}
+.overview-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.overview-empty {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  padding: 8px;
+  text-align: center;
+}
+
 /* ===== 反向链接面板 ===== */
 .backlinks-panel {
   border-top: 1px solid var(--border-light);
@@ -6677,6 +6847,50 @@ function deleteSelectedConnection() {
 
 .image-preview-close:hover {
   background: rgba(255, 255, 255, 0.3);
+}
+
+.image-preview-nav {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.16);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  z-index: 1;
+}
+
+.image-preview-nav:hover {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+.image-preview-nav.prev {
+  left: 24px;
+}
+
+.image-preview-nav.next {
+  right: 24px;
+}
+
+.image-preview-counter {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 4px 12px;
+  border-radius: 12px;
+  z-index: 1;
+  pointer-events: none;
 }
 
 .link-selection-bar {

@@ -143,7 +143,7 @@
 
     <div class="block-content">
       <div v-if="block.type === 'image' && block.imageUrl" class="image-container" :class="{ overflow: imageOverflow }" @dblclick.stop="!readOnly && $emit('add-image', block.id)" @wheel.stop>
-        <img :src="resolvedImageUrl" alt="" draggable="false" @click.stop="$emit('preview-image', resolvedImageUrl)" @load="onImageLoad" />
+        <img :src="resolvedImageUrl" alt="" draggable="false" @click.stop="$emit('preview-image', { urls: [resolvedImageUrl], index: 0 })" @load="onImageLoad" />
         <button v-if="!readOnly" class="change-image-btn" @click.stop="$emit('add-image', block.id)">更换图片</button>
       </div>
 
@@ -216,7 +216,7 @@
             v-for="(img, idx) in (block.images || [])"
             :key="idx"
             class="gallery-cell"
-            @click.stop="$emit('preview-image', galleryResolvedUrls[idx])"
+            @click.stop="$emit('preview-image', { urls: galleryResolvedUrls, index: idx })"
           >
             <img :src="galleryResolvedUrls[idx]" alt="" draggable="false" />
             <button v-if="!readOnly" class="gallery-del-btn" @click.stop="removeGalleryImage(idx)" title="删除">
@@ -228,7 +228,7 @@
         <!-- 轮播布局 -->
         <div v-else-if="galleryLayout === 'carousel' && (block.images || []).length" class="gallery-carousel">
           <button v-if="(block.images || []).length > 1" class="gallery-nav prev" @click.stop="galleryPrev">‹</button>
-          <div class="gallery-stage" @click.stop="$emit('preview-image', galleryResolvedUrls[galleryIndex])">
+          <div class="gallery-stage" @click.stop="$emit('preview-image', { urls: galleryResolvedUrls, index: galleryIndex })">
             <img :src="galleryResolvedUrls[galleryIndex]" alt="" draggable="false" />
             <button v-if="!readOnly" class="gallery-del-btn" @click.stop="removeGalleryImage(galleryIndex)" title="删除">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -1075,6 +1075,11 @@ const blockStyle = computed(() => {
     left: `${props.block.x}px`,
     top: `${props.block.y}px`,
     width: `${props.block.width || 220}px`
+  }
+  if (props.block.type === 'text') {
+    style.width = 'fit-content'
+    style.maxWidth = `${props.block.width || 240}px`
+    style.minWidth = '120px'
   }
   const isAutoSize = props.block.type === 'image' || props.block.type === 'note-link' || props.block.type === 'audio' || props.block.type === 'gallery'
   if (!isAutoSize && props.block.height && props.block.height > 0) {
