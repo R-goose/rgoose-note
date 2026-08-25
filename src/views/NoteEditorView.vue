@@ -555,26 +555,33 @@
           ></div>
         </div>
 
-        <div class="images-overview">
-          <div class="overview-header">
+        <div class="images-overview" :class="{ collapsed: overviewCollapsed }">
+          <div
+            class="overview-header"
+            :title="overviewCollapsed ? '展开图片总览' : '折叠图片总览'"
+            @click="overviewCollapsed = !overviewCollapsed"
+          >
             <span class="overview-title">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
               图片总览
               <span class="overview-count">{{ overviewImages.length }}</span>
             </span>
+            <svg class="overview-toggle" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
           </div>
-          <div v-if="overviewImages.length" class="overview-grid">
-            <div
-              v-for="img in overviewImages"
-              :key="img.key"
-              class="overview-thumb"
-              :title="`图片 ${img.index + 1}`"
-              @click="showImagePreview({ urls: img.groupUrls, index: img.index })"
-            >
-              <img :src="img.url" alt="" draggable="false" />
+          <template v-if="!overviewCollapsed">
+            <div v-if="overviewImages.length" class="overview-grid">
+              <div
+                v-for="img in overviewImages"
+                :key="img.key"
+                class="overview-thumb"
+                :title="`图片 ${img.index + 1}`"
+                @click="showImagePreview({ urls: img.groupUrls, index: img.index })"
+              >
+                <img :src="img.url" alt="" draggable="false" />
+              </div>
             </div>
-          </div>
-          <div v-else class="overview-empty">暂无图片</div>
+            <div v-else class="overview-empty">暂无图片</div>
+          </template>
         </div>
 
         <div class="backlinks-panel">
@@ -2071,6 +2078,8 @@ const blocks = computed(() => note.value?.blocks || [])
 const connections = computed(() => note.value?.connections || [])
 
 const overviewImages = ref([])
+const overviewCollapsed = ref(localStorage.getItem('rgoose_overview_collapsed') === 'true')
+watch(overviewCollapsed, v => localStorage.setItem('rgoose_overview_collapsed', v ? 'true' : 'false'))
 const overviewSignature = computed(() => JSON.stringify(
   blocks.value
     .map(b => {
@@ -5430,9 +5439,15 @@ function getConnectionPath(conn) {
   return pathFromPolyline(route)
 }
 
+let labelMeasureCtx = null
 function labelBoxWidth(text) {
-  const len = (text || '').length
-  return Math.max(40, Math.min(200, len * 12 + 16))
+  const str = text || ''
+  if (!str) return 40
+  if (!labelMeasureCtx) {
+    labelMeasureCtx = document.createElement('canvas').getContext('2d')
+  }
+  labelMeasureCtx.font = "12px 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif"
+  return Math.max(40, Math.ceil(labelMeasureCtx.measureText(str).width) + 16)
 }
 
 function getConnectionMidpoint(conn) {
@@ -6201,6 +6216,19 @@ function deleteSelectedConnection() {
   font-weight: 600;
   color: var(--text-secondary);
   user-select: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.overview-header:hover {
+  color: var(--text-primary);
+}
+.overview-toggle {
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+  opacity: 0.7;
+}
+.images-overview.collapsed .overview-toggle {
+  transform: rotate(-90deg);
 }
 .overview-title {
   display: flex;
