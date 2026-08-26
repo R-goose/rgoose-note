@@ -31,3 +31,19 @@ app.use(createPinia())
 app.use(router)
 
 app.mount('#app')
+
+// 启动 splash 退出：等 Vue 挂载并完成首帧绘制后，保证最短展示时长再淡出移除
+// （600ms 最短展示避免一闪而过；淡出期间 pointer-events 已关闭，不阻塞操作）
+function dismissSplash() {
+  const splash = document.getElementById('splash-screen')
+  if (!splash) return
+  const elapsed = Date.now() - (window.__splashStart || Date.now())
+  setTimeout(() => {
+    if (!document.getElementById('splash-screen')) return
+    splash.classList.add('splash-hide')
+    const remove = () => { try { splash.remove() } catch (e) {} }
+    splash.addEventListener('transitionend', remove, { once: true })
+    setTimeout(remove, 500)
+  }, Math.max(0, 600 - elapsed))
+}
+requestAnimationFrame(() => requestAnimationFrame(dismissSplash))

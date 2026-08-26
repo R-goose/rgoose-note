@@ -63,6 +63,7 @@ function createWindow() {
     minHeight: 600,
     frame: false,
     resizable: true,
+    show: false,
     backgroundColor: '#fafbfa',
     hasShadow: true,
     roundedCorners: true,
@@ -87,6 +88,19 @@ function createWindow() {
   }
 
   mainWindow = new BrowserWindow(windowOptions)
+
+  // 等待首帧绘制完成再显示窗口：消除启动瞬间 frameless 窗口的黑屏闪烁
+  // 页面内 index.html 的 splash 动画会在首帧立即绘制，窗口出现时用户看到的就是它
+  mainWindow.once('ready-to-show', () => {
+    if (!mainWindow.isDestroyed()) mainWindow.show()
+  })
+  // 兜底：万一 ready-to-show 未触发（加载异常等），5 秒后强制显示，避免窗口永不出现
+  const showFallbackTimer = setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      mainWindow.show()
+    }
+  }, 5000)
+  mainWindow.on('closed', () => clearTimeout(showFallbackTimer))
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//i.test(url)) {

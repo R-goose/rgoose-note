@@ -7,11 +7,138 @@
     <meta name="theme-color" content="#5a9e7a" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700&display=swap" />
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
     <title>R-Goose Note</title>
+    <script>
+      // 在任何绘制前应用已保存的主题，避免深色用户看到亮色闪变（auto 跟随系统）
+      try {
+        var __savedTheme = localStorage.getItem('rgoose_theme')
+        var __dark = __savedTheme === 'dark' || (__savedTheme === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+        if (__dark) document.documentElement.setAttribute('data-theme', 'dark')
+      } catch (e) {}
+    </script>
+    <style>
+      /* 启动 splash：全内联零依赖，随主题变深浅，Vue 挂载后淡出移除 */
+      #splash-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: #fafbfa;
+        opacity: 1;
+        transition: opacity 0.32s ease;
+      }
+      [data-theme="dark"] #splash-screen { background: #161917; }
+      #splash-screen.splash-hide { opacity: 0; pointer-events: none; }
+
+      .sp-logo-wrap {
+        position: relative;
+        width: 72px;
+        height: 72px;
+        margin-bottom: 18px;
+        animation: splash-in 0.45s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+      }
+      .sp-halo {
+        position: absolute;
+        inset: -26px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(101, 189, 136, 0.22) 0%, rgba(101, 189, 136, 0) 68%);
+        animation: splash-halo 2.6s ease-in-out infinite;
+      }
+      [data-theme="dark"] .sp-halo {
+        background: radial-gradient(circle, rgba(81, 196, 103, 0.16) 0%, rgba(81, 196, 103, 0) 68%);
+      }
+      .sp-logo {
+        position: relative;
+        width: 72px;
+        height: 72px;
+        filter: drop-shadow(0 3px 10px rgba(60, 130, 92, 0.22));
+        animation: splash-bob 2.4s ease-in-out 0.45s infinite;
+        transition: transform 0.32s ease;
+      }
+      #splash-screen.splash-hide .sp-logo-wrap,
+      #splash-screen.splash-hide .sp-name,
+      #splash-screen.splash-hide .sp-bar { animation: none; }
+      #splash-screen.splash-hide .sp-logo { animation: none; transform: translateY(-8px) scale(0.94); }
+
+      .sp-name {
+        font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        font-size: 16px;
+        font-weight: 700;
+        letter-spacing: 0.6px;
+        color: #3d4a41;
+        animation: splash-in 0.45s cubic-bezier(0.2, 0.8, 0.3, 1) 0.12s both;
+      }
+      [data-theme="dark"] .sp-name { color: #e8ece9; }
+
+      .sp-bar {
+        width: 168px;
+        height: 3px;
+        margin-top: 16px;
+        border-radius: 3px;
+        overflow: hidden;
+        background: rgba(82, 163, 119, 0.16);
+        animation: splash-in 0.45s cubic-bezier(0.2, 0.8, 0.3, 1) 0.22s both;
+      }
+      [data-theme="dark"] .sp-bar { background: rgba(255, 255, 255, 0.08); }
+      .sp-bar-inner {
+        height: 100%;
+        width: 38%;
+        border-radius: 3px;
+        background: linear-gradient(90deg, #6bbd8f, #52a377);
+        animation: splash-slide 1.15s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+      }
+
+      @keyframes splash-in {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: none; }
+      }
+      @keyframes splash-bob {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-5px); }
+      }
+      @keyframes splash-halo {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.16); opacity: 0.45; }
+      }
+      @keyframes splash-slide {
+        0% { transform: translateX(-120%); }
+        100% { transform: translateX(420%); }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .sp-logo, .sp-halo, .sp-bar-inner { animation-duration: 0.01s; animation-iteration-count: 1; }
+      }
+    </style>
   </head>
   <body>
     <div id="app"></div>
+    <div id="splash-screen" aria-hidden="true">
+      <div class="sp-logo-wrap">
+        <div class="sp-halo"></div>
+        <svg class="sp-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+          <defs>
+            <linearGradient id="spGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#6bbd8f"/>
+              <stop offset="100%" stop-color="#52a377"/>
+            </linearGradient>
+          </defs>
+          <rect x="6" y="6" width="116" height="116" rx="28" fill="url(#spGrad)"/>
+          <path d="M 30 84 Q 30 71 47 69 Q 66 67 71 79 Q 73 91 55 92 Q 35 93 30 84 Z" fill="#ffffff"/>
+          <path d="M 60 73 C 71 69, 81 59, 83 44" stroke="#ffffff" stroke-width="7.5" stroke-linecap="round" fill="none"/>
+          <circle cx="84" cy="40" r="8.5" fill="#ffffff"/>
+          <path d="M 90 38 L 103 42 L 90 46 Z" fill="#f5a623"/>
+          <circle cx="85" cy="38" r="1.8" fill="#2d332f"/>
+        </svg>
+      </div>
+      <div class="sp-name">R-Goose Note</div>
+      <div class="sp-bar"><div class="sp-bar-inner"></div></div>
+    </div>
+    <script>window.__splashStart = Date.now()</script>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
