@@ -9,12 +9,12 @@
     @click="onFloatClick"
   >
     <svg class="ai-float-icon" viewBox="0 0 48 48" fill="none">
-      <ellipse cx="20" cy="30" rx="14" ry="11" fill="currentColor" opacity="0.9"/>
-      <path d="M28 24 C30 16, 34 12, 36 10 C38 8, 38 6, 36 5" stroke="currentColor" stroke-width="4" stroke-linecap="round" fill="none"/>
-      <circle cx="36" cy="5" r="4.5" fill="currentColor"/>
-      <path d="M40 5 L45 4 L45 7 Z" fill="currentColor" opacity="0.7"/>
-      <circle cx="37" cy="4" r="1" fill="var(--bg-secondary, #fff)"/>
-      <ellipse cx="16" cy="28" rx="7" ry="5" fill="currentColor" opacity="0.5"/>
+      <polygon points="6,34 15,26 27,24 40,30 36,38 14,40" fill="currentColor" opacity="0.9"/>
+      <polygon points="10,30 15,26 17,36" fill="currentColor" opacity="0.55"/>
+      <polygon points="24,26 29,12 34,11 30,24" fill="currentColor"/>
+      <polygon points="29,12 38,9 34,17" fill="currentColor"/>
+      <polygon points="38,9 44,11 36,15" fill="currentColor" opacity="0.7"/>
+      <circle cx="33" cy="12" r="1" fill="var(--bg-secondary, #fff)"/>
     </svg>
   </div>
 
@@ -25,10 +25,11 @@
       <div class="ai-chat-header" @mousedown="onChatDragStart">
         <div class="ai-chat-title">
           <svg class="ai-chat-title-icon" viewBox="0 0 48 48" fill="none">
-            <ellipse cx="20" cy="30" rx="14" ry="11" fill="currentColor" opacity="0.9"/>
-            <path d="M28 24 C30 16, 34 12, 36 10 C38 8, 38 6, 36 5" stroke="currentColor" stroke-width="4" stroke-linecap="round" fill="none"/>
-            <circle cx="36" cy="5" r="4.5" fill="currentColor"/>
-            <path d="M40 5 L45 4 L45 7 Z" fill="currentColor" opacity="0.7"/>
+            <polygon points="6,34 15,26 27,24 40,30 36,38 14,40" fill="currentColor" opacity="0.9"/>
+            <polygon points="10,30 15,26 17,36" fill="currentColor" opacity="0.55"/>
+            <polygon points="24,26 29,12 34,11 30,24" fill="currentColor"/>
+            <polygon points="29,12 38,9 34,17" fill="currentColor"/>
+            <polygon points="38,9 44,11 36,15" fill="currentColor" opacity="0.7"/>
           </svg>
           <span>R-Goose AI</span>
         </div>
@@ -119,10 +120,10 @@
           <div v-if="messages.length === 0" class="ai-chat-welcome">
             <div class="ai-welcome-icon">
               <svg viewBox="0 0 48 48" fill="none">
-                <ellipse cx="20" cy="30" rx="14" ry="11" fill="currentColor" opacity="0.15"/>
-                <path d="M28 24 C30 16, 34 12, 36 10 C38 8, 38 6, 36 5" stroke="currentColor" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.15"/>
-                <circle cx="36" cy="5" r="4.5" fill="currentColor" opacity="0.15"/>
-                <ellipse cx="16" cy="28" rx="7" ry="5" fill="currentColor" opacity="0.08"/>
+                <polygon points="6,34 15,26 27,24 40,30 36,38 14,40" fill="currentColor" opacity="0.15"/>
+                <polygon points="24,26 29,12 34,11 30,24" fill="currentColor" opacity="0.15"/>
+                <polygon points="29,12 38,9 34,17" fill="currentColor" opacity="0.15"/>
+                <polygon points="10,30 15,26 17,36" fill="currentColor" opacity="0.08"/>
               </svg>
             </div>
             <p class="ai-welcome-title">{{ activeConvo?.mode === 'image' ? 'AI 图片生成' : activeConvo?.mode === 'video' ? 'AI 视频生成' : '有什么可以帮你的？' }}</p>
@@ -137,9 +138,9 @@
           <div v-for="(msg, i) in messages" :key="i" class="ai-msg" :class="msg.role">
             <div v-if="msg.role === 'assistant'" class="ai-msg-avatar">
               <svg viewBox="0 0 48 48" fill="none">
-                <ellipse cx="20" cy="30" rx="14" ry="11" fill="currentColor" opacity="0.8"/>
-                <path d="M28 24 C30 16, 34 12, 36 10 C38 8, 38 6, 36 5" stroke="currentColor" stroke-width="4" stroke-linecap="round" fill="none"/>
-                <circle cx="36" cy="5" r="4.5" fill="currentColor"/>
+                <polygon points="6,34 15,26 27,24 40,30 36,38 14,40" fill="currentColor" opacity="0.8"/>
+                <polygon points="24,26 29,12 34,11 30,24" fill="currentColor"/>
+                <polygon points="29,12 38,9 34,17" fill="currentColor"/>
               </svg>
             </div>
             <div class="ai-msg-content">
@@ -200,9 +201,9 @@
           <div v-if="loading" class="ai-msg assistant">
             <div class="ai-msg-avatar">
               <svg viewBox="0 0 48 48" fill="none">
-                <ellipse cx="20" cy="30" rx="14" ry="11" fill="currentColor" opacity="0.8"/>
-                <path d="M28 24 C30 16, 34 12, 36 10 C38 8, 38 6, 36 5" stroke="currentColor" stroke-width="4" stroke-linecap="round" fill="none"/>
-                <circle cx="36" cy="5" r="4.5" fill="currentColor"/>
+                <polygon points="6,34 15,26 27,24 40,30 36,38 14,40" fill="currentColor" opacity="0.8"/>
+                <polygon points="24,26 29,12 34,11 30,24" fill="currentColor"/>
+                <polygon points="29,12 38,9 34,17" fill="currentColor"/>
               </svg>
             </div>
             <div class="ai-msg-content">

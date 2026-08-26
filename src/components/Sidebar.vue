@@ -2,20 +2,7 @@
   <aside class="sidebar" :class="{ collapsed }">
     <div class="sidebar-header">
       <div class="logo">
-        <svg width="30" height="30" viewBox="0 0 128 128" fill="none">
-          <defs>
-            <linearGradient id="logoBg" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#6bbd8f"/>
-              <stop offset="100%" stop-color="#52a377"/>
-            </linearGradient>
-          </defs>
-          <rect x="6" y="6" width="116" height="116" rx="28" fill="url(#logoBg)"/>
-          <path d="M 30 84 Q 30 71 47 69 Q 66 67 71 79 Q 73 91 55 92 Q 35 93 30 84 Z" fill="#ffffff"/>
-          <path d="M 60 73 C 71 69, 81 59, 83 44" stroke="#ffffff" stroke-width="9" stroke-linecap="round" fill="none"/>
-          <circle cx="84" cy="40" r="9" fill="#ffffff"/>
-          <path d="M 90 37 L 104 42 L 90 47 Z" fill="#f5a623"/>
-          <circle cx="85" cy="38" r="2" fill="#2d332f"/>
-        </svg>
+        <img class="logo-img" src="/favicon.png" alt="R-Goose Note" />
         <span v-if="!collapsed" class="logo-text">R-Goose Note</span>
       </div>
       <button class="collapse-btn" @click="$emit('toggle-collapse')">
@@ -1202,10 +1189,15 @@ function closeFolderModalTagDropdown(e) {
   flex-shrink: 0;
 }
 
-.logo > svg {
+.logo > svg,
+.logo > img {
   width: 28px;
   height: 28px;
   flex-shrink: 0;
+}
+
+.logo > img {
+  border-radius: 7px;
 }
 
 .logo-text {
