@@ -19,7 +19,9 @@
       } catch (e) {}
     </script>
     <style>
-      /* 启动 splash：全内联零依赖，随主题变深浅，Vue 挂载后淡出移除 */
+      /* 启动 splash：大色块卡通碰撞风格，全内联零依赖，随主题变深浅，Vue 挂载后淡出移除
+         分镜：色块四面飞入回弹撞定(0-0.6s) → 鹅徽标砸落压扁回弹(0.42-1.27s)
+              → 星芒爆开+冲击波+碎片飞溅+画面震动(0.86-1.4s) → 标题/进度条弹跳出场(1.05s+) */
       #splash-screen {
         position: fixed;
         inset: 0;
@@ -31,112 +33,286 @@
         background: #fafbfa;
         opacity: 1;
         transition: opacity 0.32s ease;
+        overflow: hidden;
       }
       [data-theme="dark"] #splash-screen { background: #161917; }
       #splash-screen.splash-hide { opacity: 0; pointer-events: none; }
 
-      .sp-logo-wrap {
+      /* ===== 大色块（卡通硬投影，从屏幕边缘飞入回弹撞定） ===== */
+      .sp-blocks { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+      .sp-block { position: absolute; will-change: transform; }
+      .sp-block--tl {
+        width: 320px; height: 320px; left: -104px; top: -118px;
+        border-radius: 50%; background: #8fd8ac;
+        box-shadow: 12px 14px 0 rgba(26, 31, 28, 0.05);
+        animation: sp-fly-tl 0.62s cubic-bezier(0.22, 1.35, 0.32, 1) both;
+      }
+      .sp-block--tr {
+        width: 292px; height: 292px; right: -118px; top: 58px;
+        border-radius: 56px; background: #b3d2ee; transform: rotate(14deg);
+        box-shadow: -12px 14px 0 rgba(26, 31, 28, 0.05);
+        animation: sp-fly-tr 0.62s cubic-bezier(0.22, 1.35, 0.32, 1) 0.06s both;
+      }
+      .sp-block--bl {
+        width: 290px; height: 290px; left: 56px; bottom: -132px;
+        border-radius: 64px; background: #ecd6a9; transform: rotate(-12deg);
+        box-shadow: 12px -10px 0 rgba(26, 31, 28, 0.05);
+        animation: sp-fly-bl 0.62s cubic-bezier(0.22, 1.35, 0.32, 1) 0.1s both;
+      }
+      .sp-block--br {
+        width: 270px; height: 270px; right: -92px; bottom: -108px;
+        border-radius: 50%; background: #c9bdf0;
+        box-shadow: -10px -10px 0 rgba(26, 31, 28, 0.05);
+        animation: sp-fly-br 0.62s cubic-bezier(0.22, 1.35, 0.32, 1) 0.14s both;
+      }
+      .sp-block--ml {
+        width: 88px; height: 88px; left: 9%; top: 42%;
+        border-radius: 50%; background: #f6b45b;
+        box-shadow: 8px 8px 0 rgba(26, 31, 28, 0.06);
+        animation: sp-fly-ml 0.6s cubic-bezier(0.22, 1.4, 0.32, 1) 0.18s both;
+      }
+      .sp-block--mr {
+        width: 76px; height: 76px; right: 11%; top: 48%;
+        border-radius: 18px; background: #f0b3b3; transform: rotate(20deg);
+        box-shadow: -8px 8px 0 rgba(26, 31, 28, 0.06);
+        animation: sp-fly-mr 0.6s cubic-bezier(0.22, 1.4, 0.32, 1) 0.22s both;
+      }
+      [data-theme="dark"] .sp-block--tl { background: #20402c; box-shadow: 12px 14px 0 rgba(0, 0, 0, 0.3); }
+      [data-theme="dark"] .sp-block--tr { background: #1d3446; box-shadow: -12px 14px 0 rgba(0, 0, 0, 0.3); }
+      [data-theme="dark"] .sp-block--bl { background: #3f3423; box-shadow: 12px -10px 0 rgba(0, 0, 0, 0.3); }
+      [data-theme="dark"] .sp-block--br { background: #312b4e; box-shadow: -10px -10px 0 rgba(0, 0, 0, 0.3); }
+      [data-theme="dark"] .sp-block--ml { background: #6b4715; box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.32); }
+      [data-theme="dark"] .sp-block--mr { background: #4a2727; box-shadow: -8px 8px 0 rgba(0, 0, 0, 0.32); }
+
+      /* ===== 中央内容（撞击瞬间整组震动） ===== */
+      .sp-center {
         position: relative;
-        width: 72px;
-        height: 72px;
-        margin-bottom: 18px;
-        animation: splash-in 0.45s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        animation: sp-shake 0.38s linear 0.88s 1;
       }
-      .sp-halo {
-        position: absolute;
-        inset: -26px;
-        border-radius: 50%;
-        background: radial-gradient(circle, rgba(101, 189, 136, 0.22) 0%, rgba(101, 189, 136, 0) 68%);
-        animation: splash-halo 2.6s ease-in-out infinite;
+      .sp-hero { position: relative; width: 170px; height: 170px; margin-bottom: 26px; }
+
+      /* 星芒爆开（撞击背景） */
+      .sp-burst {
+        position: absolute; inset: -40px; z-index: 1;
+        animation: sp-burst-in 0.55s cubic-bezier(0.34, 1.56, 0.44, 1) 0.86s both;
       }
-      [data-theme="dark"] .sp-halo {
-        background: radial-gradient(circle, rgba(81, 196, 103, 0.16) 0%, rgba(81, 196, 103, 0) 68%);
+      .sp-burst svg { width: 100%; height: 100%; display: block; animation: sp-burst-pulse 3s ease-in-out 1.55s infinite; }
+      .sp-burst-outer { fill: #f5a623; }
+      .sp-burst-inner { fill: #ffd166; }
+      [data-theme="dark"] .sp-burst-outer { fill: #e5941d; }
+      [data-theme="dark"] .sp-burst-inner { fill: #f7c04a; }
+
+      /* 冲击波圆环 */
+      .sp-ring {
+        position: absolute; left: 50%; top: 50%; width: 190px; height: 190px;
+        margin: -95px 0 0 -95px; border-radius: 50%; z-index: 1; opacity: 0;
+        border: 5px solid rgba(245, 166, 35, 0.5);
+        animation: sp-ring 0.68s cubic-bezier(0.16, 0.8, 0.3, 1) 0.9s both;
+      }
+      [data-theme="dark"] .sp-ring { border-color: rgba(245, 166, 35, 0.35); }
+
+      /* 鹅徽标：砸落（squash & stretch）后摇摆待机 */
+      .sp-logo-wrap {
+        position: absolute; left: 50%; top: 50%; width: 84px; height: 84px;
+        margin: -42px 0 0 -42px; z-index: 2;
+        animation: sp-slam 0.85s linear 0.42s both;
       }
       .sp-logo {
-        position: relative;
-        width: 72px;
-        height: 72px;
-        filter: drop-shadow(0 3px 10px rgba(60, 130, 92, 0.22));
-        animation: splash-bob 2.4s ease-in-out 0.45s infinite;
-        transition: transform 0.32s ease;
+        position: absolute; inset: 0; width: 100%; height: 100%;
+        filter: drop-shadow(0 5px 14px rgba(52, 120, 84, 0.28));
+        animation: sp-bob 2.4s ease-in-out 1.35s infinite;
       }
-      #splash-screen.splash-hide .sp-logo-wrap,
-      #splash-screen.splash-hide .sp-name,
-      #splash-screen.splash-hide .sp-bar { animation: none; }
-      #splash-screen.splash-hide .sp-logo { animation: none; transform: translateY(-8px) scale(0.94); }
 
+      /* 撞击飞溅碎片（十字/圆点/三角） */
+      .sp-spark { position: absolute; left: 50%; top: 50%; z-index: 3; }
+      .sp-spark--cross { width: 14px; height: 14px; margin: -7px 0 0 -7px; }
+      .sp-spark--cross::before, .sp-spark--cross::after {
+        content: ''; position: absolute; background: currentColor; border-radius: 2px;
+      }
+      .sp-spark--cross::before { left: 5px; top: 0; width: 4px; height: 14px; }
+      .sp-spark--cross::after { left: 0; top: 5px; width: 14px; height: 4px; }
+      .sp-spark--dot { width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: currentColor; }
+      .sp-spark--tri {
+        width: 16px; height: 16px; margin: -8px 0 0 -8px; background: currentColor;
+        clip-path: polygon(50% 0, 100% 100%, 0 100%);
+      }
+      .sp-spark--1 { color: #f5a623; transform: translate(-108px, -78px); animation: sp-f1 0.5s cubic-bezier(0.22, 1.5, 0.36, 1) 0.88s both, sp-blink 1.7s ease-in-out 1.9s infinite; }
+      .sp-spark--2 { color: #52a377; transform: translate(96px, -88px); animation: sp-f2 0.5s cubic-bezier(0.22, 1.5, 0.36, 1) 0.92s both; }
+      .sp-spark--3 { color: #6fa8d6; transform: translate(112px, 64px); animation: sp-f3 0.5s cubic-bezier(0.22, 1.5, 0.36, 1) 0.9s both; }
+      .sp-spark--4 { color: #e08d8d; transform: translate(-96px, 82px); animation: sp-f4 0.5s cubic-bezier(0.22, 1.5, 0.36, 1) 0.94s both; }
+      .sp-spark--5 { color: #a99ad6; transform: translate(-20px, -116px); animation: sp-f5 0.5s cubic-bezier(0.22, 1.5, 0.36, 1) 0.96s both; }
+      .sp-spark--6 { color: #d4b27a; transform: translate(28px, 114px); animation: sp-f6 0.5s cubic-bezier(0.22, 1.5, 0.36, 1) 0.9s both, sp-blink 1.9s ease-in-out 2.1s infinite; }
+
+      /* 标题与进度条（弹跳出场） */
       .sp-name {
         font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-        font-size: 16px;
-        font-weight: 700;
-        letter-spacing: 0.6px;
-        color: #3d4a41;
-        animation: splash-in 0.45s cubic-bezier(0.2, 0.8, 0.3, 1) 0.12s both;
+        font-size: 17px; font-weight: 800; letter-spacing: 0.8px; color: #22302a;
+        text-shadow: 0 2px 0 rgba(26, 31, 28, 0.05);
+        animation: sp-pop 0.45s cubic-bezier(0.34, 1.56, 0.44, 1) 1.02s both;
       }
-      [data-theme="dark"] .sp-name { color: #e8ece9; }
-
+      .sp-name span { color: #3da353; }
+      [data-theme="dark"] .sp-name { color: #eef2ef; text-shadow: none; }
+      [data-theme="dark"] .sp-name span { color: #51c467; }
       .sp-bar {
-        width: 168px;
-        height: 3px;
-        margin-top: 16px;
-        border-radius: 3px;
-        overflow: hidden;
-        background: rgba(82, 163, 119, 0.16);
-        animation: splash-in 0.45s cubic-bezier(0.2, 0.8, 0.3, 1) 0.22s both;
+        width: 200px; height: 8px; margin-top: 18px; border-radius: 99px;
+        overflow: hidden; background: rgba(61, 163, 83, 0.14);
+        animation: sp-pop 0.4s cubic-bezier(0.34, 1.56, 0.44, 1) 1.16s both;
       }
-      [data-theme="dark"] .sp-bar { background: rgba(255, 255, 255, 0.08); }
+      [data-theme="dark"] .sp-bar { background: rgba(255, 255, 255, 0.1); }
       .sp-bar-inner {
-        height: 100%;
-        width: 38%;
-        border-radius: 3px;
-        background: linear-gradient(90deg, #6bbd8f, #52a377);
-        animation: splash-slide 1.15s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+        height: 100%; width: 42%; border-radius: 99px; background: #52a377;
+        animation: sp-slide 1.15s cubic-bezier(0.45, 0, 0.55, 1) infinite;
       }
+      [data-theme="dark"] .sp-bar-inner { background: #51c467; }
 
-      @keyframes splash-in {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: none; }
+      /* ===== 淡出收尾 ===== */
+      #splash-screen.splash-hide * { animation: none !important; }
+      #splash-screen.splash-hide .sp-logo { transform: translateY(-10px) scale(0.94); }
+
+      /* ===== keyframes ===== */
+      @keyframes sp-fly-tl { from { transform: translate(-60vw, -24vh); } to { transform: none; } }
+      @keyframes sp-fly-tr { from { transform: translate(58vw, -14vh) rotate(48deg); } to { transform: rotate(14deg); } }
+      @keyframes sp-fly-bl { from { transform: translate(-32vw, 52vh) rotate(-42deg); } to { transform: rotate(-12deg); } }
+      @keyframes sp-fly-br { from { transform: translate(34vw, 46vh); } to { transform: none; } }
+      @keyframes sp-fly-ml { from { transform: translate(-44vw, 0); } to { transform: none; } }
+      @keyframes sp-fly-mr { from { transform: translate(44vw, 0) rotate(70deg); } to { transform: rotate(20deg); } }
+
+      @keyframes sp-slam {
+        0% { transform: translateY(-170px) scale(0.9); opacity: 0; }
+        10% { opacity: 1; }
+        45% { transform: translateY(12px) scale(0.96, 1.1); opacity: 1; }
+        56% { transform: translateY(0) scale(1.28, 0.72); opacity: 1; }
+        70% { transform: translateY(-16px) scale(0.94, 1.08); }
+        82% { transform: translateY(0) scale(1.08, 0.94); }
+        92% { transform: translateY(-5px) scale(0.98, 1.02); }
+        100% { transform: translateY(0) scale(1, 1); }
       }
-      @keyframes splash-bob {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-5px); }
+      @keyframes sp-bob {
+        0%, 100% { transform: translateY(0) rotate(-1.6deg); }
+        50% { transform: translateY(-7px) rotate(1.6deg); }
       }
-      @keyframes splash-halo {
-        0%, 100% { transform: scale(1); opacity: 1; }
-        50% { transform: scale(1.16); opacity: 0.45; }
+      @keyframes sp-burst-in {
+        from { transform: scale(0) rotate(-32deg); opacity: 0; }
+        55% { opacity: 1; }
+        to { transform: scale(1) rotate(0deg); opacity: 1; }
       }
-      @keyframes splash-slide {
-        0% { transform: translateX(-120%); }
-        100% { transform: translateX(420%); }
+      @keyframes sp-burst-pulse {
+        0%, 100% { transform: rotate(0deg) scale(1); }
+        50% { transform: rotate(6deg) scale(1.05); }
+      }
+      @keyframes sp-ring {
+        from { transform: scale(0.22); opacity: 0.95; }
+        to { transform: scale(1.7); opacity: 0; }
+      }
+      @keyframes sp-shake {
+        0%, 100% { transform: none; }
+        20% { transform: translate(-3px, 2px) rotate(-0.4deg); }
+        40% { transform: translate(3px, -2px) rotate(0.4deg); }
+        60% { transform: translate(-2px, -2px); }
+        80% { transform: translate(2px, 1px); }
+      }
+      @keyframes sp-pop {
+        from { transform: scale(0.3) translateY(16px); opacity: 0; }
+        65% { transform: scale(1.1) translateY(-2px); opacity: 1; }
+        to { transform: none; opacity: 1; }
+      }
+      @keyframes sp-slide {
+        0% { transform: translateX(-110%); }
+        100% { transform: translateX(340%); }
+      }
+      @keyframes sp-blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.45; }
+      }
+      @keyframes sp-f1 {
+        from { transform: translate(0, 0) scale(0) rotate(-100deg); opacity: 0; }
+        60% { opacity: 1; }
+        to { transform: translate(-108px, -78px) scale(1) rotate(0deg); opacity: 1; }
+      }
+      @keyframes sp-f2 {
+        from { transform: translate(0, 0) scale(0) rotate(-100deg); opacity: 0; }
+        60% { opacity: 1; }
+        to { transform: translate(96px, -88px) scale(1) rotate(0deg); opacity: 1; }
+      }
+      @keyframes sp-f3 {
+        from { transform: translate(0, 0) scale(0) rotate(-100deg); opacity: 0; }
+        60% { opacity: 1; }
+        to { transform: translate(112px, 64px) scale(1) rotate(0deg); opacity: 1; }
+      }
+      @keyframes sp-f4 {
+        from { transform: translate(0, 0) scale(0) rotate(-100deg); opacity: 0; }
+        60% { opacity: 1; }
+        to { transform: translate(-96px, 82px) scale(1) rotate(0deg); opacity: 1; }
+      }
+      @keyframes sp-f5 {
+        from { transform: translate(0, 0) scale(0) rotate(-100deg); opacity: 0; }
+        60% { opacity: 1; }
+        to { transform: translate(-20px, -116px) scale(1) rotate(0deg); opacity: 1; }
+      }
+      @keyframes sp-f6 {
+        from { transform: translate(0, 0) scale(0) rotate(-100deg); opacity: 0; }
+        60% { opacity: 1; }
+        to { transform: translate(28px, 114px) scale(1) rotate(0deg); opacity: 1; }
       }
 
       @media (prefers-reduced-motion: reduce) {
-        .sp-logo, .sp-halo, .sp-bar-inner { animation-duration: 0.01s; animation-iteration-count: 1; }
+        #splash-screen, #splash-screen * {
+          animation-duration: 0.01s !important;
+          animation-iteration-count: 1 !important;
+        }
       }
     </style>
   </head>
   <body>
     <div id="app"></div>
     <div id="splash-screen" aria-hidden="true">
-      <div class="sp-logo-wrap">
-        <div class="sp-halo"></div>
-        <svg class="sp-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
-          <defs>
-            <linearGradient id="spGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#6bbd8f"/>
-              <stop offset="100%" stop-color="#52a377"/>
-            </linearGradient>
-          </defs>
-          <rect x="6" y="6" width="116" height="116" rx="28" fill="url(#spGrad)"/>
-          <path d="M 30 84 Q 30 71 47 69 Q 66 67 71 79 Q 73 91 55 92 Q 35 93 30 84 Z" fill="#ffffff"/>
-          <path d="M 60 73 C 71 69, 81 59, 83 44" stroke="#ffffff" stroke-width="7.5" stroke-linecap="round" fill="none"/>
-          <circle cx="84" cy="40" r="8.5" fill="#ffffff"/>
-          <path d="M 90 38 L 103 42 L 90 46 Z" fill="#f5a623"/>
-          <circle cx="85" cy="38" r="1.8" fill="#2d332f"/>
-        </svg>
+      <div class="sp-blocks">
+        <div class="sp-block sp-block--tl"></div>
+        <div class="sp-block sp-block--tr"></div>
+        <div class="sp-block sp-block--bl"></div>
+        <div class="sp-block sp-block--br"></div>
+        <div class="sp-block sp-block--ml"></div>
+        <div class="sp-block sp-block--mr"></div>
       </div>
-      <div class="sp-name">R-Goose Note</div>
-      <div class="sp-bar"><div class="sp-bar-inner"></div></div>
+      <div class="sp-center">
+        <div class="sp-hero">
+          <div class="sp-burst">
+            <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <polygon class="sp-burst-outer" points="100,4 114.5,45.7 148,16.9 139.6,60.4 183.1,52 154.1,85.5 196,100 154.1,114.5 183.1,148 139.6,139.6 148,183.1 114.5,154.1 100,196 85.5,154.1 52,183.1 60.4,139.6 16.9,148 45.7,114.5 4,100 45.7,85.5 16.9,52 60.4,60.4 52,16.9 85.5,45.7"/>
+              <polygon class="sp-burst-inner" points="100,38 115.3,63 143.8,56.2 137,84.7 162,100 137,115.3 143.8,143.8 115.3,137 100,162 84.7,137 56.2,143.8 63,115.3 38,100 63,84.7 56.2,56.2 84.7,63"/>
+            </svg>
+          </div>
+          <div class="sp-ring"></div>
+          <i class="sp-spark sp-spark--cross sp-spark--1"></i>
+          <i class="sp-spark sp-spark--dot sp-spark--2"></i>
+          <i class="sp-spark sp-spark--cross sp-spark--3"></i>
+          <i class="sp-spark sp-spark--tri sp-spark--4"></i>
+          <i class="sp-spark sp-spark--dot sp-spark--5"></i>
+          <i class="sp-spark sp-spark--cross sp-spark--6"></i>
+          <div class="sp-logo-wrap">
+            <svg class="sp-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+              <defs>
+                <linearGradient id="spGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#6bbd8f"/>
+                  <stop offset="100%" stop-color="#52a377"/>
+                </linearGradient>
+              </defs>
+              <rect x="6" y="6" width="116" height="116" rx="28" fill="url(#spGrad)"/>
+              <path d="M 30 84 Q 30 71 47 69 Q 66 67 71 79 Q 73 91 55 92 Q 35 93 30 84 Z" fill="#ffffff"/>
+              <path d="M 60 73 C 71 69, 81 59, 83 44" stroke="#ffffff" stroke-width="7.5" stroke-linecap="round" fill="none"/>
+              <circle cx="84" cy="40" r="8.5" fill="#ffffff"/>
+              <path d="M 90 38 L 103 42 L 90 46 Z" fill="#f5a623"/>
+              <circle cx="85" cy="38" r="1.8" fill="#2d332f"/>
+            </svg>
+          </div>
+        </div>
+        <div class="sp-name">R-Goose <span>Note</span></div>
+        <div class="sp-bar"><div class="sp-bar-inner"></div></div>
+      </div>
     </div>
     <script>window.__splashStart = Date.now()</script>
     <script type="module" src="/src/main.js"></script>
