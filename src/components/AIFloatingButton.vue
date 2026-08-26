@@ -51,8 +51,8 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
             </button>
           </div>
-          <button class="ai-chat-close" @click="chatOpen = false">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6 L18 18 M18 6 L6 18"/></svg>
+          <button class="ai-chat-min" @click="chatOpen = false" title="缩小">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12 L19 12"/></svg>
           </button>
         </div>
       </div>
@@ -409,6 +409,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('keydown', onCalcKeydown)
+  document.removeEventListener('pointerdown', onDocPointerDown)
 })
 
 // ===== 计算器键盘输入 =====
@@ -449,6 +450,18 @@ function onFloatClick() {
     inputRef.value?.focus()
   })
 }
+
+// 点击弹窗外区域：收起弹窗（预览遮罩在 body 下 Teleport，单独排除）
+function onDocPointerDown(e) {
+  const t = e.target
+  if (chatRef.value && t instanceof Node && chatRef.value.contains(t)) return
+  if (t instanceof Element && t.closest('.ai-preview-overlay')) return
+  chatOpen.value = false
+}
+watch(chatOpen, (open) => {
+  if (open) document.addEventListener('pointerdown', onDocPointerDown)
+  else document.removeEventListener('pointerdown', onDocPointerDown)
+})
 
 function onDragStart(e) {
   dragging = { mode: 'float', dx: e.clientX - pos.x, dy: e.clientY - pos.y }
@@ -939,7 +952,7 @@ function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').r
 .ai-chat,
 .ai-chat-header,
 .ai-chat-mode-btn,
-.ai-chat-close,
+.ai-chat-min,
 .ai-chat-input,
 .ai-chat-send,
 .ai-calc-btn,
@@ -1030,8 +1043,8 @@ function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').r
 .ai-chat-mode-btn:hover { background: var(--bg-hover, rgba(0,0,0,.05)); color: var(--text-primary); }
 .ai-chat-mode-btn.active { background: color-mix(in srgb, var(--primary-color) 12%, transparent); color: var(--primary-color); }
 .ai-chat-mode-btn.disabled { opacity: .35; cursor: not-allowed; pointer-events: none; }
-.ai-chat-close { background: transparent; border: none; border-radius: 7px; width: 28px; height: 28px; color: var(--text-tertiary, #999); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .15s, color .15s; }
-.ai-chat-close:hover { background: rgba(239,68,68,.1); color: #ef4444; }
+.ai-chat-min { background: transparent; border: none; border-radius: 7px; width: 28px; height: 28px; color: var(--text-tertiary, #999); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .15s, color .15s; }
+.ai-chat-min:hover { background: color-mix(in srgb, var(--text-primary, #333) 10%, transparent); color: var(--text-primary, #333); }
 
 /* ===== Body：侧边栏 + 消息区 ===== */
 .ai-chat-body { position: relative; z-index: 1; flex: 1; display: flex; overflow: hidden; }
