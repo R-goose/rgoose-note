@@ -32,11 +32,14 @@ app.use(router)
 
 app.mount('#app')
 
-// 启动 splash 退出：等 Vue 挂载并完成首帧绘制后，保证最短展示时长再淡出移除
-// （600ms 最短展示避免一闪而过；淡出期间 pointer-events 已关闭，不阻塞操作）
+// 启动 splash 退出：等 Vue 挂载并完成首帧绘制后，保证完整入场动画播完再淡出移除
+// （入场分镜全长约 2.4s：色块聚拢→徽标砸落→色块坠落→标题/进度条弹出，
+//   2500ms 最短展示确保动画完整播放；系统开启"减少动态效果"时缩短为 600ms）
 function dismissSplash() {
   const splash = document.getElementById('splash-screen')
   if (!splash) return
+  const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const minDuration = reduced ? 600 : 2500
   const elapsed = Date.now() - (window.__splashStart || Date.now())
   setTimeout(() => {
     if (!document.getElementById('splash-screen')) return
@@ -44,6 +47,6 @@ function dismissSplash() {
     const remove = () => { try { splash.remove() } catch (e) {} }
     splash.addEventListener('transitionend', remove, { once: true })
     setTimeout(remove, 500)
-  }, Math.max(0, 600 - elapsed))
+  }, Math.max(0, minDuration - elapsed))
 }
 requestAnimationFrame(() => requestAnimationFrame(dismissSplash))
