@@ -245,9 +245,9 @@ onUnmounted(() => {
   color: var(--primary-color);
 }
 
-/* 下拉动画：软弹果冻 */
+/* 下拉动画：软弹果冻（1.5s 慢弹） */
 .cs-enter-active {
-  animation: csJellyDown 0.32s cubic-bezier(0.34, 1.56, 0.44, 1) both;
+  animation: csJellyDown 1.5s cubic-bezier(0.45, 0, 0.55, 1) both;
   transform-origin: top center;
   will-change: transform;
 }
@@ -268,10 +268,13 @@ onUnmounted(() => {
 }
 
 @keyframes csJellyDown {
-  0% { opacity: 0; transform: scaleY(0.4) translateY(-6px); }
-  45% { opacity: 1; transform: scaleY(1.08) translateY(2px); }
-  65% { transform: scaleY(0.95) translateY(0); }
-  82% { transform: scaleY(1.02); }
+  0% { opacity: 0; transform: scaleY(0.25) translateY(-16px); }
+  16% { opacity: 1; transform: scaleY(1.22) translateY(5px); }
+  32% { transform: scaleY(0.86) translateY(-3px); }
+  48% { transform: scaleY(1.12) translateY(2px); }
+  64% { transform: scaleY(0.94) translateY(-1px); }
+  78% { transform: scaleY(1.05); }
+  90% { transform: scaleY(0.98); }
   100% { transform: scaleY(1); }
 }
 
@@ -282,10 +285,13 @@ onUnmounted(() => {
 }
 
 @keyframes csJellyUp {
-  0% { opacity: 0; transform: scaleY(0.4) translateY(6px); }
-  45% { opacity: 1; transform: scaleY(1.08) translateY(-2px); }
-  65% { transform: scaleY(0.95) translateY(0); }
-  82% { transform: scaleY(1.02); }
+  0% { opacity: 0; transform: scaleY(0.25) translateY(16px); }
+  16% { opacity: 1; transform: scaleY(1.22) translateY(-5px); }
+  32% { transform: scaleY(0.86) translateY(3px); }
+  48% { transform: scaleY(1.12) translateY(-2px); }
+  64% { transform: scaleY(0.94) translateY(1px); }
+  78% { transform: scaleY(1.05); }
+  90% { transform: scaleY(0.98); }
   100% { transform: scaleY(1); }
 }
 
