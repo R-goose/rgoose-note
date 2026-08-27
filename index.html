@@ -146,18 +146,6 @@
       .sp-name span { color: #3da353; }
       [data-theme="dark"] .sp-name { color: #eef2ef; text-shadow: none; }
       [data-theme="dark"] .sp-name span { color: #51c467; }
-      .sp-bar {
-        width: 200px; height: 8px; margin-top: 18px; border-radius: 99px;
-        overflow: hidden; background: rgba(61, 163, 83, 0.14);
-        animation: sp-pop 0.4s cubic-bezier(0.34, 1.56, 0.44, 1) 1.6s both;
-      }
-      [data-theme="dark"] .sp-bar { background: rgba(255, 255, 255, 0.1); }
-      .sp-bar-inner {
-        height: 100%; width: 42%; border-radius: 99px; background: #52a377;
-        animation: sp-slide 1.15s cubic-bezier(0.45, 0, 0.55, 1) infinite;
-      }
-      [data-theme="dark"] .sp-bar-inner { background: #51c467; }
-
       /* ===== 淡出收尾 ===== */
       #splash-screen.splash-hide * { animation: none !important; }
       #splash-screen.splash-hide .sp-logo { transform: translateY(-10px) scale(0.94); }
@@ -209,10 +197,6 @@
         65% { transform: scale(1.1) translateY(-2px); opacity: 1; }
         to { transform: none; opacity: 1; }
       }
-      @keyframes sp-slide {
-        0% { transform: translateX(-110%); }
-        100% { transform: translateX(340%); }
-      }
 
       @media (prefers-reduced-motion: reduce) {
         #splash-screen, #splash-screen * {
@@ -240,7 +224,6 @@
           </div>
         </div>
         <div class="sp-name">R-Goose <span>Note</span></div>
-        <div class="sp-bar"><div class="sp-bar-inner"></div></div>
       </div>
     </div>
     <script>window.__splashStart = Date.now()</script>

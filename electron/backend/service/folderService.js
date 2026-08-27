@@ -5,8 +5,6 @@
 
 const folderDao = require('../dao/folderDao')
 const noteDao = require('../dao/noteDao')
-const blockDao = require('../dao/blockDao')
-const connectionDao = require('../dao/connectionDao')
 const { getDb } = require('../db/connection')
 const { now } = require('../common/utils')
 const { notFound } = require('../common/errors')
@@ -51,12 +49,10 @@ module.exports = {
         count += this.delete(child.id)
       }
 
-      // 软删笔记 + 物理删 blocks/connections
+      // 软删笔记（保留 blocks/connections，回收站可完整恢复）
       const notes = noteDao.list({ folderId: id })
       for (const note of notes) {
         count += noteDao.softDelete(note.id)
-        count += blockDao.deleteByNote(note.id)
-        count += connectionDao.deleteByNote(note.id)
       }
     })
     tx()

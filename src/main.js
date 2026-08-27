@@ -33,7 +33,7 @@ app.use(router)
 app.mount('#app')
 
 // 启动 splash 退出：等 Vue 挂载并完成首帧绘制后，保证完整入场动画播完再淡出移除
-// （入场分镜全长约 2.4s：色块聚拢→徽标砸落→色块坠落→标题/进度条弹出，
+// （入场分镜全长约 2.4s：色块聚拢→徽标砸落→色块坠落→标题弹出，
 //   2500ms 最短展示确保动画完整播放；系统开启"减少动态效果"时缩短为 600ms）
 function dismissSplash() {
   const splash = document.getElementById('splash-screen')

@@ -409,13 +409,29 @@
         </div>
       </section>
 
+      <section v-if="canCloseToTray" class="settings-section">
+        <h2 class="section-title"><span class="title-bar bar-blue"></span>通用</h2>
+        <div class="settings-list">
+          <div id="set-close-to-tray" class="setting-item">
+            <div class="setting-info">
+              <div class="setting-name">关闭到托盘</div>
+              <div class="setting-desc">开启后点击窗口关闭按钮将最小化到系统托盘，应用继续在后台运行，可从托盘图标重新打开或退出。</div>
+            </div>
+            <label class="switch-wrap">
+              <input type="checkbox" v-model="closeToTray" @change="onToggleCloseToTray" />
+              <span class="switch-track"><span class="switch-thumb"></span></span>
+            </label>
+          </div>
+        </div>
+      </section>
+
       <section class="settings-section">
         <h2 class="section-title"><span class="title-bar bar-green"></span>关于</h2>
         <div class="settings-list">
           <div id="set-about-version" class="setting-item">
             <div class="setting-info">
               <div class="setting-name brand-name">R-Goose Note</div>
-              <div class="setting-desc">版本 2.3.2</div>
+              <div class="setting-desc">版本 2.3.4</div>
             </div>
           </div>
           <div id="set-about-platform" class="setting-item">
@@ -595,6 +611,20 @@ const importFolderOptions = computed(() => [
   ...noteStore.folders.filter(f => !f.deleted).map(f => ({ label: f.name, value: f.id }))
 ])
 const showClearCacheConfirm = ref(false)
+
+// ============ 通用：关闭到托盘 ============
+const canCloseToTray = typeof window !== 'undefined' && !!window.electronAPI?.getCloseToTray
+const closeToTray = ref(false)
+
+async function onToggleCloseToTray() {
+  try {
+    await window.electronAPI.setCloseToTray(closeToTray.value)
+    toastSuccess(closeToTray.value ? '已开启关闭到托盘' : '已关闭关闭到托盘')
+  } catch (e) {
+    closeToTray.value = !closeToTray.value
+    toastError('设置失败，请重试')
+  }
+}
 
 // ============ AI 设置 ============
 const aiApiKey = ref(localStorage.getItem('ai_api_key') || '')
@@ -959,6 +989,9 @@ onMounted(async () => {
   }
   await loadStorageSize()
   await loadBackups()
+  if (window.electronAPI?.getCloseToTray) {
+    try { closeToTray.value = await window.electronAPI.getCloseToTray() } catch {}
+  }
 })
 
 const usageTotal = computed(() => {
@@ -1736,6 +1769,45 @@ function resetAllShortcuts() {
 
 .setting-item:last-child {
   border-bottom: none;
+}
+
+.switch-wrap {
+  flex-shrink: 0;
+  display: inline-flex;
+  cursor: pointer;
+}
+
+.switch-wrap input {
+  display: none;
+}
+
+.switch-track {
+  width: 42px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--border-color, #d8dee4);
+  position: relative;
+  transition: background 0.2s ease;
+}
+
+.switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease;
+}
+
+.switch-wrap input:checked + .switch-track {
+  background: var(--accent-color, #d4956a);
+}
+
+.switch-wrap input:checked + .switch-track .switch-thumb {
+  transform: translateX(18px);
 }
 
 .ai-key-input {

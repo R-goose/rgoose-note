@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, protocol } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog, shell, protocol, Tray, Menu } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const { execSync } = require('child_process')
@@ -6,6 +6,8 @@ const backend = require('./backend')
 const imageService = require('./backend/service/imageService')
 
 let mainWindow
+let tray = null
+let isQuitting = false
 
 // 注册自定义协议（必须在 app.whenReady 之前）
 protocol.registerSchemesAsPrivileged([
@@ -44,6 +46,60 @@ function getCustomDataDir() {
   const dir = config.customDataDir
   if (dir && fs.existsSync(dir)) return dir
   return null
+}
+
+function getAppIconPath() {
+  const iconCandidates = [
+    path.join(__dirname, '../build/icon.ico'),
+    path.join(process.resourcesPath || '', 'build/icon.ico'),
+    path.join(__dirname, 'icon.ico')
+  ]
+  return iconCandidates.find(p => { try { return fs.existsSync(p) } catch { return false } }) || null
+}
+
+function createTray() {
+  if (tray && !tray.isDestroyed()) return
+  const iconPath = getAppIconPath()
+  if (!iconPath) return
+  tray = new Tray(iconPath)
+  tray.setToolTip('R-Goose Note')
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: '显示主窗口',
+      click: () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.show()
+          mainWindow.focus()
+        }
+      }
+    },
+    { type: 'separator' },
+    {
+      label: '退出应用',
+      click: () => {
+        isQuitting = true
+        app.quit()
+      }
+    }
+  ])
+  tray.setContextMenu(contextMenu)
+  tray.on('click', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isVisible()) {
+        mainWindow.focus()
+      } else {
+        mainWindow.show()
+        mainWindow.focus()
+      }
+    }
+  })
+}
+
+function destroyTray() {
+  if (tray) {
+    tray.destroy()
+    tray = null
+  }
 }
 
 function createWindow() {
@@ -149,6 +205,15 @@ function createWindow() {
     const cfg = loadConfig(); cfg.isMaximized = false; saveConfig(cfg)
   })
 
+  // 关闭到托盘：启用时点关闭仅隐藏窗口，并常驻系统托盘
+  mainWindow.on('close', (e) => {
+    if (!isQuitting && loadConfig().closeToTray) {
+      e.preventDefault()
+      mainWindow.hide()
+      createTray()
+    }
+  })
+
   if (process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL)
     mainWindow.webContents.openDevTools()
@@ -173,6 +238,22 @@ ipcMain.handle('window-toggle-maximize', () => {
 
 ipcMain.handle('window-close', () => {
   if (mainWindow) mainWindow.close()
+})
+
+ipcMain.handle('get-close-to-tray', () => {
+  return !!loadConfig().closeToTray
+})
+
+ipcMain.handle('set-close-to-tray', (_event, enabled) => {
+  const cfg = loadConfig()
+  cfg.closeToTray = !!enabled
+  saveConfig(cfg)
+  if (enabled) {
+    createTray()
+  } else {
+    destroyTray()
+  }
+  return true
 })
 
 ipcMain.handle('window-is-maximized', () => {
@@ -822,7 +903,12 @@ app.whenReady().then(async () => {
 
 } // end else (非测试模式)
 
+app.on('before-quit', () => {
+  isQuitting = true
+})
+
 app.on('window-all-closed', () => {
+  destroyTray()
   backend.stop()
   if (process.platform !== 'darwin') {
     app.quit()

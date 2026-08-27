@@ -20,6 +20,17 @@
             @keydown.esc="searchKeyword = ''"
           />
         </div>
+        <div class="sort-box" title="排序方式">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <polyline points="19 12 12 19 5 12"/>
+          </svg>
+          <select v-model="sortKey" class="sort-select" @change="onSortChange">
+            <option value="updatedAt">按更新时间</option>
+            <option value="createdAt">按创建时间</option>
+            <option value="title">按标题</option>
+          </select>
+        </div>
         <button class="btn btn-primary" @click="createNote">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <line x1="12" y1="5" x2="12" y2="19"/>
@@ -190,6 +201,13 @@
               <span>{{ (note.title || '无标题').slice(0, 6) }}</span>
             </div>
             <span class="note-card-blocks">{{ note.blocks?.length || 0 }}</span>
+            <span v-if="note.pinned" class="note-card-pin" title="已置顶">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+                <line x1="12" y1="17" x2="12" y2="22"/>
+                <path d="M5 17h14l-1.5-5.5a2 2 0 0 0-1.9-1.5h-7.2a2 2 0 0 0-1.9 1.5z"/>
+                <path d="M9 8V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/>
+              </svg>
+            </span>
             <div class="note-card-actions">
               <button class="note-action" @click.stop="duplicateNote(note)" title="复制">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -774,6 +792,28 @@ function getParentFolderName(folder) {
   return parent?.name || ''
 }
 
+/** 列表排序方式：updatedAt / createdAt / title（本地持久化） */
+const SORT_KEY_STORAGE = 'rg-note-sort-key'
+const sortKey = ref(['updatedAt', 'createdAt', 'title'].includes(localStorage.getItem(SORT_KEY_STORAGE))
+  ? localStorage.getItem(SORT_KEY_STORAGE)
+  : 'updatedAt')
+
+function onSortChange() {
+  localStorage.setItem(SORT_KEY_STORAGE, sortKey.value)
+}
+
+/** 置顶优先，组内按 sortKey 排序 */
+function compareNotes(a, b) {
+  const pa = a.pinned ? 1 : 0
+  const pb = b.pinned ? 1 : 0
+  if (pa !== pb) return pb - pa
+  if (sortKey.value === 'title') {
+    return (a.title || '无标题').localeCompare(b.title || '无标题', 'zh')
+  }
+  const key = sortKey.value === 'createdAt' ? 'createdAt' : 'updatedAt'
+  return (b[key] || 0) - (a[key] || 0)
+}
+
 const filteredNotes = computed(() => {
   let notes
   if (activeTagFilter.value) {
@@ -787,7 +827,7 @@ const filteredNotes = computed(() => {
     const keyword = searchKeyword.value.toLowerCase()
     notes = notes.filter(note => noteMatchesKeyword(note, keyword))
   }
-  return notes.filter(n => n.id).sort((a, b) => b.updatedAt - a.updatedAt)
+  return notes.filter(n => n.id).sort(compareNotes)
 })
 
 const filteredFolders = computed(() => {
@@ -1086,6 +1126,7 @@ function execCtxAction(action) {
   if (!target) return
   if (type === 'note') {
     if (action === 'open') openNote(target.id)
+    else if (action === 'pin') noteStore.togglePinNote(target.id)
     else if (action === 'duplicate') duplicateNote(target)
     else if (action === 'delete') deleteNote(target.id)
     else if (action === 'tags') {
@@ -1611,6 +1652,51 @@ onUnmounted(() => {
   border-radius: 999px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
   z-index: 2;
+}
+
+.note-card-pin {
+  position: absolute;
+  top: 40px;
+  left: 10px;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  background: var(--accent-color, #d4956a);
+  border-radius: 999px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  z-index: 2;
+}
+
+.sort-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  height: 36px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.sort-select {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+  padding: 0;
+  height: 100%;
+}
+
+.sort-select option {
+  color: var(--text-primary);
+  background: var(--bg-secondary);
 }
 
 .note-card-body {

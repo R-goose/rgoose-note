@@ -15,6 +15,47 @@
 
     <div class="dash-content">
       <BgDecor variant="dashboard" />
+      <!-- 首次使用引导 -->
+      <section v-if="showOnboarding" class="onboarding-card">
+        <button class="onboarding-close" title="不再显示" @click="dismissOnboarding">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+        <div class="onboarding-head">
+          <h2>欢迎使用 R-Goose Note 🎉</h2>
+          <p>一款画布式笔记应用，3 步快速上手：</p>
+        </div>
+        <div class="onboarding-steps">
+          <div class="onboarding-step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <div class="step-title">创建第一篇笔记</div>
+              <div class="step-desc">文字、待办、里程碑都放在同一块画布上，自由连线</div>
+            </div>
+          </div>
+          <div class="onboarding-step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <div class="step-title">安排每日计划</div>
+              <div class="step-desc">把笔记中的待办汇聚成计划，专注推进不遗漏</div>
+            </div>
+          </div>
+          <div class="onboarding-step">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <div class="step-title">放心删除</div>
+              <div class="step-desc">删除的笔记进入回收站，保留 30 天可随时恢复</div>
+            </div>
+          </div>
+        </div>
+        <div class="onboarding-actions">
+          <button class="btn btn-primary" @click="onboardingCreateNote">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            新建第一篇笔记
+          </button>
+          <button class="btn btn-ghost" @click="dismissOnboarding">稍后再说</button>
+        </div>
+      </section>
+
       <!-- 概览卡片 -->
       <section class="overview-cards">
         <div class="stat-card stat-tasks clickable" @click="openTaskList({ type: 'all', label: '全部任务' })">
@@ -225,6 +266,26 @@ function useCountUp(source, duration = 1000) {
 }
 
 const allNotes = computed(() => noteStore.allSortedNotes)
+
+// ============ 首次使用引导 ============
+const ONBOARDED_KEY = 'rg-onboarded'
+const showOnboarding = ref(false)
+
+onMounted(async () => {
+  try { await noteStore.init() } catch {}
+  showOnboarding.value = !localStorage.getItem(ONBOARDED_KEY) && allNotes.value.length === 0
+})
+
+function dismissOnboarding() {
+  showOnboarding.value = false
+  localStorage.setItem(ONBOARDED_KEY, '1')
+}
+
+function onboardingCreateNote() {
+  dismissOnboarding()
+  const note = noteStore.createNote('我的第一篇笔记')
+  router.push(`/note/${note.id}`)
+}
 
 const allBlocks = computed(() => {
   refreshKey.value
@@ -519,6 +580,58 @@ const filteredTaskList = computed(() => {
     radial-gradient(circle at 88% 4%, rgba(74, 144, 217, 0.045), transparent 36%),
     radial-gradient(circle at 70% 92%, rgba(155, 123, 214, 0.04), transparent 40%);
 }
+
+/* 首次使用引导 */
+.onboarding-card {
+  position: relative;
+  padding: 28px 32px;
+  margin-bottom: 24px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  animation: dashIn 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.onboarding-close {
+  position: absolute;
+  top: 14px; right: 14px;
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border: none; border-radius: 8px;
+  background: transparent; color: var(--text-tertiary);
+  cursor: pointer; transition: all 0.2s ease;
+}
+.onboarding-close:hover { background: var(--border-light); color: var(--text-primary); }
+.onboarding-head h2 {
+  font-size: 20px; font-weight: 800; color: var(--text-primary);
+  letter-spacing: -0.02em; margin-bottom: 6px;
+}
+.onboarding-head p {
+  font-size: 13px; color: var(--text-secondary); margin: 0;
+}
+.onboarding-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin: 20px 0 22px;
+}
+.onboarding-step {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 14px 16px;
+  border-radius: var(--radius-md, 10px);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+}
+.step-num {
+  flex-shrink: 0;
+  width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: var(--accent-color, #d4956a);
+  color: #fff; font-size: 13px; font-weight: 700;
+}
+.step-title { font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px; }
+.step-desc { font-size: 12px; color: var(--text-tertiary); line-height: 1.6; }
+.onboarding-actions { display: flex; gap: 10px; }
 
 /* 概览卡片 */
 .overview-cards {

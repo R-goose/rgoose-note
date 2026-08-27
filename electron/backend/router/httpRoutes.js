@@ -31,6 +31,8 @@ function createRouter() {
   app.put('/api/notes/:id', (req, res) => res.json(ok(noteService.update(req.params.id, req.body))))
   app.patch('/api/notes/:id/tags', (req, res) => res.json(ok(noteService.updateTags(req.params.id, req.body.tags))))
   app.delete('/api/notes/:id', (req, res) => { noteService.delete(req.params.id); res.json(ok()) })
+  app.post('/api/notes/:id/restore', (req, res) => res.json(ok(noteService.restore(req.params.id))))
+  app.delete('/api/notes/:id/hard', (req, res) => { noteService.hardDelete(req.params.id); res.json(ok()) })
   app.post('/api/notes/:id/duplicate', (req, res) => res.json(ok(noteService.duplicate(req.params.id))))
 
   // ---------- Blocks ----------

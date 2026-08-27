@@ -1271,8 +1271,6 @@ import { useToast } from '@/composables/useToast'
 import { useClickOutside } from '@/composables/useClickOutside'
 import { saveImage, resolveImageUrl, preloadImages, isImageRef } from '@/utils/imageStore'
 import { imagesApi } from '@/api/images'
-import { jsPDF } from 'jspdf'
-import html2canvas from 'html2canvas-pro'
 
 const { error: toastError, showToast, removeToast, success: toastSuccess } = useToast()
 
@@ -4016,6 +4014,7 @@ async function captureViaHtml2Canvas() {
   const hidden = hideOverlays(target)
 
   try {
+    const { default: html2canvas } = await import('html2canvas-pro')
     const canvas = await html2canvas(target, {
       backgroundColor: '#f8faf8',
       scale: 2,
@@ -4112,6 +4111,7 @@ async function exportAsPDF() {
     // PDF 页面尺寸用逻辑尺寸（contentWidth × contentHeight），
     // 图片以高清物理像素绘制再缩放到页面尺寸，保证清晰度且 PDF 大小正常
     const orientation = contentWidth >= contentHeight ? 'landscape' : 'portrait'
+    const { jsPDF } = await import('jspdf')
     const pdf = new jsPDF({
       orientation,
       unit: 'px',

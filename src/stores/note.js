@@ -23,6 +23,10 @@ export const useNoteStore = defineStore('note', () => {
 
   // ==================== 计算属性（只读，不改动） ====================
 
+  /** 通用排序：置顶优先，其余按更新时间倒序 */
+  const byPinnedThenUpdated = (a, b) =>
+    ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || (b.updatedAt - a.updatedAt)
+
   const currentNote = computed(() => {
     return notes.value.find(n => n.id === currentNoteId.value && !n.deleted) || null
   })
@@ -36,13 +40,18 @@ export const useNoteStore = defineStore('note', () => {
       const isRoot = currentFolderId.value === SYSTEM_ROOT_FOLDER_ID
       list = list.filter(n => allFolderIds.includes(n.folderId) || (isRoot && n.folderId == null))
     }
-    return [...list].sort((a, b) => b.updatedAt - a.updatedAt)
+    return [...list].sort(byPinnedThenUpdated)
   })
 
   const currentFolderNotes = computed(() => sortedNotes.value)
 
   const allSortedNotes = computed(() => {
-    return [...notes.value.filter(n => !n.deleted)].sort((a, b) => b.updatedAt - a.updatedAt)
+    return [...notes.value.filter(n => !n.deleted)].sort(byPinnedThenUpdated)
+  })
+
+  /** 回收站：已软删笔记，按删除时间（updatedAt）倒序 */
+  const deletedNotes = computed(() => {
+    return [...notes.value.filter(n => n.deleted)].sort((a, b) => b.updatedAt - a.updatedAt)
   })
 
   const sortedFolders = computed(() => {
@@ -138,6 +147,7 @@ export const useNoteStore = defineStore('note', () => {
         folders.value = []
       }
       ensureTagsFields()
+      cleanupExpiredDeleted()
       await ensureSystemRootFolder()
     })()
     return initPromise
@@ -431,6 +441,96 @@ export const useNoteStore = defineStore('note', () => {
         toastError('删除失败：笔记未能同步，请重试')
       })
       .finally(markSaved)
+  }
+
+  // ==================== 回收站操作 ====================
+
+  /** 从回收站恢复笔记（所属文件夹已被删时回退到根目录，保证恢复后可见） */
+  function restoreNote(id) {
+    const note = notes.value.find(n => n.id === id)
+    if (!note || !note.deleted) return
+    const backupDeleted = note.deleted
+    const backupFolderId = note.folderId
+    note.deleted = false
+    const folderValid = note.folderId && folders.value.some(f => f.id === note.folderId && !f.deleted)
+    if (!folderValid) note.folderId = SYSTEM_ROOT_FOLDER_ID
+    const ts = getTimestamp()
+    note.updatedAt = ts
+
+    markSaving()
+    const restoreReq = notesApi.restore(id)
+    const folderFixReq = folderValid ? null : notesApi.update(id, { folderId: note.folderId, updatedAt: ts })
+    Promise.all([restoreReq, folderFixReq].filter(Boolean))
+      .then(([serverNote]) => {
+        if (serverNote && typeof serverNote === 'object') {
+          // 以服务端返回为准刷新元数据（不覆盖本地 blocks/connections/folderId）
+          const localBlocks = note.blocks
+          const localConns = note.connections
+          const localFolderId = note.folderId
+          Object.assign(note, serverNote, { blocks: localBlocks, connections: localConns, folderId: localFolderId })
+        }
+      })
+      .catch(err => {
+        console.error('恢复笔记失败:', err)
+        note.deleted = backupDeleted
+        note.folderId = backupFolderId
+        toastError('恢复失败，请重试')
+      })
+      .finally(markSaved)
+  }
+
+  /** 彻底删除单篇笔记（不可恢复） */
+  function deleteNoteForever(id) {
+    const idx = notes.value.findIndex(n => n.id === id && n.deleted)
+    if (idx < 0) return
+    const backup = notes.value[idx]
+
+    notes.value.splice(idx, 1)
+    markSaving()
+    notesApi.hardDelete(id)
+      .catch(err => {
+        console.error('彻底删除笔记失败:', err)
+        notes.value.splice(idx, 0, backup)
+        toastError('删除失败，请重试')
+      })
+      .finally(markSaved)
+  }
+
+  /** 清空回收站 */
+  function emptyTrash() {
+    const deletedIds = notes.value.filter(n => n.deleted).map(n => n.id)
+    if (!deletedIds.length) return
+    const backups = notes.value.filter(n => n.deleted)
+    notes.value = notes.value.filter(n => !n.deleted)
+
+    markSaving()
+    Promise.all(deletedIds.map(id => notesApi.hardDelete(id)))
+      .catch(err => {
+        console.error('清空回收站失败:', err)
+        notes.value.push(...backups)
+        toastError('清空失败，请重试')
+      })
+      .finally(markSaved)
+  }
+
+  /** 30 天自动清理：启动时静默彻底删除过期回收站笔记（失败不影响启动） */
+  function cleanupExpiredDeleted() {
+    const deadline = Date.now() - 30 * 24 * 60 * 60 * 1000
+    const expired = notes.value.filter(n => n.deleted && (n.updatedAt || 0) < deadline)
+    if (!expired.length) return
+    notes.value = notes.value.filter(n => !(n.deleted && (n.updatedAt || 0) < deadline))
+    Promise.all(expired.map(n => notesApi.hardDelete(n.id)))
+      .catch(err => {
+        console.error('回收站过期清理失败:', err)
+        notes.value.push(...expired)
+      })
+  }
+
+  /** 置顶/取消置顶笔记 */
+  function togglePinNote(id) {
+    const note = notes.value.find(n => n.id === id)
+    if (!note || note.deleted) return
+    updateNote(id, { pinned: !note.pinned })
   }
 
   function updateNote(id, updates) {
@@ -778,6 +878,7 @@ export const useNoteStore = defineStore('note', () => {
     sortedNotes,
     currentFolderNotes,
     allSortedNotes,
+    deletedNotes,
     sortedFolders,
     lastSyncTime,
     saveStatus,
@@ -799,7 +900,12 @@ export const useNoteStore = defineStore('note', () => {
     moveNoteToFolder,
     createNote,
     deleteNote,
+    restoreNote,
+    deleteNoteForever,
+    emptyTrash,
+    cleanupExpiredDeleted,
     updateNote,
+    togglePinNote,
     setCurrentNote,
     duplicateNote,
     searchNotes,

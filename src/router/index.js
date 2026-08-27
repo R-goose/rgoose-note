@@ -42,6 +42,12 @@ const routes = [
     meta: { title: '素材库' }
   },
   {
+    path: '/trash',
+    name: 'Trash',
+    component: () => import('@/views/TrashView.vue'),
+    meta: { title: '回收站' }
+  },
+  {
     path: '/settings',
     name: 'Settings',
     component: () => import('@/views/SettingsView.vue'),

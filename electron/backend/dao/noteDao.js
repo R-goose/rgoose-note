@@ -50,14 +50,15 @@ module.exports = {
     const db = getDb()
     const id = note.id || crypto.randomUUID()
     db.prepare(`
-      INSERT INTO notes (id, title, folderId, tags, canvasConfig, createdAt, updatedAt, deleted)
-      VALUES (@id, @title, @folderId, @tags, @canvasConfig, @createdAt, @updatedAt, @deleted)
+      INSERT INTO notes (id, title, folderId, tags, canvasConfig, pinned, createdAt, updatedAt, deleted)
+      VALUES (@id, @title, @folderId, @tags, @canvasConfig, @pinned, @createdAt, @updatedAt, @deleted)
     `).run({
       id,
       title: note.title || '',
       folderId: note.folderId || null,
       tags: safeStringify(note.tags || []),
       canvasConfig: note.canvasConfig != null ? safeStringify(note.canvasConfig) : null,
+      pinned: note.pinned ? 1 : 0,
       createdAt: note.createdAt,
       updatedAt: note.updatedAt,
       deleted: note.deleted ? 1 : 0
@@ -104,6 +105,11 @@ module.exports = {
     const db = getDb()
     return db.prepare('UPDATE notes SET deleted = 1, updatedAt = ? WHERE id = ?')
       .run(Date.now(), id).changes
+  },
+
+  restore(id) {
+    const db = getDb()
+    return db.prepare('UPDATE notes SET deleted = 0 WHERE id = ?').run(id).changes
   },
 
   hardDelete(id) {

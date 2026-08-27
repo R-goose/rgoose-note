@@ -21,8 +21,19 @@ export default defineConfig({
     }
   },
   build: {
+    chunkSizeWarningLimit: 1100,
     rollupOptions: {
-      external: [/\/test\//]
+      external: [/\/test\//],
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('katex')) return 'vendor-katex'
+            if (id.includes('jspdf')) return 'vendor-pdf'
+            if (id.includes('html2canvas')) return 'vendor-pdf'
+            if (id.includes('interactjs')) return 'vendor-interact'
+          }
+        }
+      }
     }
   },
   publicDir: 'public'

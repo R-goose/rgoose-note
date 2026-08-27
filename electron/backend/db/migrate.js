@@ -39,7 +39,7 @@ function ensureBlockColumns(db) {
   }
 }
 
-/** 对 notes 表补齐 tags / canvasConfig 列（旧库兼容） */
+/** 对 notes 表补齐 tags / canvasConfig / pinned 列（旧库兼容） */
 function ensureNoteColumns(db) {
   const cols = db.prepare("PRAGMA table_info(notes)").all().map(c => c.name)
   if (!cols.includes('tags')) {
@@ -47,6 +47,9 @@ function ensureNoteColumns(db) {
   }
   if (!cols.includes('canvasConfig')) {
     db.exec(`ALTER TABLE notes ADD COLUMN canvasConfig TEXT`)
+  }
+  if (!cols.includes('pinned')) {
+    db.exec(`ALTER TABLE notes ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0`)
   }
 }
 

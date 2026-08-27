@@ -29,8 +29,9 @@ function start(dataDir) {
   // 3. 启动 HTTP 服务（可选）
   if (config.mode === 'http' || config.mode === 'both') {
     const app = createHttpRouter()
-    httpServer = app.listen(config.httpPort, () => {
-      log('backend', `HTTP server listening on http://localhost:${config.httpPort}`)
+    // 绑定 127.0.0.1：dev HTTP 模式仅本机可访问，不暴露到局域网
+    httpServer = app.listen(config.httpPort, '127.0.0.1', () => {
+      log('backend', `HTTP server listening on http://127.0.0.1:${config.httpPort}`)
     })
   }
 }

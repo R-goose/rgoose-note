@@ -34,6 +34,16 @@ export const notesApi = {
     return http.del(`/notes/${id}`)
   },
 
+  /** 从回收站恢复笔记 */
+  restore(id) {
+    return http.post(`/notes/${id}/restore`)
+  },
+
+  /** 彻底删除笔记（不可恢复） */
+  hardDelete(id) {
+    return http.del(`/notes/${id}/hard`)
+  },
+
   /** 复制笔记（深拷贝块与连线） */
   duplicate(id) {
     return http.post(`/notes/${id}/duplicate`)

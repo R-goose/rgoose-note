@@ -22,6 +22,8 @@ function register() {
   ipcMain.handle('backend:notes:update',   (_e, { id, note }) => wrap(() => noteService.update(id, note)))
   ipcMain.handle('backend:notes:updateTags', (_e, { id, tags }) => wrap(() => noteService.updateTags(id, tags)))
   ipcMain.handle('backend:notes:delete',   (_e, id) => wrap(() => noteService.delete(id)))
+  ipcMain.handle('backend:notes:restore',  (_e, id) => wrap(() => noteService.restore(id)))
+  ipcMain.handle('backend:notes:hardDelete', (_e, id) => wrap(() => noteService.hardDelete(id)))
   ipcMain.handle('backend:notes:duplicate',(_e, id) => wrap(() => noteService.duplicate(id)))
   ipcMain.handle('backend:notes:listAll',  () => wrap(() => noteService.listAll()))
 

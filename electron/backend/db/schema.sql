@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS notes (
   folderId      TEXT,
   tags          TEXT,
   canvasConfig  TEXT,
+  pinned        INTEGER NOT NULL DEFAULT 0,
   createdAt     INTEGER NOT NULL,
   updatedAt     INTEGER NOT NULL,
   deleted       INTEGER NOT NULL DEFAULT 0

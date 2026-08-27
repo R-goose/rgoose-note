@@ -46,11 +46,24 @@ module.exports = {
     return noteDao.updateTags(id, tags)
   },
 
-  /** 软删笔记 + 物理删除关联 blocks/connections（事务） */
+  /** 软删笔记（保留 blocks/connections，回收站可完整恢复） */
   delete(id) {
+    noteDao.softDelete(id)
+  },
+
+  /** 从回收站恢复笔记 */
+  restore(id) {
+    const note = noteDao.getById(id)
+    if (!note || !note.deleted) throw notFound('回收站中不存在该笔记')
+    noteDao.restore(id)
+    return noteDao.getById(id)
+  },
+
+  /** 彻底删除笔记 + 关联 blocks/connections（事务） */
+  hardDelete(id) {
     const db = getDb()
     const tx = db.transaction(() => {
-      noteDao.softDelete(id)
+      noteDao.hardDelete(id)
       blockDao.deleteByNote(id)
       connectionDao.deleteByNote(id)
     })

@@ -34,6 +34,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   windowToggleMaximize: () => ipcRenderer.invoke('window-toggle-maximize'),
   windowClose: () => ipcRenderer.invoke('window-close'),
   windowIsMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+  getCloseToTray: () => ipcRenderer.invoke('get-close-to-tray'),
+  setCloseToTray: enabled => ipcRenderer.invoke('set-close-to-tray', enabled),
   captureExport: payload => ipcRenderer.invoke('capture-export', payload),
   sendExportReady: data => ipcRenderer.send('export-ready', data),
   onMaximizeChange: cb => {
