@@ -661,7 +661,7 @@
   </div>
 
   <Teleport to="body">
-    <div v-if="showLinkModal" class="modal-overlay" @click.self="closeLinkModal">
+    <JellyModal :show="showLinkModal" @close="closeLinkModal">
       <div class="modal-content" style="padding: 20px; width: 360px;">
         <h3 style="margin-bottom: 16px; font-size: 16px;">插入链接</h3>
         <input
@@ -683,7 +683,7 @@
           <button class="btn btn-primary" @click="insertLink">插入</button>
         </div>
       </div>
-    </div>
+    </JellyModal>
   </Teleport>
 </template>
 

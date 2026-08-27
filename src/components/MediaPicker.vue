@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div v-if="show" class="modal-overlay" @click.self="$emit('close')">
+    <JellyModal :show="show" @close="$emit('close')">
       <div class="media-picker-modal">
         <div class="picker-header">
           <h3>{{ title }}</h3>
@@ -52,7 +52,7 @@
           </div>
         </div>
       </div>
-    </div>
+    </JellyModal>
   </Teleport>
 </template>
 
@@ -151,6 +151,12 @@ function confirm() {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  animation: jellyPop 0.45s cubic-bezier(0.34, 1.4, 0.44, 1) both;
+  will-change: transform;
+}
+
+.jmodal-leave-active .media-picker-modal {
+  animation: jellyOut 0.24s cubic-bezier(0.55, 0, 0.8, 0.4) both;
 }
 
 .picker-header {

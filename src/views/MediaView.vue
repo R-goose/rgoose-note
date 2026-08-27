@@ -288,7 +288,7 @@
 
     <!-- 移动到文件夹弹窗 -->
     <Teleport to="body">
-      <div v-if="moveState.show" class="modal-overlay" @click.self="moveState.show = false">
+      <JellyModal :show="moveState.show" @close="moveState.show = false">
         <div class="modal-content move-modal">
           <h3 class="move-title">移动到文件夹</h3>
           <div class="move-folder-list">
@@ -312,12 +312,12 @@
             <button class="btn btn-primary" @click="confirmMove">移动</button>
           </div>
         </div>
-      </div>
+      </JellyModal>
     </Teleport>
 
     <!-- 导出素材选择弹窗 -->
     <Teleport to="body">
-      <div v-if="exportSelectState.show" class="modal-overlay" @click.self="exportSelectState.show = false">
+      <JellyModal :show="exportSelectState.show" @close="exportSelectState.show = false">
         <div class="modal-content export-select-modal">
           <h3 class="move-title">选择要导出的素材</h3>
           <div class="export-select-toolbar">
@@ -337,12 +337,12 @@
             <button class="btn btn-primary" :disabled="exportSelectedCount === 0" @click="confirmExportSelect">导出</button>
           </div>
         </div>
-      </div>
+      </JellyModal>
     </Teleport>
 
     <!-- 导入到文件夹弹窗 -->
     <Teleport to="body">
-      <div v-if="importFolderState.show" class="modal-overlay" @click.self="importFolderState.show = false">
+      <JellyModal :show="importFolderState.show" @close="importFolderState.show = false">
         <div class="modal-content move-modal">
           <h3 class="move-title">导入到文件夹</h3>
           <div class="move-folder-list">
@@ -366,12 +366,12 @@
             <button class="btn btn-primary" @click="confirmImportFolder">选择文件</button>
           </div>
         </div>
-      </div>
+      </JellyModal>
     </Teleport>
 
     <!-- 重命名弹窗 -->
     <Teleport to="body">
-      <div v-if="renameState.show" class="modal-overlay" @click.self="renameState.show = false">
+      <JellyModal :show="renameState.show" @close="renameState.show = false">
         <div class="modal-content confirm-modal">
           <div class="confirm-header" style="margin-bottom:16px">
             <div>
@@ -392,12 +392,12 @@
             <button class="btn btn-primary" @click="confirmRename">确定</button>
           </div>
         </div>
-      </div>
+      </JellyModal>
     </Teleport>
 
     <!-- 素材重命名弹窗 -->
     <Teleport to="body">
-      <div v-if="mediaRenameState.show" class="modal-overlay" @click.self="mediaRenameState.show = false">
+      <JellyModal :show="mediaRenameState.show" @close="mediaRenameState.show = false">
         <div class="modal-content confirm-modal">
           <div class="confirm-header" style="margin-bottom:16px">
             <div>
@@ -418,12 +418,12 @@
             <button class="btn btn-primary" @click="confirmRenameMedia">确定</button>
           </div>
         </div>
-      </div>
+      </JellyModal>
     </Teleport>
 
     <!-- 删除文件夹确认弹窗 -->
     <Teleport to="body">
-      <div v-if="deleteFolderState.show" class="modal-overlay" @click.self="deleteFolderState.show = false">
+      <JellyModal :show="deleteFolderState.show" @close="deleteFolderState.show = false">
         <div class="modal-content confirm-modal">
           <div class="confirm-header">
             <div class="confirm-icon warning">
@@ -443,12 +443,12 @@
             <button class="btn btn-primary" @click="confirmDeleteFolder">删除</button>
           </div>
         </div>
-      </div>
+      </JellyModal>
     </Teleport>
 
     <!-- 删除确认弹窗 -->
     <Teleport to="body">
-      <div v-if="deleteState.show" class="modal-overlay" @click.self="deleteState.show = false">
+      <JellyModal :show="deleteState.show" @close="deleteState.show = false">
         <div class="modal-content confirm-modal">
           <div class="confirm-header">
             <div class="confirm-icon warning">
@@ -468,12 +468,12 @@
             <button class="btn btn-primary" @click="confirmDelete">删除</button>
           </div>
         </div>
-      </div>
+      </JellyModal>
     </Teleport>
 
     <!-- 标签选择弹窗 -->
     <Teleport to="body">
-      <div v-if="tagPickerState.show" class="modal-overlay" @click.self="closeTagPicker">
+      <JellyModal :show="tagPickerState.show" @close="closeTagPicker">
         <div class="tag-picker-modal" @click.stop>
           <div class="tag-picker-header">
             <h3>编辑标签</h3>
@@ -513,7 +513,7 @@
             </button>
           </div>
         </div>
-      </div>
+      </JellyModal>
     </Teleport>
   </div>
 </template>
@@ -2158,9 +2158,17 @@ watch(
   border-radius: 10px;
   box-shadow: 0 8px 28px -6px rgba(0,0,0,.18);
   padding: 5px;
-  animation: ctx-in .12s ease;
+  animation: ctxJellyPop 0.26s cubic-bezier(0.34, 1.56, 0.44, 1) both;
+  transform-origin: top left;
+  will-change: transform;
 }
-@keyframes ctx-in { from{opacity:0;transform:scale(.95)} to{opacity:1;transform:scale(1)} }
+@keyframes ctxJellyPop {
+  0% { opacity: 0; transform: scale(0.6, 0.4); }
+  45% { opacity: 1; transform: scale(1.07, 0.92); }
+  65% { transform: scale(0.96, 1.05); }
+  82% { transform: scale(1.02, 0.99); }
+  100% { transform: scale(1, 1); }
+}
 
 .ctx-item {
   display: flex;
@@ -2288,6 +2296,12 @@ watch(
   display: flex;
   flex-direction: column;
   box-shadow: 0 8px 32px rgba(0,0,0,.15);
+  animation: jellyPop 0.45s cubic-bezier(0.34, 1.4, 0.44, 1) both;
+  will-change: transform;
+}
+
+.jmodal-leave-active .tag-picker-modal {
+  animation: jellyOut 0.24s cubic-bezier(0.55, 0, 0.8, 0.4) both;
 }
 .tag-picker-header {
   display: flex;

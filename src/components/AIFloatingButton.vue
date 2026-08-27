@@ -893,6 +893,8 @@ function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').r
   border-radius: 8px;
   box-shadow: 0 20px 60px rgba(0,0,0,0.5);
   cursor: default;
+  animation: jellyPop 0.4s cubic-bezier(0.34, 1.4, 0.44, 1) both;
+  will-change: transform;
 }
 
 .ai-preview-close {
@@ -1119,9 +1121,22 @@ function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').r
 .ai-hint-dot.image { background: #d97706; }
 .ai-hint-dot.video { background: #8b5cf6; }
 
-/* ===== 过渡 ===== */
-.ai-chat-enter-active, .ai-chat-leave-active { transition: opacity .18s ease, transform .2s ease; }
-.ai-chat-enter-from, .ai-chat-leave-to { opacity: 0; transform: scale(.97) translateY(8px); }
+/* ===== 过渡：软弹果冻 ===== */
+.ai-chat-enter-active { animation: aiJellyIn 0.42s cubic-bezier(0.34, 1.4, 0.44, 1) both; will-change: transform; }
+.ai-chat-leave-active { animation: aiJellyOut 0.24s cubic-bezier(0.55, 0, 0.8, 0.4) both; }
+@keyframes aiJellyIn {
+  0% { opacity: 0; transform: scale(0.6, 0.45) translateY(14px); }
+  42% { opacity: 1; transform: scale(1.08, 0.9) translateY(0); }
+  58% { transform: scale(0.95, 1.06); }
+  74% { transform: scale(1.03, 0.97); }
+  88% { transform: scale(0.99, 1.01); }
+  100% { transform: scale(1, 1); }
+}
+@keyframes aiJellyOut {
+  0% { transform: scale(1, 1); opacity: 1; }
+  30% { transform: scale(1.08, 0.88); opacity: 1; }
+  100% { transform: scale(0.6, 0.4) translateY(12px); opacity: 0; }
+}
 
 /* ===== 缩放手柄 ===== */
 .ai-chat-resize {

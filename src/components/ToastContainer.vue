@@ -75,22 +75,32 @@ const { toasts, removeToast } = useToast()
   line-height: 1.4;
 }
 
-.toast-enter-active,
+.toast-enter-active {
+  animation: toastJellyIn 0.5s cubic-bezier(0.34, 1.4, 0.44, 1) both;
+}
+
 .toast-leave-active {
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: toastJellyOut 0.26s cubic-bezier(0.55, 0, 0.8, 0.4) both;
 }
 
-.toast-enter-from {
-  opacity: 0;
-  transform: translateY(-20px) scale(0.92);
+/* 果冻入场：从顶部落下砸扁再弹起回正 */
+@keyframes toastJellyIn {
+  0% { transform: translateY(-32px) scale(0.55, 0.45); opacity: 0; }
+  42% { transform: translateY(0) scale(1.14, 0.84); opacity: 1; }
+  58% { transform: scale(0.94, 1.09); }
+  74% { transform: scale(1.04, 0.96); }
+  88% { transform: scale(0.99, 1.01); }
+  100% { transform: scale(1, 1); }
 }
 
-.toast-leave-to {
-  opacity: 0;
-  transform: translateY(-12px) scale(0.95);
+/* 果冻退场：先压扁蓄力再缩小弹走 */
+@keyframes toastJellyOut {
+  0% { transform: scale(1, 1); opacity: 1; }
+  30% { transform: scale(1.1, 0.84); opacity: 1; }
+  100% { transform: translateY(-20px) scale(0.55, 0.35); opacity: 0; }
 }
 
 .toast-move {
-  transition: transform 0.3s ease;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 </style>

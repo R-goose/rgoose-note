@@ -96,7 +96,7 @@
     </div>
 
     <Teleport to="body">
-      <div v-if="creating" class="modal-overlay" @click.self="cancelCreate">
+      <JellyModal :show="creating" @close="cancelCreate">
         <div class="modal-content create-tag-modal">
           <h3>新建标签</h3>
           <input
@@ -125,11 +125,11 @@
             <button class="btn btn-primary" @click="confirmCreate">创建</button>
           </div>
         </div>
-      </div>
+      </JellyModal>
     </Teleport>
 
     <Teleport to="body">
-      <div v-if="tagToDelete" class="modal-overlay" @click.self="tagToDelete = null">
+      <JellyModal :show="!!tagToDelete" @close="tagToDelete = null">
         <div class="modal-content confirm-modal">
           <div class="confirm-header">
             <div class="confirm-icon warning">
@@ -149,7 +149,7 @@
             <button class="btn btn-primary" @click="confirmDelete">删除</button>
           </div>
         </div>
-      </div>
+      </JellyModal>
     </Teleport>
   </div>
 </template>

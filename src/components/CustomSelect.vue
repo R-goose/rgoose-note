@@ -245,20 +245,53 @@ onUnmounted(() => {
   color: var(--primary-color);
 }
 
-/* 下拉动画 */
-.cs-enter-active,
+/* 下拉动画：软弹果冻 */
+.cs-enter-active {
+  animation: csJellyDown 0.32s cubic-bezier(0.34, 1.56, 0.44, 1) both;
+  transform-origin: top center;
+  will-change: transform;
+}
+
 .cs-leave-active {
-  transition: all 0.16s ease;
+  animation: csJellyOutDown 0.22s cubic-bezier(0.55, 0, 0.8, 0.4) both;
+  transform-origin: top center;
 }
 
-.cs-enter-from,
-.cs-leave-to {
-  opacity: 0;
-  transform: translateY(6px) scaleY(0.94);
+.cs-menu-up.cs-enter-active {
+  animation-name: csJellyUp;
+  transform-origin: bottom center;
 }
 
-.cs-menu-up.cs-enter-from,
-.cs-menu-up.cs-leave-to {
-  transform: translateY(-6px) scaleY(0.94);
+.cs-menu-up.cs-leave-active {
+  animation-name: csJellyOutUp;
+  transform-origin: bottom center;
+}
+
+@keyframes csJellyDown {
+  0% { opacity: 0; transform: scaleY(0.4) translateY(-6px); }
+  45% { opacity: 1; transform: scaleY(1.08) translateY(2px); }
+  65% { transform: scaleY(0.95) translateY(0); }
+  82% { transform: scaleY(1.02); }
+  100% { transform: scaleY(1); }
+}
+
+@keyframes csJellyOutDown {
+  0% { transform: scaleY(1); opacity: 1; }
+  35% { transform: scaleY(1.12); opacity: 1; }
+  100% { transform: scaleY(0.35) translateY(-4px); opacity: 0; }
+}
+
+@keyframes csJellyUp {
+  0% { opacity: 0; transform: scaleY(0.4) translateY(6px); }
+  45% { opacity: 1; transform: scaleY(1.08) translateY(-2px); }
+  65% { transform: scaleY(0.95) translateY(0); }
+  82% { transform: scaleY(1.02); }
+  100% { transform: scaleY(1); }
+}
+
+@keyframes csJellyOutUp {
+  0% { transform: scaleY(1); opacity: 1; }
+  35% { transform: scaleY(1.12); opacity: 1; }
+  100% { transform: scaleY(0.35) translateY(4px); opacity: 0; }
 }
 </style>

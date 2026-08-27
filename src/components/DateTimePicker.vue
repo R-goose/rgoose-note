@@ -587,14 +587,28 @@ onUnmounted(() => {
   background: var(--primary-dark);
 }
 
-.dtp-enter-active,
-.dtp-leave-active {
-  transition: opacity 0.15s ease, transform 0.15s ease;
+.dtp-enter-active {
+  animation: dtpJellyIn 0.34s cubic-bezier(0.34, 1.56, 0.44, 1) both;
+  transform-origin: bottom center;
+  will-change: transform;
 }
 
-.dtp-enter-from,
-.dtp-leave-to {
-  opacity: 0;
-  transform: translateY(-6px);
+.dtp-leave-active {
+  animation: dtpJellyOut 0.22s cubic-bezier(0.55, 0, 0.8, 0.4) both;
+  transform-origin: bottom center;
+}
+
+@keyframes dtpJellyIn {
+  0% { opacity: 0; transform: scaleY(0.45) translateY(6px); }
+  45% { opacity: 1; transform: scaleY(1.07) translateY(-2px); }
+  65% { transform: scaleY(0.96) translateY(0); }
+  82% { transform: scaleY(1.02); }
+  100% { transform: scaleY(1); }
+}
+
+@keyframes dtpJellyOut {
+  0% { transform: scaleY(1); opacity: 1; }
+  35% { transform: scaleY(1.1); opacity: 1; }
+  100% { transform: scaleY(0.4) translateY(6px); opacity: 0; }
 }
 </style>

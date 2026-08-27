@@ -122,7 +122,7 @@
     </div>
     
     <Teleport to="body">
-      <div v-if="showAddModal || editingPlan" class="modal-overlay" @click.self="closeModal">
+      <JellyModal :show="showAddModal || !!editingPlan" @close="closeModal">
         <div class="modal-content plan-modal">
           <h3>{{ editingPlan ? '编辑计划' : '新建计划' }}</h3>
           <input
@@ -169,7 +169,7 @@
             <button class="btn btn-primary" @click="savePlan">{{ editingPlan ? '保存' : '创建' }}</button>
           </div>
         </div>
-      </div>
+      </JellyModal>
     </Teleport>
   </div>
 </template>

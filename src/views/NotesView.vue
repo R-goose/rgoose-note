@@ -252,7 +252,7 @@
     </div>
 
     <Teleport to="body">
-      <div v-if="showCreateModal" class="modal-overlay" @click.self="cancelCreateNote">
+      <JellyModal :show="showCreateModal" @close="cancelCreateNote">
         <div class="modal-content create-note-modal">
           <h3>新建笔记</h3>
           <input
@@ -315,11 +315,11 @@
             <button class="btn btn-primary" @click="confirmCreateNote">创建</button>
           </div>
         </div>
-      </div>
+      </JellyModal>
     </Teleport>
 
     <Teleport to="body">
-      <div v-if="showCreateFolderModal" class="modal-overlay" @click.self="cancelCreateFolder">
+      <JellyModal :show="showCreateFolderModal" @close="cancelCreateFolder">
         <div class="modal-content create-folder-modal-simple">
           <h3>新建文件夹</h3>
           <input
@@ -340,7 +340,7 @@
             <button class="btn btn-primary" @click="confirmCreateFolder">创建</button>
           </div>
         </div>
-      </div>
+      </JellyModal>
     </Teleport>
 
     <Teleport to="body">
@@ -440,7 +440,7 @@
     </Teleport>
 
     <Teleport to="body">
-      <div v-if="renameState.show" class="modal-overlay" @click.self="cancelRename">
+      <JellyModal :show="renameState.show" @close="cancelRename">
         <div class="modal-content create-note-modal">
           <h3>重命名文件夹</h3>
           <input
@@ -457,11 +457,11 @@
             <button class="btn btn-primary" @click="confirmRename">确定</button>
           </div>
         </div>
-      </div>
+      </JellyModal>
     </Teleport>
 
     <Teleport to="body">
-      <div v-if="deleteFolderState.show" class="modal-overlay" @click.self="deleteFolderState.show = false">
+      <JellyModal :show="deleteFolderState.show" @close="deleteFolderState.show = false">
         <div class="modal-content confirm-modal">
           <div class="confirm-header">
             <div class="confirm-icon warning">
@@ -481,11 +481,11 @@
             <button class="btn btn-primary" @click="confirmDeleteFolder">确认删除</button>
           </div>
         </div>
-      </div>
+      </JellyModal>
     </Teleport>
 
     <Teleport to="body">
-      <div v-if="tagPickerState.show" class="modal-overlay" @click.self="closeTagPicker">
+      <JellyModal :show="tagPickerState.show" @close="closeTagPicker">
         <div class="modal-content tag-target-modal">
           <h3>设置标签</h3>
           <input
@@ -524,11 +524,11 @@
             <button class="btn btn-primary" @click="closeTagPicker">完成</button>
           </div>
         </div>
-      </div>
+      </JellyModal>
     </Teleport>
 
     <Teleport to="body">
-      <div v-if="moveFolderState.show" class="modal-overlay" @click.self="closeMoveFolderPicker">
+      <JellyModal :show="moveFolderState.show" @close="closeMoveFolderPicker">
         <div class="modal-content move-folder-modal">
           <h3>移动笔记到文件夹</h3>
           <div class="move-folder-list">
@@ -567,7 +567,7 @@
             <button class="btn" @click="closeMoveFolderPicker">取消</button>
           </div>
         </div>
-      </div>
+      </JellyModal>
     </Teleport>
   </div>
 </template>
@@ -2041,12 +2041,17 @@ onUnmounted(() => {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   padding: 6px;
-  animation: ctxPop 0.12s ease-out;
+  animation: ctxJellyPop 0.26s cubic-bezier(0.34, 1.56, 0.44, 1) both;
+  transform-origin: top left;
+  will-change: transform;
 }
 
-@keyframes ctxPop {
-  from { opacity: 0; transform: scale(0.96) translateY(-4px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+@keyframes ctxJellyPop {
+  0% { opacity: 0; transform: scale(0.6, 0.4); }
+  45% { opacity: 1; transform: scale(1.07, 0.92); }
+  65% { transform: scale(0.96, 1.05); }
+  82% { transform: scale(1.02, 0.99); }
+  100% { transform: scale(1, 1); }
 }
 
 .context-menu-item {

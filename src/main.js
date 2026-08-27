@@ -2,10 +2,12 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
+import JellyModal from './components/JellyModal.vue'
 import './styles/variables.css'
 import './styles/global.css'
 
 const app = createApp(App)
+app.component('JellyModal', JellyModal)
 
 // 全局 IME 回车守卫：输入法组词确认的 Enter 不应触发任何回车提交逻辑
 // （否则中文拼音未上屏完按回车会误提交：误建标签/误发消息/误建笔记等）

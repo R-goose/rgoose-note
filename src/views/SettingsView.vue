@@ -431,7 +431,7 @@
           <div id="set-about-version" class="setting-item">
             <div class="setting-info">
               <div class="setting-name brand-name">R-Goose Note</div>
-              <div class="setting-desc">版本 2.3.4</div>
+              <div class="setting-desc">版本 2.3.5</div>
             </div>
           </div>
           <div id="set-about-platform" class="setting-item">
@@ -453,7 +453,7 @@
     </div>
 
     <Teleport to="body">
-      <div v-if="showImportConfirm" class="modal-overlay" @click.self="cancelImport">
+      <JellyModal :show="showImportConfirm" @close="cancelImport">
         <div class="modal-content confirm-modal">
           <div class="confirm-header">
             <div class="confirm-icon warning">
@@ -504,11 +504,11 @@
           <button class="btn btn-primary" @click="confirmImport">确认导入</button>
         </div>
         </div>
-      </div>
+      </JellyModal>
     </Teleport>
 
     <Teleport to="body">
-      <div v-if="showClearCacheConfirm" class="modal-overlay" @click.self="showClearCacheConfirm = false">
+      <JellyModal :show="showClearCacheConfirm" @close="showClearCacheConfirm = false">
         <div class="modal-content confirm-modal">
           <div class="confirm-header">
             <div class="confirm-icon warning">
@@ -528,11 +528,11 @@
             <button class="btn btn-primary" @click="confirmClearCache">确认清除</button>
           </div>
         </div>
-      </div>
+      </JellyModal>
     </Teleport>
 
     <Teleport to="body">
-      <div v-if="showStorageMigrateConfirm" class="modal-overlay" @click.self="showStorageMigrateConfirm = false">
+      <JellyModal :show="showStorageMigrateConfirm" @close="showStorageMigrateConfirm = false">
         <div class="modal-content confirm-modal">
           <div class="confirm-header">
             <div class="confirm-icon warning">
@@ -552,11 +552,11 @@
             <button class="btn btn-primary" @click="performChangeStorage">确认迁移</button>
           </div>
         </div>
-      </div>
+      </JellyModal>
     </Teleport>
 
     <Teleport to="body">
-      <div v-if="showStorageResetConfirm" class="modal-overlay" @click.self="showStorageResetConfirm = false">
+      <JellyModal :show="showStorageResetConfirm" @close="showStorageResetConfirm = false">
         <div class="modal-content confirm-modal">
           <div class="confirm-header">
             <div class="confirm-icon warning">
@@ -576,7 +576,7 @@
             <button class="btn btn-primary" @click="performResetStorage">确认恢复</button>
           </div>
         </div>
-      </div>
+      </JellyModal>
     </Teleport>
   </div>
 </template>

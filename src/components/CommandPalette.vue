@@ -248,9 +248,18 @@ function executeItem(item) {
   font-size: 13px;
   color: var(--text-tertiary, var(--text-secondary));
 }
-.cmd-fade-enter-active,
+.cmd-fade-enter-active {
+  transition: opacity 0.2s ease;
+}
+.cmd-fade-enter-active .cmd-palette {
+  animation: jellyPop 0.42s cubic-bezier(0.34, 1.4, 0.44, 1) both;
+  will-change: transform;
+}
 .cmd-fade-leave-active {
-  transition: opacity 0.15s;
+  transition: opacity 0.26s ease;
+}
+.cmd-fade-leave-active .cmd-palette {
+  animation: jellyOut 0.24s cubic-bezier(0.55, 0, 0.8, 0.4) both;
 }
 .cmd-fade-enter-from,
 .cmd-fade-leave-to {

@@ -795,7 +795,7 @@
 
     <!-- 来源选择弹窗 -->
     <Teleport to="body">
-      <div v-if="sourcePicker.show" class="modal-overlay" @click.self="sourcePicker.show = false">
+      <JellyModal :show="sourcePicker.show" @close="sourcePicker.show = false">
         <div class="modal-content source-picker-modal">
           <div class="modal-header">
             <h3>{{ sourcePickerTitle }}</h3>
@@ -833,7 +833,7 @@
             </button>
           </div>
         </div>
-      </div>
+      </JellyModal>
     </Teleport>
 
     <!-- 素材库选择器 -->
@@ -845,7 +845,7 @@
       @select="onMediaPickerSelect"
     />
     
-    <div v-if="showNoteLinkModal" class="modal-overlay" @click.self="closeNoteLinkModal">
+    <JellyModal :show="showNoteLinkModal" @close="closeNoteLinkModal">
       <div class="modal-content note-link-modal">
         <div class="modal-header">
           <h3>选择要引用的笔记</h3>
@@ -908,7 +908,7 @@
           </div>
         </div>
       </div>
-    </div>
+    </JellyModal>
 
     <!-- 大纲面板 -->
     <transition name="outline-slide">
@@ -6122,6 +6122,17 @@ function deleteSelectedConnection() {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   padding: 6px;
+  animation: ctxJellyPop 0.26s cubic-bezier(0.34, 1.56, 0.44, 1) both;
+  transform-origin: top left;
+  will-change: transform;
+}
+
+@keyframes ctxJellyPop {
+  0% { opacity: 0; transform: scale(0.6, 0.4); }
+  45% { opacity: 1; transform: scale(1.07, 0.92); }
+  65% { transform: scale(0.96, 1.05); }
+  82% { transform: scale(1.02, 0.99); }
+  100% { transform: scale(1, 1); }
 }
 
 .context-menu-item {

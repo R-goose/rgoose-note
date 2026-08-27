@@ -143,7 +143,7 @@ body[data-theme="dark"] {
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  animation: fadeIn 0.15s ease;
+  animation: fadeIn 0.2s ease;
 }
 
 .modal-content {
@@ -153,6 +153,22 @@ body[data-theme="dark"] {
   max-width: 90vw;
   max-height: 90vh;
   overflow: auto;
+  animation: jellyPop 0.45s cubic-bezier(0.34, 1.4, 0.44, 1) both;
+  will-change: transform;
+}
+
+/* JellyModal 退场：遮罩淡出 + 内容果冻压缩 */
+.jmodal-leave-active {
+  transition: opacity 0.26s ease;
+  animation: none;
+}
+
+.jmodal-leave-to {
+  opacity: 0;
+}
+
+.jmodal-leave-active .modal-content {
+  animation: jellyOut 0.24s cubic-bezier(0.55, 0, 0.8, 0.4) both;
 }
 
 .confirm-modal {
@@ -206,15 +222,30 @@ body[data-theme="dark"] {
   to { opacity: 1; }
 }
 
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(16px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+/* ===== 果冻材质动画（与启动页 splash 同款 squash & stretch） ===== */
+/* 弹窗/面板入场：压扁拉伸弹出回正 */
+@keyframes jellyPop {
+  0% { transform: scale(0.55, 0.35); opacity: 0; }
+  40% { transform: scale(1.08, 0.9); opacity: 1; }
+  55% { transform: scale(0.94, 1.07); }
+  70% { transform: scale(1.03, 0.97); }
+  84% { transform: scale(0.99, 1.01); }
+  100% { transform: scale(1, 1); opacity: 1; }
+}
+
+/* 退场：先鼓一下再压扁缩小消失 */
+@keyframes jellyOut {
+  0% { transform: scale(1, 1); opacity: 1; }
+  30% { transform: scale(1.07, 0.88); opacity: 1; }
+  100% { transform: scale(0.55, 0.3); opacity: 0; }
+}
+
+/* 小型浮层（下拉/菜单）：轻量果冻弹出 */
+@keyframes jellyPopSm {
+  0% { transform: scale(0.7, 0.5) translateY(-6px); opacity: 0; }
+  50% { transform: scale(1.05, 0.93) translateY(1px); opacity: 1; }
+  72% { transform: scale(0.97, 1.04); }
+  100% { transform: scale(1, 1); }
 }
 
 .dropdown {
@@ -226,7 +257,9 @@ body[data-theme="dark"] {
   padding: 6px;
   min-width: 160px;
   z-index: 100;
-  animation: slideUp 0.2s ease;
+  animation: jellyPopSm 0.3s cubic-bezier(0.34, 1.56, 0.44, 1) both;
+  transform-origin: top center;
+  will-change: transform;
 }
 
 .dropdown-item {

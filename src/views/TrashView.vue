@@ -82,7 +82,7 @@
     </div>
 
     <Teleport to="body">
-      <div v-if="noteToDelete" class="modal-overlay" @click.self="noteToDelete = null">
+      <JellyModal :show="!!noteToDelete" @close="noteToDelete = null">
         <div class="modal-content confirm-modal">
           <div class="confirm-header">
             <div class="confirm-icon warning">
@@ -102,11 +102,11 @@
             <button type="button" class="btn btn-danger" @click="onDeleteForever">彻底删除</button>
           </div>
         </div>
-      </div>
+      </JellyModal>
     </Teleport>
 
     <Teleport to="body">
-      <div v-if="confirmingEmpty" class="modal-overlay" @click.self="confirmingEmpty = false">
+      <JellyModal :show="confirmingEmpty" @close="confirmingEmpty = false">
         <div class="modal-content confirm-modal">
           <div class="confirm-header">
             <div class="confirm-icon warning">
@@ -126,7 +126,7 @@
             <button type="button" class="btn btn-danger" @click="onEmptyTrash">清空</button>
           </div>
         </div>
-      </div>
+      </JellyModal>
     </Teleport>
   </div>
 </template>
