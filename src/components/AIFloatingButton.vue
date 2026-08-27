@@ -893,7 +893,7 @@ function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').r
   border-radius: 8px;
   box-shadow: 0 20px 60px rgba(0,0,0,0.5);
   cursor: default;
-  animation: jellyPop 1.5s cubic-bezier(0.45, 0, 0.55, 1) both;
+  animation: jellyPop 1s cubic-bezier(0.45, 0, 0.55, 1) both;
   will-change: transform;
 }
 
@@ -937,24 +937,59 @@ function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').r
   font-family: inherit;
 }
 
-/* ===== 浮窗按钮（圆形图标直出） ===== */
+/* ===== 浮窗按钮（软弹 3D 透明果冻球） ===== */
 .ai-float {
   position: fixed; width: 48px; height: 48px; z-index: 9998;
   cursor: grab; display: flex; align-items: center; justify-content: center;
-  background: transparent;
-  border: none;
-  transition: transform .2s cubic-bezier(.34,1.56,.64,1);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 24%, rgba(255,255,255,.75), rgba(255,255,255,.18) 46%, rgba(255,255,255,.05) 72%),
+    linear-gradient(160deg, rgba(255,255,255,.34), rgba(255,255,255,.1));
+  -webkit-backdrop-filter: blur(10px) saturate(1.5);
+  backdrop-filter: blur(10px) saturate(1.5);
+  border: 1px solid rgba(255,255,255,.6);
+  box-shadow:
+    0 10px 24px rgba(0,0,0,.2),
+    0 3px 8px rgba(0,0,0,.12),
+    inset 0 2px 5px rgba(255,255,255,.75),
+    inset 0 -5px 9px rgba(0,0,0,.08),
+    inset 0 0 0 1px rgba(255,255,255,.14);
+  transition: transform .5s cubic-bezier(.34,1.56,.64,1), box-shadow .3s ease;
   user-select: none;
 }
-.ai-float:hover { transform: translateY(-2px) scale(1.05); }
-.ai-float:active { cursor: grabbing; transform: translateY(0) scale(.95); }
-.ai-float-icon {
-  width: 44px; height: 44px; pointer-events: none;
-  border-radius: 50%; object-fit: cover;
-  box-shadow: 0 3px 10px rgba(0,0,0,.22), 0 1px 3px rgba(0,0,0,.12);
-  transition: box-shadow .2s ease;
+.ai-float::after {
+  content: '';
+  position: absolute; left: 15%; top: 9%;
+  width: 44%; height: 30%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(255,255,255,.85), rgba(255,255,255,0) 72%);
+  pointer-events: none;
 }
-.ai-float:hover .ai-float-icon { box-shadow: 0 6px 18px rgba(0,0,0,.28), 0 2px 5px rgba(0,0,0,.15); }
+.ai-float:hover {
+  transform: translateY(-2px) scale(1.08, .96);
+  box-shadow:
+    0 14px 30px rgba(0,0,0,.24),
+    0 4px 10px rgba(0,0,0,.14),
+    inset 0 2px 6px rgba(255,255,255,.8),
+    inset 0 -5px 10px rgba(0,0,0,.08),
+    inset 0 0 0 1px rgba(255,255,255,.14);
+}
+.ai-float:active {
+  cursor: grabbing;
+  transform: translateY(0) scale(.92, .86);
+  box-shadow:
+    0 5px 12px rgba(0,0,0,.18),
+    inset 0 3px 7px rgba(255,255,255,.6),
+    inset 0 -3px 7px rgba(0,0,0,.1);
+}
+.ai-float-icon {
+  width: 38px; height: 38px; pointer-events: none;
+  border-radius: 50%; object-fit: cover;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,.18));
+  opacity: .96;
+  transition: transform .5s cubic-bezier(.34,1.56,.64,1);
+}
+.ai-float:hover .ai-float-icon { transform: scale(1.04); }
 
 /* ===== 弹窗容器 ===== */
 .ai-chat {
@@ -1122,13 +1157,13 @@ function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').r
 .ai-hint-dot.video { background: #8b5cf6; }
 
 /* ===== 过渡：软弹果冻 ===== */
-.ai-chat-enter-active { animation: aiJellyIn 1.5s cubic-bezier(0.45, 0, 0.55, 1) both; will-change: transform; }
+.ai-chat-enter-active { animation: aiJellyIn 1s cubic-bezier(0.45, 0, 0.55, 1) both; will-change: transform; }
 .ai-chat-leave-active { animation: aiJellyOut 0.24s cubic-bezier(0.55, 0, 0.8, 0.4) both; }
 @keyframes aiJellyIn {
-  0% { opacity: 0; transform: scale(0.6, 0.45) translateY(14px); }
-  42% { opacity: 1; transform: scale(1.08, 0.9) translateY(0); }
-  58% { transform: scale(0.95, 1.06); }
-  74% { transform: scale(1.03, 0.97); }
+  0% { opacity: 0; transform: scale(0.65, 0.5) translateY(12px); }
+  42% { opacity: 1; transform: scale(1.05, 0.92) translateY(0); }
+  58% { transform: scale(0.96, 1.04); }
+  74% { transform: scale(1.02, 0.98); }
   88% { transform: scale(0.99, 1.01); }
   100% { transform: scale(1, 1); }
 }

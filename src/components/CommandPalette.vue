@@ -252,7 +252,7 @@ function executeItem(item) {
   transition: opacity 0.2s ease;
 }
 .cmd-fade-enter-active .cmd-palette {
-  animation: jellyPop 1.5s cubic-bezier(0.45, 0, 0.55, 1) both;
+  animation: jellyPop 1s cubic-bezier(0.45, 0, 0.55, 1) both;
   will-change: transform;
 }
 .cmd-fade-leave-active {

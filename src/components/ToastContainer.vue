@@ -76,7 +76,7 @@ const { toasts, removeToast } = useToast()
 }
 
 .toast-enter-active {
-  animation: toastJellyIn 1.5s cubic-bezier(0.45, 0, 0.55, 1) both;
+  animation: toastJellyIn 1s cubic-bezier(0.45, 0, 0.55, 1) both;
 }
 
 .toast-leave-active {
@@ -85,13 +85,13 @@ const { toasts, removeToast } = useToast()
 
 /* 果冻入场：从顶部落下砸扁再弹起回正 */
 @keyframes toastJellyIn {
-  0% { transform: translateY(-36px) scale(0.45, 0.35); opacity: 0; }
-  16% { transform: translateY(0) scale(1.24, 0.8); opacity: 1; }
-  32% { transform: scale(0.9, 1.12); }
-  48% { transform: scale(1.12, 0.94); }
-  64% { transform: scale(0.95, 1.05); }
-  78% { transform: scale(1.04, 0.98); }
-  90% { transform: scale(0.98, 1.01); }
+  0% { transform: translateY(-30px) scale(0.5, 0.4); opacity: 0; }
+  16% { transform: translateY(0) scale(1.16, 0.84); opacity: 1; }
+  32% { transform: scale(0.92, 1.07); }
+  48% { transform: scale(1.07, 0.95); }
+  64% { transform: scale(0.96, 1.03); }
+  78% { transform: scale(1.02, 0.99); }
+  90% { transform: scale(0.99, 1.01); }
   100% { transform: scale(1, 1); }
 }
 

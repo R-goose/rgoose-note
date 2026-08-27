@@ -2158,18 +2158,18 @@ watch(
   border-radius: 10px;
   box-shadow: 0 8px 28px -6px rgba(0,0,0,.18);
   padding: 5px;
-  animation: ctxJellyPop 1.5s cubic-bezier(0.45, 0, 0.55, 1) both;
+  animation: ctxJellyPop 1s cubic-bezier(0.45, 0, 0.55, 1) both;
   transform-origin: top left;
   will-change: transform;
 }
 @keyframes ctxJellyPop {
-  0% { opacity: 0; transform: scale(0.45, 0.3); }
-  16% { opacity: 1; transform: scale(1.2, 0.88); }
-  32% { transform: scale(0.88, 1.1); }
-  48% { transform: scale(1.1, 0.95); }
-  64% { transform: scale(0.95, 1.04); }
-  78% { transform: scale(1.03, 0.98); }
-  90% { transform: scale(0.98, 1.01); }
+  0% { opacity: 0; transform: scale(0.5, 0.36); }
+  16% { opacity: 1; transform: scale(1.14, 0.9); }
+  32% { transform: scale(0.91, 1.07); }
+  48% { transform: scale(1.06, 0.96); }
+  64% { transform: scale(0.96, 1.03); }
+  78% { transform: scale(1.02, 0.99); }
+  90% { transform: scale(0.99, 1.01); }
   100% { transform: scale(1, 1); }
 }
 
