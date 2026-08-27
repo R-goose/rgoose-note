@@ -151,8 +151,7 @@ function confirm() {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: jellyPop 1s cubic-bezier(0.22, 1, 0.36, 1) both;
-  will-change: transform;
+  animation: jellyPop 1s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 .jmodal-leave-active .media-picker-modal {

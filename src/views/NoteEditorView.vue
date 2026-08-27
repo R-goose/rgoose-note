@@ -6122,9 +6122,8 @@ function deleteSelectedConnection() {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   padding: 6px;
-  animation: ctxJellyPop 1s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: ctxJellyPop 1s cubic-bezier(0.22, 1, 0.36, 1) backwards;
   transform-origin: top left;
-  will-change: transform;
 }
 
 @keyframes ctxJellyPop {

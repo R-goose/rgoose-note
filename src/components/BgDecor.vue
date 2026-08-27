@@ -77,23 +77,18 @@ defineProps({ variant: { type: String, default: 'notes' } })
 
 /* ==================== 动画 ==================== */
 @keyframes jbIn {
-  0% { opacity: 0; transform: translateY(70px) scale(0.5, 0.35); }
-  55% { opacity: var(--jo, 0.45); transform: translateY(0) scale(1.12, 0.88); }
-  72% { transform: scale(0.94, 1.07); }
-  86% { transform: scale(1.03, 0.97); }
+  0% { opacity: 0; transform: scale(0.78, 0.3); }
+  16% { opacity: var(--jo, 0.45); transform: scale(0.94, 1.16); }
+  32% { transform: scale(1.03, 0.9); }
+  48% { transform: scale(0.99, 1.06); }
+  64% { transform: scale(1.005, 0.965); }
+  78% { transform: scale(0.998, 1.025); }
+  90% { transform: scale(1.001, 0.99); }
   100% { opacity: var(--jo, 0.45); transform: scale(1, 1); }
 }
 @keyframes jbFloat {
   0%, 100% { transform: translateY(0) rotate(0deg); }
   50% { transform: translateY(-14px) rotate(3deg); }
-}
-@keyframes jbWobble {
-  0%, 100% { transform: scale(1, 1); }
-  16% { transform: scale(1.2, 0.8); }
-  33% { transform: scale(0.9, 1.12); }
-  50% { transform: scale(1.08, 0.92); }
-  67% { transform: scale(0.96, 1.04); }
-  84% { transform: scale(1.02, 0.98); }
 }
 @keyframes jbIdle {
   0%, 12%, 100% { transform: scale(1, 1); }

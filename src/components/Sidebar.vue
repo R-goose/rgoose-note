@@ -1793,9 +1793,8 @@ function closeFolderModalTagDropdown(e) {
   border: 1px solid var(--border-light);
   padding: 4px;
   min-width: 120px;
-  animation: ctxJellyPop 0.26s cubic-bezier(0.34, 1.56, 0.44, 1) both;
+  animation: ctxJellyPop 1s cubic-bezier(0.22, 1, 0.36, 1) backwards;
   transform-origin: top left;
-  will-change: transform;
 }
 
 .context-menu-item {

@@ -153,8 +153,7 @@ body[data-theme="dark"] {
   max-width: 90vw;
   max-height: 90vh;
   overflow: auto;
-  animation: jellyPop 1s cubic-bezier(0.22, 1, 0.36, 1) both;
-  will-change: transform;
+  animation: jellyPop 1s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 /* JellyModal 退场：遮罩淡出 + 内容果冻压缩 */
@@ -259,9 +258,8 @@ body[data-theme="dark"] {
   padding: 6px;
   min-width: 160px;
   z-index: 100;
-  animation: jellyPopSm 1s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: jellyPopSm 1s cubic-bezier(0.22, 1, 0.36, 1) backwards;
   transform-origin: top center;
-  will-change: transform;
 }
 
 .dropdown-item {

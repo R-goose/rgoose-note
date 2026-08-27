@@ -893,8 +893,7 @@ function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').r
   border-radius: 8px;
   box-shadow: 0 20px 60px rgba(0,0,0,0.5);
   cursor: default;
-  animation: jellyPop 1s cubic-bezier(0.22, 1, 0.36, 1) both;
-  will-change: transform;
+  animation: jellyPop 1s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 .ai-preview-close {
