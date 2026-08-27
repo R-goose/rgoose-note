@@ -146,9 +146,9 @@
       .sp-name span { color: #3da353; }
       [data-theme="dark"] .sp-name { color: #eef2ef; text-shadow: none; }
       [data-theme="dark"] .sp-name span { color: #51c467; }
-      /* ===== 淡出收尾 ===== */
-      #splash-screen.splash-hide * { animation: none !important; }
-      #splash-screen.splash-hide .sp-logo { transform: translateY(-10px) scale(0.94); }
+      /* ===== 淡出收尾（暂停而非清零：保留"坠落出画"等终态姿势，避免色块瞬移回初始位置） ===== */
+      #splash-screen.splash-hide * { animation-play-state: paused !important; }
+      #splash-screen.splash-hide .sp-logo { animation: none !important; transform: translateY(-10px) scale(0.94); }
 
       /* ===== keyframes ===== */
       /* 飞入聚拢：从屏幕边缘冲向中心，过冲回弹撞定 */

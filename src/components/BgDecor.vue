@@ -44,9 +44,7 @@ defineProps({ variant: { type: String, default: 'notes' } })
   border-radius: var(--jb-r, 50%);
   box-shadow: var(--jb-sh, 10px 12px 0 rgba(26, 31, 28, 0.05));
   will-change: transform;
-  animation:
-    jbWobble 1.05s ease-out calc(var(--d, 0s) + 0.18s) both,
-    jbIdle 13s ease-in-out calc(var(--wd, 0s) + 2.4s) infinite;
+  animation: jbIdle 13s ease-in-out calc(var(--wd, 0s) + 2.4s) infinite;
 }
 
 /* ==================== 布局与配色（默认：绿主调） ==================== */
