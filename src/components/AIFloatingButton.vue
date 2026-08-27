@@ -8,14 +8,7 @@
     @mousedown="onDragStart"
     @click="onFloatClick"
   >
-    <svg class="ai-float-icon" viewBox="0 0 48 48" fill="none">
-      <polygon points="6,34 15,26 27,24 40,30 36,38 14,40" fill="currentColor" opacity="0.9"/>
-      <polygon points="10,30 15,26 17,36" fill="currentColor" opacity="0.55"/>
-      <polygon points="24,26 29,12 34,11 30,24" fill="currentColor"/>
-      <polygon points="29,12 38,9 34,17" fill="currentColor"/>
-      <polygon points="38,9 44,11 36,15" fill="currentColor" opacity="0.7"/>
-      <circle cx="33" cy="12" r="1" fill="var(--bg-secondary, #fff)"/>
-    </svg>
+    <img class="ai-float-icon" src="/favicon.png" alt="R-Goose AI" />
   </div>
 
   <!-- 对话弹窗 -->
@@ -24,13 +17,7 @@
       <!-- 标题栏 -->
       <div class="ai-chat-header" @mousedown="onChatDragStart">
         <div class="ai-chat-title">
-          <svg class="ai-chat-title-icon" viewBox="0 0 48 48" fill="none">
-            <polygon points="6,34 15,26 27,24 40,30 36,38 14,40" fill="currentColor" opacity="0.9"/>
-            <polygon points="10,30 15,26 17,36" fill="currentColor" opacity="0.55"/>
-            <polygon points="24,26 29,12 34,11 30,24" fill="currentColor"/>
-            <polygon points="29,12 38,9 34,17" fill="currentColor"/>
-            <polygon points="38,9 44,11 36,15" fill="currentColor" opacity="0.7"/>
-          </svg>
+          <img class="ai-chat-title-icon" src="/favicon.png" alt="R-Goose AI" />
           <span>R-Goose AI</span>
         </div>
         <div class="ai-chat-toolbar">
@@ -119,12 +106,7 @@
         <div ref="messagesRef" class="ai-chat-messages">
           <div v-if="messages.length === 0" class="ai-chat-welcome">
             <div class="ai-welcome-icon">
-              <svg viewBox="0 0 48 48" fill="none">
-                <polygon points="6,34 15,26 27,24 40,30 36,38 14,40" fill="currentColor" opacity="0.15"/>
-                <polygon points="24,26 29,12 34,11 30,24" fill="currentColor" opacity="0.15"/>
-                <polygon points="29,12 38,9 34,17" fill="currentColor" opacity="0.15"/>
-                <polygon points="10,30 15,26 17,36" fill="currentColor" opacity="0.08"/>
-              </svg>
+              <img src="/favicon.png" alt="R-Goose AI" />
             </div>
             <p class="ai-welcome-title">{{ activeConvo?.mode === 'image' ? 'AI 图片生成' : activeConvo?.mode === 'video' ? 'AI 视频生成' : '有什么可以帮你的？' }}</p>
             <p class="ai-welcome-sub">{{ activeConvo?.mode === 'image' ? '描述你想要的图片，AI 帮你创作' : activeConvo?.mode === 'video' ? '描述想要的视频画面，AI 帮你生成（耗时较长）' : '输入问题，或试试下面的快捷操作' }}</p>
@@ -137,11 +119,7 @@
 
           <div v-for="(msg, i) in messages" :key="i" class="ai-msg" :class="msg.role">
             <div v-if="msg.role === 'assistant'" class="ai-msg-avatar">
-              <svg viewBox="0 0 48 48" fill="none">
-                <polygon points="6,34 15,26 27,24 40,30 36,38 14,40" fill="currentColor" opacity="0.8"/>
-                <polygon points="24,26 29,12 34,11 30,24" fill="currentColor"/>
-                <polygon points="29,12 38,9 34,17" fill="currentColor"/>
-              </svg>
+              <img src="/favicon.png" alt="AI" />
             </div>
             <div class="ai-msg-content">
               <div v-if="msg.image" class="ai-msg-image-wrap">
@@ -200,11 +178,7 @@
 
           <div v-if="loading" class="ai-msg assistant">
             <div class="ai-msg-avatar">
-              <svg viewBox="0 0 48 48" fill="none">
-                <polygon points="6,34 15,26 27,24 40,30 36,38 14,40" fill="currentColor" opacity="0.8"/>
-                <polygon points="24,26 29,12 34,11 30,24" fill="currentColor"/>
-                <polygon points="29,12 38,9 34,17" fill="currentColor"/>
-              </svg>
+              <img src="/favicon.png" alt="AI" />
             </div>
             <div class="ai-msg-content">
               <div class="ai-msg-bubble ai-msg-bubble-ai">
@@ -1013,7 +987,7 @@ function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').r
     inset 0 -1px 2px rgba(255,255,255,.15),
     0 1px 3px rgba(0,0,0,.12);
 }
-.ai-float-icon { width: 26px; height: 26px; color: #fff; pointer-events: none; filter: drop-shadow(0 1px 1px rgba(0,0,0,.2)); }
+.ai-float-icon { width: 26px; height: 26px; pointer-events: none; border-radius: 6px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.2)); }
 
 /* ===== 弹窗容器 ===== */
 .ai-chat {
@@ -1036,7 +1010,7 @@ function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').r
 }
 .ai-chat-header:active { cursor: grabbing; }
 .ai-chat-title { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13.5px; color: var(--text-primary); letter-spacing: .01em; }
-.ai-chat-title-icon { width: 18px; height: 18px; color: var(--primary-color); }
+.ai-chat-title-icon { width: 18px; height: 18px; border-radius: 4px; flex-shrink: 0; }
 .ai-chat-toolbar { display: flex; align-items: center; gap: 4px; }
 .ai-chat-modes { display: flex; align-items: center; gap: 2px; }
 .ai-chat-mode-divider { width: 1px; height: 16px; background: var(--border-light, rgba(0,0,0,.08)); margin: 0 3px; }
@@ -1084,8 +1058,8 @@ function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').r
 
 /* ===== 欢迎页 ===== */
 .ai-chat-welcome { text-align: center; padding: 24px 8px; }
-.ai-welcome-icon { width: 40px; height: 40px; margin: 0 auto 12px; color: var(--primary-color); opacity: .7; }
-.ai-welcome-icon svg { width: 100%; height: 100%; }
+.ai-welcome-icon { width: 40px; height: 40px; margin: 0 auto 12px; }
+.ai-welcome-icon img { width: 100%; height: 100%; border-radius: 8px; object-fit: cover; }
 .ai-welcome-title { font-size: 15px; font-weight: 600; color: var(--text-primary); margin-bottom: 3px; }
 .ai-welcome-sub { font-size: 12.5px; color: var(--text-tertiary); margin-bottom: 18px; }
 .ai-chat-suggestions { display: flex; flex-direction: column; gap: 6px; }
@@ -1097,8 +1071,8 @@ function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').r
 .ai-msg { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 14px; animation: ai-msg-in .25s ease; }
 .ai-msg.user { flex-direction: row-reverse; }
 @keyframes ai-msg-in { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
-.ai-msg-avatar { flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; background: var(--bg-tertiary, #f2f2f2); color: var(--primary-color); display: flex; align-items: center; justify-content: center; margin-top: 2px; }
-.ai-msg-avatar svg { width: 16px; height: 16px; }
+.ai-msg-avatar { flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; background: var(--bg-tertiary, #f2f2f2); display: flex; align-items: center; justify-content: center; margin-top: 2px; overflow: hidden; }
+.ai-msg-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .ai-msg-content { max-width: 80%; }
 .ai-msg-bubble { padding: 10px 13px; border-radius: 12px; font-size: 13px; line-height: 1.6; word-break: break-word; }
 .ai-msg-bubble-ai { background: var(--bg-tertiary, #f4f4f4); color: var(--text-primary); border-bottom-left-radius: 4px; }
