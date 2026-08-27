@@ -153,7 +153,7 @@ body[data-theme="dark"] {
   max-width: 90vw;
   max-height: 90vh;
   overflow: auto;
-  animation: jellyPop 0.45s cubic-bezier(0.34, 1.4, 0.44, 1) both;
+  animation: jellyPop 1.5s cubic-bezier(0.45, 0, 0.55, 1) both;
   will-change: transform;
 }
 
@@ -225,11 +225,13 @@ body[data-theme="dark"] {
 /* ===== 果冻材质动画（与启动页 splash 同款 squash & stretch） ===== */
 /* 弹窗/面板入场：压扁拉伸弹出回正 */
 @keyframes jellyPop {
-  0% { transform: scale(0.55, 0.35); opacity: 0; }
-  40% { transform: scale(1.08, 0.9); opacity: 1; }
-  55% { transform: scale(0.94, 1.07); }
-  70% { transform: scale(1.03, 0.97); }
-  84% { transform: scale(0.99, 1.01); }
+  0% { transform: scale(0.4, 0.25); opacity: 0; }
+  16% { transform: scale(1.22, 0.85); opacity: 1; }
+  32% { transform: scale(0.87, 1.12); }
+  48% { transform: scale(1.12, 0.94); }
+  64% { transform: scale(0.94, 1.05); }
+  78% { transform: scale(1.04, 0.98); }
+  90% { transform: scale(0.98, 1.01); }
   100% { transform: scale(1, 1); opacity: 1; }
 }
 

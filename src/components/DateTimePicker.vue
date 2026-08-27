@@ -588,7 +588,7 @@ onUnmounted(() => {
 }
 
 .dtp-enter-active {
-  animation: dtpJellyIn 0.34s cubic-bezier(0.34, 1.56, 0.44, 1) both;
+  animation: dtpJellyIn 1.5s cubic-bezier(0.45, 0, 0.55, 1) both;
   transform-origin: bottom center;
   will-change: transform;
 }
@@ -599,10 +599,13 @@ onUnmounted(() => {
 }
 
 @keyframes dtpJellyIn {
-  0% { opacity: 0; transform: scaleY(0.45) translateY(6px); }
-  45% { opacity: 1; transform: scaleY(1.07) translateY(-2px); }
-  65% { transform: scaleY(0.96) translateY(0); }
-  82% { transform: scaleY(1.02); }
+  0% { opacity: 0; transform: scaleY(0.25) translateY(10px); }
+  16% { opacity: 1; transform: scaleY(1.22) translateY(-4px); }
+  32% { transform: scaleY(0.87) translateY(2px); }
+  48% { transform: scaleY(1.12) translateY(-1px); }
+  64% { transform: scaleY(0.94); }
+  78% { transform: scaleY(1.05); }
+  90% { transform: scaleY(0.98); }
   100% { transform: scaleY(1); }
 }
 

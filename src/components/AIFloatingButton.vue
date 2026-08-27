@@ -893,7 +893,7 @@ function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').r
   border-radius: 8px;
   box-shadow: 0 20px 60px rgba(0,0,0,0.5);
   cursor: default;
-  animation: jellyPop 0.4s cubic-bezier(0.34, 1.4, 0.44, 1) both;
+  animation: jellyPop 1.5s cubic-bezier(0.45, 0, 0.55, 1) both;
   will-change: transform;
 }
 
@@ -1122,7 +1122,7 @@ function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').r
 .ai-hint-dot.video { background: #8b5cf6; }
 
 /* ===== 过渡：软弹果冻 ===== */
-.ai-chat-enter-active { animation: aiJellyIn 0.42s cubic-bezier(0.34, 1.4, 0.44, 1) both; will-change: transform; }
+.ai-chat-enter-active { animation: aiJellyIn 1.5s cubic-bezier(0.45, 0, 0.55, 1) both; will-change: transform; }
 .ai-chat-leave-active { animation: aiJellyOut 0.24s cubic-bezier(0.55, 0, 0.8, 0.4) both; }
 @keyframes aiJellyIn {
   0% { opacity: 0; transform: scale(0.6, 0.45) translateY(14px); }
