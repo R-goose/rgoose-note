@@ -76,7 +76,7 @@ const { toasts, removeToast } = useToast()
 }
 
 .toast-enter-active {
-  animation: toastJellyIn 1s cubic-bezier(0.45, 0, 0.55, 1) both;
+  animation: toastJellyIn 1s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .toast-leave-active {

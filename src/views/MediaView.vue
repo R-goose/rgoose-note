@@ -2158,7 +2158,7 @@ watch(
   border-radius: 10px;
   box-shadow: 0 8px 28px -6px rgba(0,0,0,.18);
   padding: 5px;
-  animation: ctxJellyPop 1s cubic-bezier(0.45, 0, 0.55, 1) both;
+  animation: ctxJellyPop 1s cubic-bezier(0.22, 1, 0.36, 1) both;
   transform-origin: top left;
   will-change: transform;
 }

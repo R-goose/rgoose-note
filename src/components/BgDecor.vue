@@ -78,7 +78,7 @@ defineProps({ variant: { type: String, default: 'notes' } })
 /* ==================== 动画 ==================== */
 @keyframes jbIn {
   0% { opacity: 0; transform: translateY(70px) scale(0.5, 0.35); }
-  55% { opacity: 1; transform: translateY(0) scale(1.12, 0.88); }
+  55% { opacity: var(--jo, 0.45); transform: translateY(0) scale(1.12, 0.88); }
   72% { transform: scale(0.94, 1.07); }
   86% { transform: scale(1.03, 0.97); }
   100% { opacity: var(--jo, 0.45); transform: scale(1, 1); }

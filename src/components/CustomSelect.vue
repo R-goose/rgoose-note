@@ -247,7 +247,7 @@ onUnmounted(() => {
 
 /* 下拉动画：软弹果冻（1s 软弹） */
 .cs-enter-active {
-  animation: csJellyDown 1s cubic-bezier(0.45, 0, 0.55, 1) both;
+  animation: csJellyDown 1s cubic-bezier(0.22, 1, 0.36, 1) both;
   transform-origin: top center;
   will-change: transform;
 }
@@ -268,14 +268,14 @@ onUnmounted(() => {
 }
 
 @keyframes csJellyDown {
-  0% { opacity: 0; transform: scaleY(0.3) translateY(-12px); }
-  16% { opacity: 1; transform: scaleY(1.15) translateY(4px); }
-  32% { transform: scaleY(0.9) translateY(-2px); }
-  48% { transform: scaleY(1.07) translateY(1px); }
-  64% { transform: scaleY(0.96) translateY(-1px); }
-  78% { transform: scaleY(1.03); }
-  90% { transform: scaleY(0.99); }
-  100% { transform: scaleY(1); }
+  0% { opacity: 0; transform: scale(0.78, 0.3); }
+  16% { opacity: 1; transform: scale(0.94, 1.16); }
+  32% { transform: scale(1.03, 0.9); }
+  48% { transform: scale(0.99, 1.06); }
+  64% { transform: scale(1.005, 0.965); }
+  78% { transform: scale(0.998, 1.025); }
+  90% { transform: scale(1.001, 0.99); }
+  100% { transform: scale(1, 1); }
 }
 
 @keyframes csJellyOutDown {
@@ -285,14 +285,14 @@ onUnmounted(() => {
 }
 
 @keyframes csJellyUp {
-  0% { opacity: 0; transform: scaleY(0.3) translateY(12px); }
-  16% { opacity: 1; transform: scaleY(1.15) translateY(-4px); }
-  32% { transform: scaleY(0.9) translateY(2px); }
-  48% { transform: scaleY(1.07) translateY(-1px); }
-  64% { transform: scaleY(0.96) translateY(1px); }
-  78% { transform: scaleY(1.03); }
-  90% { transform: scaleY(0.99); }
-  100% { transform: scaleY(1); }
+  0% { opacity: 0; transform: scale(0.78, 0.3); }
+  16% { opacity: 1; transform: scale(0.94, 1.16); }
+  32% { transform: scale(1.03, 0.9); }
+  48% { transform: scale(0.99, 1.06); }
+  64% { transform: scale(1.005, 0.965); }
+  78% { transform: scale(0.998, 1.025); }
+  90% { transform: scale(1.001, 0.99); }
+  100% { transform: scale(1, 1); }
 }
 
 @keyframes csJellyOutUp {
