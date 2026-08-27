@@ -935,59 +935,24 @@ function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').r
   font-family: inherit;
 }
 
-/* ===== 浮窗按钮（3D 立体风格） ===== */
+/* ===== 浮窗按钮（圆形图标直出） ===== */
 .ai-float {
   position: fixed; width: 48px; height: 48px; z-index: 9998;
   cursor: grab; display: flex; align-items: center; justify-content: center;
-  background:
-    radial-gradient(circle at 32% 28%, color-mix(in srgb, var(--primary-color) 60%, #fff 40%) 0%, var(--primary-color) 45%, color-mix(in srgb, var(--primary-color) 80%, #000 20%) 100%);
-  border-radius: 50%;
+  background: transparent;
   border: none;
-  box-shadow:
-    inset 0 2px 3px rgba(255,255,255,.45),
-    inset 0 -3px 5px rgba(0,0,0,.22),
-    0 2px 5px rgba(0,0,0,.15),
-    0 6px 14px -3px color-mix(in srgb, var(--primary-color) 50%, rgba(0,0,0,.2)),
-    0 1px 0 rgba(255,255,255,.15);
-  transition: transform .2s cubic-bezier(.34,1.56,.64,1), box-shadow .2s ease;
+  transition: transform .2s cubic-bezier(.34,1.56,.64,1);
   user-select: none;
 }
-/* 顶部高光层 */
-.ai-float::before {
-  content: '';
-  position: absolute; top: 3px; left: 50%; transform: translateX(-50%);
-  width: 60%; height: 35%;
-  background: linear-gradient(to bottom, rgba(255,255,255,.5), rgba(255,255,255,0));
-  border-radius: 50% 50% 40% 40% / 60% 60% 40% 40%;
-  pointer-events: none;
+.ai-float:hover { transform: translateY(-2px) scale(1.05); }
+.ai-float:active { cursor: grabbing; transform: translateY(0) scale(.95); }
+.ai-float-icon {
+  width: 44px; height: 44px; pointer-events: none;
+  border-radius: 50%; object-fit: cover;
+  box-shadow: 0 3px 10px rgba(0,0,0,.22), 0 1px 3px rgba(0,0,0,.12);
+  transition: box-shadow .2s ease;
 }
-/* 底部投影环 */
-.ai-float::after {
-  content: '';
-  position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%);
-  width: 70%; height: 8px;
-  background: radial-gradient(ellipse, rgba(0,0,0,.2), transparent 70%);
-  border-radius: 50%;
-  pointer-events: none;
-}
-.ai-float:hover {
-  transform: translateY(-3px) scale(1.04);
-  box-shadow:
-    inset 0 2px 3px rgba(255,255,255,.5),
-    inset 0 -3px 5px rgba(0,0,0,.2),
-    0 4px 8px rgba(0,0,0,.18),
-    0 10px 24px -4px color-mix(in srgb, var(--primary-color) 55%, rgba(0,0,0,.25)),
-    0 1px 0 rgba(255,255,255,.2);
-}
-.ai-float:active {
-  cursor: grabbing;
-  transform: translateY(0) scale(.93);
-  box-shadow:
-    inset 0 2px 4px rgba(0,0,0,.25),
-    inset 0 -1px 2px rgba(255,255,255,.15),
-    0 1px 3px rgba(0,0,0,.12);
-}
-.ai-float-icon { width: 26px; height: 26px; pointer-events: none; border-radius: 6px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.2)); }
+.ai-float:hover .ai-float-icon { box-shadow: 0 6px 18px rgba(0,0,0,.28), 0 2px 5px rgba(0,0,0,.15); }
 
 /* ===== 弹窗容器 ===== */
 .ai-chat {

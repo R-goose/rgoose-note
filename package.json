@@ -1,7 +1,7 @@
 {
   "name": "r-goose-note",
   "private": true,
-  "version": "2.2.8",
+  "version": "2.3.1",
   "description": "R-Goose Note - 画布式笔记应用",
   "author": "R-Goose",
   "type": "module",
@@ -85,7 +85,8 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "include": "build/installer.nsh"
     },
     "electronDownload": {
       "mirror": "https://npmmirror.com/mirrors/electron/"
