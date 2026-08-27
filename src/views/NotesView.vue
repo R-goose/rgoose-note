@@ -20,17 +20,15 @@
             @keydown.esc="searchKeyword = ''"
           />
         </div>
-        <div class="sort-box" title="排序方式">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <line x1="12" y1="5" x2="12" y2="19"/>
-            <polyline points="19 12 12 19 5 12"/>
-          </svg>
-          <select v-model="sortKey" class="sort-select" @change="onSortChange">
-            <option value="updatedAt">按更新时间</option>
-            <option value="createdAt">按创建时间</option>
-            <option value="title">按标题</option>
-          </select>
-        </div>
+        <CustomSelect v-model="sortKey" :options="sortOptions" class="sort-box" title="排序方式">
+          <template #label="{ item }">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink: 0">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <polyline points="19 12 12 19 5 12"/>
+            </svg>
+            {{ item.label }}
+          </template>
+        </CustomSelect>
         <button class="btn btn-primary" @click="createNote">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <line x1="12" y1="5" x2="12" y2="19"/>
@@ -581,6 +579,7 @@ import { useToast } from '@/composables/useToast'
 import { formatDate as formatDateUtil } from '@/utils'
 import { resolveImageUrl, isImageRef } from '@/utils/imageStore'
 import BgDecor from '@/components/BgDecor.vue'
+import CustomSelect from '@/components/CustomSelect.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -794,13 +793,18 @@ function getParentFolderName(folder) {
 
 /** 列表排序方式：updatedAt / createdAt / title（本地持久化） */
 const SORT_KEY_STORAGE = 'rg-note-sort-key'
+const sortOptions = [
+  { value: 'updatedAt', label: '按更新时间' },
+  { value: 'createdAt', label: '按创建时间' },
+  { value: 'title', label: '按标题' }
+]
 const sortKey = ref(['updatedAt', 'createdAt', 'title'].includes(localStorage.getItem(SORT_KEY_STORAGE))
   ? localStorage.getItem(SORT_KEY_STORAGE)
   : 'updatedAt')
 
-function onSortChange() {
+watch(sortKey, () => {
   localStorage.setItem(SORT_KEY_STORAGE, sortKey.value)
-}
+})
 
 /** 置顶优先，组内按 sortKey 排序 */
 function compareNotes(a, b) {
@@ -1258,6 +1262,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
   padding: 20px 28px;
   border-bottom: 1px solid var(--border-light);
   background: var(--bg-secondary);
@@ -1268,12 +1273,17 @@ onUnmounted(() => {
   display: flex;
   align-items: baseline;
   gap: 12px;
+  min-width: 0;
+  flex: 0 1 auto;
 }
 
 .header-left h1 {
   font-size: 22px;
   font-weight: 700;
   color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .note-count {
@@ -1283,6 +1293,8 @@ onUnmounted(() => {
   background: var(--purple-softer);
   padding: 3px 10px;
   border-radius: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .header-right {
@@ -1290,6 +1302,13 @@ onUnmounted(() => {
   align-items: center;
   gap: 12px;
   margin-left: auto;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.header-right .btn {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .search-box {
@@ -1299,8 +1318,25 @@ onUnmounted(() => {
   padding: 8px 14px;
   background: var(--bg-tertiary);
   border-radius: var(--radius-lg);
-  width: 280px;
+  flex: 0 1 280px;
+  min-width: 150px;
   transition: all var(--transition-fast);
+}
+
+@media (max-width: 760px) {
+  .view-header {
+    padding: 14px 16px;
+    gap: 10px;
+  }
+
+  .header-left h1 {
+    font-size: 18px;
+  }
+
+  .search-box {
+    min-width: 110px;
+    padding: 8px 10px;
+  }
 }
 
 .search-box:focus-within {
@@ -1671,32 +1707,23 @@ onUnmounted(() => {
 }
 
 .sort-box {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 12px;
-  height: 36px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-light);
-  border-radius: 10px;
-  color: var(--text-tertiary);
   flex-shrink: 0;
 }
 
-.sort-select {
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
+.sort-box :deep(.cs-trigger) {
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
   font-size: 13px;
-  outline: none;
-  cursor: pointer;
-  padding: 0;
-  height: 100%;
+  background: var(--bg-secondary);
+  border-color: var(--border-light);
+  color: var(--text-secondary);
 }
 
-.sort-select option {
-  color: var(--text-primary);
-  background: var(--bg-secondary);
+.sort-box :deep(.cs-current) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .note-card-body {
