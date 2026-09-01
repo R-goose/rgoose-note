@@ -273,18 +273,21 @@
           <div id="set-ai-key" class="setting-item">
             <div class="setting-info">
               <div class="setting-name">API Key</div>
-              <div class="setting-desc">智谱 AI 接口密钥（免费注册：<a href="https://open.bigmodel.cn" target="_blank" style="color: var(--primary-color)">open.bigmodel.cn</a>）</div>
+              <div class="setting-desc">智谱 AI 接口密钥{{ isDesktopAi ? '（仅保存于本机系统安全存储）' : '' }}（免费注册：<a href="https://open.bigmodel.cn" target="_blank" style="color: var(--primary-color)">open.bigmodel.cn</a>）</div>
             </div>
-            <input
-              v-model="aiApiKey"
-              type="password"
-              class="ai-key-input"
-              placeholder="粘贴你的 API Key"
-              spellcheck="false"
-              autocapitalize="off"
-              autocomplete="off"
-              @change="saveAiSettings"
-            />
+            <div class="ai-key-actions">
+              <input
+                v-model="aiApiKey"
+                type="password"
+                class="ai-key-input"
+                :placeholder="isDesktopAi && hasSecureAiApiKey ? '已安全保存；输入新 Key 可替换' : '粘贴你的 API Key'"
+                spellcheck="false"
+                autocapitalize="off"
+                autocomplete="off"
+                @change="saveAiSettings"
+              />
+              <button v-if="isDesktopAi && hasSecureAiApiKey" class="btn-clear-ai-key" type="button" @click="clearAiApiKey">清除</button>
+            </div>
           </div>
           <div class="setting-item">
             <div class="setting-info">
@@ -627,7 +630,9 @@ async function onToggleCloseToTray() {
 }
 
 // ============ AI 设置 ============
-const aiApiKey = ref(localStorage.getItem('ai_api_key') || '')
+const isDesktopAi = typeof window !== 'undefined' && !!window.electronAPI?.ai
+const aiApiKey = ref(isDesktopAi ? '' : (localStorage.getItem('ai_api_key') || ''))
+const hasSecureAiApiKey = ref(false)
 const aiModel = ref(localStorage.getItem('ai_model') || 'glm-4.7-flash')
 const aiImageModel = ref(localStorage.getItem('ai_image_model') || 'cogview-3-flash')
 const aiVideoModel = ref(localStorage.getItem('ai_video_model') || 'cogvideox-flash')
@@ -786,23 +791,61 @@ function handleDropdownOutsideClick(e) {
   activeDropdown.value = null
 }
 
-function saveAiSettings() {
-  localStorage.setItem('ai_api_key', aiApiKey.value.trim())
+async function saveAiSettings() {
+  const key = aiApiKey.value.trim()
+  try {
+    if (isDesktopAi) {
+      if (key) {
+        await window.electronAPI.ai.saveApiKey(key)
+        hasSecureAiApiKey.value = true
+        aiApiKey.value = ''
+      }
+      // 升级后的桌面版不再保留可被页面脚本读取的明文副本。
+      localStorage.removeItem('ai_api_key')
+    } else {
+      localStorage.setItem('ai_api_key', key)
+    }
+  } catch (e) {
+    toastError('API Key 保存失败：' + e.message)
+    return
+  }
   localStorage.setItem('ai_model', aiModel.value.trim() || 'glm-4-flash')
   localStorage.setItem('ai_image_model', aiImageModel.value.trim() || 'cogview-3-flash')
   localStorage.setItem('ai_video_model', aiVideoModel.value.trim() || 'cogvideox-flash')
   toastSuccess('AI 设置已保存')
 }
 
+async function clearAiApiKey() {
+  if (!isDesktopAi) return
+  try {
+    await window.electronAPI.ai.clearApiKey()
+    aiApiKey.value = ''
+    hasSecureAiApiKey.value = false
+    localStorage.removeItem('ai_api_key')
+    toastSuccess('API Key 已清除')
+  } catch (e) {
+    toastError('API Key 清除失败：' + e.message)
+  }
+}
+
 // 从智谱 API 拉取可用模型列表，并与内置清单合并
 async function fetchAiModels() {
   const key = aiApiKey.value.trim()
-  if (!key) {
+  if (!key && !hasSecureAiApiKey.value) {
     toastError('请先填写 API Key')
     return
   }
   loadingModels.value = true
   try {
+    if (isDesktopAi) {
+      await window.electronAPI.ai.validateApiKey(key || undefined)
+      if (key) {
+        await window.electronAPI.ai.saveApiKey(key)
+        hasSecureAiApiKey.value = true
+        aiApiKey.value = ''
+        localStorage.removeItem('ai_api_key')
+      }
+    } else {
     // 用 chat/completions 发一个极简请求验证 API Key 有效性
     const baseUrl = 'https://open.bigmodel.cn/api/coding/paas/v4'
     const resp = await fetch(`${baseUrl}/chat/completions`, {
@@ -814,6 +857,7 @@ async function fetchAiModels() {
       const body = await resp.json().catch(() => ({}))
       const msg = body?.error?.message || `HTTP ${resp.status}`
       throw new Error(msg)
+    }
     }
     // Key 有效，直接使用内置清单（官方无 /models 列表 API）
     textModels.value = sortByPrice([...BUILTIN_TEXT_MODELS])
@@ -974,6 +1018,21 @@ async function loadBackups() {
 }
 
 onMounted(async () => {
+  if (isDesktopAi) {
+    try {
+      const status = await window.electronAPI.ai.status()
+      hasSecureAiApiKey.value = status.configured
+      // 将旧版本留在 localStorage 的密钥迁移一次；只在主进程确认保存成功后删除明文。
+      const legacyKey = (localStorage.getItem('ai_api_key') || '').trim()
+      if (!status.configured && legacyKey) {
+        await window.electronAPI.ai.saveApiKey(legacyKey)
+        localStorage.removeItem('ai_api_key')
+        hasSecureAiApiKey.value = true
+      }
+    } catch (e) {
+      console.warn('AI Key 安全存储初始化失败:', e)
+    }
+  }
   if (window.electronAPI?.getStorageInfo) {
     try {
       const info = await window.electronAPI.getStorageInfo()
@@ -1822,6 +1881,33 @@ function resetAllShortcuts() {
   color: var(--text-primary);
   outline: none;
   transition: border-color 0.15s;
+}
+
+.ai-key-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ai-key-actions .ai-key-input {
+  flex-shrink: 1;
+}
+
+.btn-clear-ai-key {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.btn-clear-ai-key:hover {
+  border-color: #e06c75;
+  color: #c64650;
 }
 
 .ai-key-input:focus {

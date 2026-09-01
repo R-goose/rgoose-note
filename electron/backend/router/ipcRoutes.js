@@ -14,6 +14,26 @@ const imageService = require('../service/imageService')
 const syncService = require('../service/syncService')
 const { wrap } = require('../common/response')
 
+function isSafeRemoteImageUrl(value) {
+  try {
+    const url = new URL(value)
+    // 远程图片只允许 HTTPS，避免 renderer 把本机或内网 HTTP 服务当作代理读取。
+    if (url.protocol !== 'https:' || !url.hostname) return false
+    const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '')
+    if (host === 'localhost' || host === '::1' || host === '127.0.0.1' || host === '0.0.0.0' || host.endsWith('.local')) return false
+    const ipv4 = host.split('.').map(Number)
+    if (ipv4.length === 4 && ipv4.every(part => Number.isInteger(part) && part >= 0 && part <= 255)) {
+      return !(ipv4[0] === 10 || ipv4[0] === 127 || ipv4[0] === 0 ||
+        (ipv4[0] === 169 && ipv4[1] === 254) ||
+        (ipv4[0] === 172 && ipv4[1] >= 16 && ipv4[1] <= 31) ||
+        (ipv4[0] === 192 && ipv4[1] === 168))
+    }
+    return !/^(fc|fd|fe80:)/i.test(host)
+  } catch (_) {
+    return false
+  }
+}
+
 function register() {
   // ---------- Notes ----------
   ipcMain.handle('backend:notes:list',     (_e, params) => wrap(() => noteService.list(params || {})))
@@ -81,10 +101,15 @@ function register() {
 
   // ---------- 远程图片下载（绕过 CORS） ----------
   ipcMain.handle('backend:images:fetchRemote', async (_e, url) => wrap(async () => {
+    if (!isSafeRemoteImageUrl(url)) throw new Error('只允许下载 HTTPS 远程图片')
     const response = await fetch(url)
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    const contentLength = Number(response.headers.get('content-length') || 0)
+    if (contentLength > 20 * 1024 * 1024) throw new Error('远程图片超过 20 MB 限制')
     const arrayBuffer = await response.arrayBuffer()
+    if (arrayBuffer.byteLength > 20 * 1024 * 1024) throw new Error('远程图片超过 20 MB 限制')
     const mimeType = response.headers.get('content-type') || 'image/png'
+    if (!mimeType.startsWith('image/')) throw new Error('远程资源不是图片')
     return { base64: Buffer.from(arrayBuffer).toString('base64'), mimeType }
   }))
 

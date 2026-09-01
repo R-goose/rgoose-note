@@ -245,6 +245,7 @@
 <script setup>
 import { ref, reactive, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { saveImage } from '@/utils/imageStore'
+import { renderSafeAiMarkdown } from '@/utils/safeAiMarkdown'
 import { useToast } from '@/composables/useToast'
 
 const STORAGE_KEY = 'ai_conversations'
@@ -373,13 +374,28 @@ watch(chatSize, (val) => {
   try { localStorage.setItem(SIZE_KEY, JSON.stringify({ w: val.w, h: val.h })) } catch { /* ignore */ }
 }, { deep: true })
 
-onMounted(() => {
+async function migrateLegacyAiKey() {
+  const api = window.electronAPI?.ai
+  const legacyKey = (localStorage.getItem('ai_api_key') || '').trim()
+  if (!api || !legacyKey) return
+  try {
+    const status = await api.status()
+    if (!status.configured) await api.saveApiKey(legacyKey)
+    // 仅在主进程已确认密钥存在时删除渲染进程明文。
+    localStorage.removeItem('ai_api_key')
+  } catch (error) {
+    console.warn('AI Key 自动迁移失败，请在设置中重新保存：', error)
+  }
+}
+
+onMounted(async () => {
   const margin = 24
   pos.x = window.innerWidth - 72 - margin
   pos.y = window.innerHeight - 72 - margin
   chatPos.x = window.innerWidth - chatSize.w - margin
   chatPos.y = window.innerHeight - chatSize.h - margin
   window.addEventListener('keydown', onCalcKeydown)
+  await migrateLegacyAiKey()
 })
 
 onUnmounted(() => {
@@ -576,7 +592,7 @@ async function runGeneration(convo) {
       convo.messages.push({ role: 'assistant', content: reply })
     }
   } catch (err) {
-    if (err.name === 'AbortError') {
+    if (err.name === 'AbortError' || err.message === '请求已取消') {
       // 被新请求中止，不显示错误
     } else {
       convo.messages.push({ role: 'assistant', content: `请求失败：${err.message}\n\n请检查 API Key 配置（设置 → AI 设置），或稍后重试。`, isError: true, retryPrompt: prompt, retryMode: convo.mode })
@@ -663,9 +679,25 @@ async function fetchWithRetry(url, options, signal, maxRetries = 3) {
   throw lastError || new Error('请求失败')
 }
 
+function createAiRequestId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID().replace(/-/g, '')
+  return `ai_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`
+}
+
+async function requestDesktopAI(operation, payload, signal) {
+  const api = window.electronAPI?.ai
+  if (!api) return null
+  const requestId = createAiRequestId()
+  const onAbort = () => { api.cancel(requestId).catch(() => {}) }
+  signal?.addEventListener('abort', onAbort, { once: true })
+  try {
+    return await api.request({ requestId, operation, payload })
+  } finally {
+    signal?.removeEventListener('abort', onAbort)
+  }
+}
+
 async function callAI(prompt, history, signal) {
-  const apiKey = (localStorage.getItem('ai_api_key') || '').trim()
-  const baseUrl = localStorage.getItem('ai_base_url') || 'https://open.bigmodel.cn/api/coding/paas/v4'
   const model = localStorage.getItem('ai_model') || 'glm-4.7-flash'
   // history 已包含当前 user prompt（重试场景），避免重复 push
   const msgs = history.filter(m => m.content && !m.image && !m.video && !m.isError).map(m => ({ role: m.role, content: m.content }))
@@ -673,6 +705,13 @@ async function callAI(prompt, history, signal) {
     msgs.push({ role: 'user', content: prompt })
   }
 
+  if (window.electronAPI?.ai) {
+    const result = await requestDesktopAI('chat', { model, messages: msgs }, signal)
+    return result.content || '(空回复)'
+  }
+
+  const apiKey = (localStorage.getItem('ai_api_key') || '').trim()
+  const baseUrl = localStorage.getItem('ai_base_url') || 'https://open.bigmodel.cn/api/coding/paas/v4'
   const response = await fetchWithRetry(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -683,9 +722,15 @@ async function callAI(prompt, history, signal) {
 }
 
 async function callImageGen(prompt, signal) {
+  const model = localStorage.getItem('ai_image_model') || 'cogview-3-flash'
+  if (window.electronAPI?.ai) {
+    const result = await requestDesktopAI('image', { model, prompt }, signal)
+    if (!result.url) throw new Error('未返回图片')
+    return result.url
+  }
+
   const apiKey = (localStorage.getItem('ai_api_key') || '').trim()
   const baseUrl = localStorage.getItem('ai_base_url') || 'https://open.bigmodel.cn/api/coding/paas/v4'
-  const model = localStorage.getItem('ai_image_model') || 'cogview-3-flash'
   const response = await fetchWithRetry(`${baseUrl}/images/generations`, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -699,9 +744,15 @@ async function callImageGen(prompt, signal) {
 
 // CogVideoX 为异步任务：提交 → 轮询查询结果
 async function callVideoGen(prompt, signal) {
+  const model = localStorage.getItem('ai_video_model') || 'cogvideox-flash'
+  if (window.electronAPI?.ai) {
+    const result = await requestDesktopAI('video', { model, prompt }, signal)
+    if (!result.url) throw new Error('未返回视频')
+    return result.url
+  }
+
   const apiKey = (localStorage.getItem('ai_api_key') || '').trim()
   const baseUrl = localStorage.getItem('ai_base_url') || 'https://open.bigmodel.cn/api/coding/paas/v4'
-  const model = localStorage.getItem('ai_video_model') || 'cogvideox-flash'
   // 1. 提交生成任务
   const resp = await fetchWithRetry(`${baseUrl}/videos/generations`, {
     method: 'POST',
@@ -857,19 +908,7 @@ function copyText(text) {
   )
 }
 
-function renderMarkdown(text) {
-  if (!text) return ''
-  return text
-    .replace(/```(\w*)\n?([\s\S]*?)```/g, (_, l, c) => `<pre class="ai-code-block"><code>${escapeHtml(c.trim())}</code></pre>`)
-    .replace(/`([^`]+)`/g, '<code class="ai-inline-code">$1</code>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/^### (.+)$/gm, '<div class="ai-md-h3">$1</div>')
-    .replace(/^## (.+)$/gm, '<div class="ai-md-h2">$1</div>')
-    .replace(/^# (.+)$/gm, '<div class="ai-md-h1">$1</div>')
-    .replace(/^- (.+)$/gm, '<div class="ai-md-li">$1</div>')
-    .replace(/\n/g, '<br>')
-}
-function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }
+const renderMarkdown = renderSafeAiMarkdown
 </script>
 
 <style scoped>

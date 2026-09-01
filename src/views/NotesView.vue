@@ -115,7 +115,6 @@
               v-for="note in filteredNotes"
               :key="note.id"
               class="note-card"
-              :style="noteStyle(note)"
               @click="openNote(note.id)"
               @contextmenu.prevent.stop="onNoteContextMenu($event, note)"
             >
@@ -125,10 +124,41 @@
                   <span>{{ (note.title || '无标题').slice(0, 6) }}</span>
                 </div>
                 <span class="note-card-blocks">{{ note.blocks?.length || 0 }}</span>
+                <span v-if="note.pinned" class="note-card-pin" title="已置顶">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+                    <line x1="12" y1="17" x2="12" y2="22"/>
+                    <path d="M5 17h14l-1.5-5.5a2 2 0 0 0-1.9-1.5h-7.2a2 2 0 0 0-1.9 1.5z"/>
+                    <path d="M9 8V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/>
+                  </svg>
+                </span>
+                <div class="note-card-actions">
+                  <button class="note-action" @click.stop="duplicateNote(note)" title="复制笔记" aria-label="复制笔记">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                      <rect x="9" y="9" width="13" height="13" rx="2"/>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                  </button>
+                  <button class="note-action note-del" @click.stop="deleteNote(note.id)" title="删除笔记" aria-label="删除笔记">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                      <polyline points="3 6 5 6 21 6"/>
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
               <div class="note-card-body">
                 <h3 class="note-card-title">{{ note.title || '无标题笔记' }}</h3>
                 <p class="note-card-preview">{{ getNotePreview(note) }}</p>
+                <div v-if="noteTagList(note).length" class="note-card-tags">
+                  <span
+                    v-for="t in noteTagList(note).slice(0, 2)"
+                    :key="t.id"
+                    class="note-tag-chip"
+                    :style="{ background: t.color + '22', color: t.color }"
+                    @click.stop="filterByTag(t.id)"
+                  >{{ t.name }}</span>
+                  <span v-if="noteTagList(note).length > 2" class="note-tag-chip note-tag-chip-more">+{{ noteTagList(note).length - 2 }}</span>
+                </div>
                 <div class="note-card-foot">
                   <span v-if="note.folderId" class="note-card-folder">
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
@@ -137,15 +167,6 @@
                     {{ getFolderPath(note.folderId) }}
                   </span>
                   <span class="note-card-date">{{ formatDate(note.updatedAt) }}</span>
-                </div>
-                <div v-if="noteTagList(note).length" class="note-card-tags">
-                  <span
-                    v-for="t in noteTagList(note)"
-                    :key="t.id"
-                    class="note-tag-chip"
-                    :style="{ background: t.color + '22', color: t.color }"
-                    @click.stop="filterByTag(t.id)"
-                  >{{ t.name }}</span>
                 </div>
               </div>
             </article>
@@ -189,7 +210,6 @@
           v-for="note in filteredNotes"
           :key="note.id"
           class="note-card"
-          :style="noteStyle(note)"
           @click="openNote(note.id)"
           @contextmenu.prevent="onNoteContextMenu($event, note)"
         >
@@ -207,13 +227,13 @@
               </svg>
             </span>
             <div class="note-card-actions">
-              <button class="note-action" @click.stop="duplicateNote(note)" title="复制">
+              <button class="note-action" @click.stop="duplicateNote(note)" title="复制笔记" aria-label="复制笔记">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                   <rect x="9" y="9" width="13" height="13" rx="2"/>
                   <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                 </svg>
               </button>
-              <button class="note-action note-del" @click.stop="deleteNote(note.id)" title="删除">
+              <button class="note-action note-del" @click.stop="deleteNote(note.id)" title="删除笔记" aria-label="删除笔记">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                   <polyline points="3 6 5 6 21 6"/>
                   <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -224,6 +244,16 @@
           <div class="note-card-body">
             <h3 class="note-card-title">{{ note.title || '无标题笔记' }}</h3>
             <p class="note-card-preview">{{ getNotePreview(note) }}</p>
+            <div v-if="noteTagList(note).length" class="note-card-tags">
+              <span
+                v-for="t in noteTagList(note).slice(0, 2)"
+                :key="t.id"
+                class="note-tag-chip"
+                :style="{ background: t.color + '22', color: t.color }"
+                @click.stop="filterByTag(t.id)"
+              >{{ t.name }}</span>
+              <span v-if="noteTagList(note).length > 2" class="note-tag-chip note-tag-chip-more">+{{ noteTagList(note).length - 2 }}</span>
+            </div>
             <div class="note-card-foot">
               <span v-if="note.folderId" class="note-card-folder">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
@@ -232,15 +262,6 @@
                 {{ getFolderPath(note.folderId) }}
               </span>
               <span class="note-card-date">{{ formatDate(note.updatedAt) }}</span>
-            </div>
-            <div v-if="noteTagList(note).length" class="note-card-tags">
-              <span
-                v-for="t in noteTagList(note)"
-                :key="t.id"
-                class="note-tag-chip"
-                :style="{ background: t.color + '22', color: t.color }"
-                @click.stop="filterByTag(t.id)"
-              >{{ t.name }}</span>
             </div>
           </div>
         </article>
@@ -991,43 +1012,6 @@ function getNotePreview(note) {
   return div.textContent?.slice(0, 80) || '空白笔记'
 }
 
-/** 计算笔记内容大小，返回 CSS 变量控制卡片尺寸/圆角/装饰 */
-function noteStyle(note) {
-  if (!note?.id) return {}
-  // 估算笔记内容量：blocks 数量 + 各块 content 长度
-  let size = 0
-  if (note.blocks?.length) {
-    for (const b of note.blocks) {
-      if (b.content) size += b.content.length
-      size += 50 // 每个块的基础大小
-    }
-  }
-  // 归一化到 0~1，约 3000 字到达上限
-  const t = Math.min(1, size / 3000)
-
-  // 尺寸：区分度比文件夹小，244~300px
-  const hash = note.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0)
-  const wRatio = 1 + ((hash % 5) - 2) * 0.03   // 微小宽高比差异
-  const hRatio = 1 + ((hash >> 4) % 5 - 2) * 0.03
-  const baseW = 244 + t * 56                    // 244~300px
-  const baseH = 300 + t * 50                    // 300~350px
-
-  // 圆角：轻微不规则
-  const r = 14 + t * 6                          // 14~20px 基础
-  const d = 3                                   // 偏移小
-  const r1 = r + (hash % 4 - 1) * d
-  const r2 = r + ((hash >> 3) % 4 - 1) * d
-  const r3 = r + ((hash >> 6) % 4 - 1) * d
-  const r4 = r + ((hash >> 9) % 4 - 1) * d
-
-  return {
-    '--note-w': `${Math.round(baseW * wRatio)}px`,
-    '--note-h': `${Math.round(baseH * hRatio)}px`,
-    '--note-r': `${r1}px ${r2}px ${r3}px ${r4}px`,
-    '--note-t': t.toFixed(2)
-  }
-}
-
 function noteMatchesKeyword(note, kw) {
   if (!kw) return true
   if ((note.title || '').toLowerCase().includes(kw)) return true
@@ -1587,51 +1571,41 @@ onUnmounted(() => {
 }
 
 .notes-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
+  gap: 14px;
+  align-items: stretch;
 }
 
 .note-card {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  width: var(--note-w, 244px);
+  min-width: 0;
+  min-height: 292px;
   background: var(--bg-secondary);
-  border: 1px solid color-mix(in srgb, var(--primary-color) calc(var(--note-t, 0) * 6%), var(--border-light));
-  border-radius: var(--note-r, 14px);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
   cursor: pointer;
-  transition: all var(--transition-normal);
+  box-shadow: none;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
 }
 
 .note-card:hover {
-  border-color: color-mix(in srgb, var(--primary-color) 35%, var(--border-color));
-  box-shadow: 0 8px 22px -10px color-mix(in srgb, var(--primary-color) 30%, rgba(0, 0, 0, 0.12));
-  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--primary-color) 34%, var(--border-color));
+  background: color-mix(in srgb, var(--bg-secondary) 92%, var(--primary-soft));
 }
 
 .note-card-media {
   position: relative;
   width: 100%;
-  height: calc(130px + var(--note-t, 0) * 20px);
+  height: 96px;
   overflow: hidden;
-  background: linear-gradient(135deg, var(--primary-soft), var(--bg-tertiary));
+  background: var(--bg-tertiary);
 }
 
 .note-card-media.has-cover {
   background: var(--bg-tertiary);
-}
-
-.note-card-media::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 40px;
-  background: linear-gradient(180deg, transparent, var(--bg-secondary));
-  pointer-events: none;
-  z-index: 1;
 }
 
 .note-card-media img {
@@ -1639,7 +1613,7 @@ onUnmounted(() => {
   height: 100%;
   object-fit: cover;
   display: block;
-  transition: transform 0.4s var(--transition-normal);
+  transition: transform 0.35s var(--transition-normal);
 }
 
 .note-card-media-deco,
@@ -1650,17 +1624,17 @@ onUnmounted(() => {
   height: 100%;
 }
 
-/* 无封面时：展示标题放大版 */
+/* 无封面时只提供基础识别，不作为视觉主角。 */
 .note-card-title-cover {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--primary-soft), var(--bg-tertiary));
-  color: color-mix(in srgb, var(--primary-color) 50%, var(--text-secondary));
-  font-size: calc(2rem + var(--note-t, 0) * 0.5rem);
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  opacity: 0.4;
+  background: var(--bg-tertiary);
+  color: var(--text-tertiary);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0;
+  opacity: 0.7;
   overflow: hidden;
   word-break: break-all;
   text-align: center;
@@ -1673,36 +1647,37 @@ onUnmounted(() => {
 
 .note-card-blocks {
   position: absolute;
-  top: 10px;
-  left: 10px;
-  min-width: 24px;
-  height: 24px;
-  padding: 0 7px;
+  top: 9px;
+  left: 9px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  color: #1a1f1c;
-  background: #ffffff;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--bg-secondary) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-color) 75%, transparent);
   border-radius: 999px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  box-shadow: none;
   z-index: 2;
 }
 
 .note-card-pin {
   position: absolute;
-  top: 40px;
-  left: 10px;
-  width: 24px;
-  height: 24px;
+  top: 38px;
+  left: 9px;
+  width: 22px;
+  height: 22px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #ffffff;
   background: var(--accent-color, #d4956a);
   border-radius: 999px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  box-shadow: none;
   z-index: 2;
 }
 
@@ -1727,30 +1702,18 @@ onUnmounted(() => {
 }
 
 .note-card-body {
-  position: relative;
-  padding: 4px 16px 14px;
+  padding: 14px 15px 13px;
   display: flex;
   flex-direction: column;
   flex: 1;
-  z-index: 2;
-}
-
-.note-card-body::before {
-  content: '';
-  position: absolute;
-  left: 16px;
-  right: 16px;
-  top: 0;
-  height: 2px;
-  border-radius: 2px;
-  background: linear-gradient(90deg, transparent, var(--border-color) 30%, var(--border-color) 70%, transparent);
 }
 
 .note-card-title {
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 650;
   color: var(--text-primary);
-  margin: 10px 0 6px;
+  margin: 0 0 7px;
+  line-height: 1.45;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -1765,8 +1728,8 @@ onUnmounted(() => {
 .note-card-preview {
   font-size: 13px;
   color: var(--text-secondary);
-  line-height: 1.6;
-  margin-bottom: 12px;
+  line-height: 1.55;
+  margin: 0 0 14px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -1777,10 +1740,10 @@ onUnmounted(() => {
 .note-card-foot {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   padding-top: 10px;
-  border-top: 1px dashed var(--border-color);
-  font-size: 11px;
+  border-top: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent);
+  font-size: 11.5px;
   color: var(--text-tertiary);
 }
 
@@ -1788,11 +1751,10 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: var(--primary-dark);
-  background: var(--primary-soft);
-  padding: 3px 9px;
-  border-radius: 999px;
-  max-width: 65%;
+  color: var(--text-secondary);
+  padding: 0;
+  border-radius: 0;
+  max-width: 62%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1800,7 +1762,8 @@ onUnmounted(() => {
 
 .note-card-folder svg {
   flex-shrink: 0;
-  opacity: 0.7;
+  color: var(--primary-color);
+  opacity: 0.8;
 }
 
 .note-card-date {
@@ -1810,39 +1773,46 @@ onUnmounted(() => {
 
 .note-card-actions {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 8px;
+  right: 8px;
   display: flex;
-  gap: 5px;
+  gap: 4px;
   opacity: 0;
   transform: translateY(-4px);
   transition: opacity var(--transition-fast), transform var(--transition-fast);
   z-index: 3;
 }
 
-.note-card:hover .note-card-actions {
+.note-card:hover .note-card-actions,
+.note-card:focus-within .note-card-actions {
   opacity: 1;
   transform: translateY(0);
 }
 
 .note-action {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--border-color) 80%, transparent);
+  border-radius: 5px;
   color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(6px);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  background: var(--bg-secondary);
+  box-shadow: none;
   transition: all var(--transition-fast);
+  cursor: pointer;
 }
 
 .note-action:hover {
-  background: var(--primary-color);
-  color: #fff;
-  transform: scale(1.1);
+  background: var(--bg-hover);
+  color: var(--primary-color);
+  transform: none;
+}
+
+.note-action:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
 }
 
 .note-action.note-del:hover {
@@ -2129,19 +2099,30 @@ onUnmounted(() => {
 .note-card-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  padding-top: 8px;
+  gap: 5px;
+  justify-content: flex-end;
+  padding: 0 0 9px;
+  margin-top: auto;
 }
 
 .note-tag-chip {
   display: inline-flex;
   align-items: center;
-  padding: 2px 7px;
+  max-width: 120px;
+  padding: 3px 8px;
   border-radius: 999px;
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 500;
   cursor: pointer;
   transition: transform var(--transition-fast);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.note-tag-chip-more {
+  color: var(--text-tertiary);
+  background: var(--bg-tertiary) !important;
 }
 
 .note-tag-chip:hover {

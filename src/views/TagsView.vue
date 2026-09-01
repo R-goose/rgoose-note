@@ -33,6 +33,7 @@
           v-for="tag in tagStore.sortedTags"
           :key="tag.id"
           class="tag-card"
+          :style="{ '--tag-color': tag.color, '--tag-soft': tag.color + '18' }"
         >
           <div class="tag-card-head">
             <span class="tag-dot" :style="{ background: tag.color }"></span>
@@ -341,42 +342,43 @@ function filterFolders(tag) {
 
 .tag-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(278px, 1fr));
+  gap: 14px;
 }
 
 .tag-card {
   background: var(--bg-secondary);
   border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg);
-  padding: 16px;
-  box-shadow: var(--shadow-sm);
-  transition: box-shadow var(--transition-fast), border-color var(--transition-fast);
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: none;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
 }
 
 .tag-card:hover {
-  box-shadow: var(--shadow-md);
-  border-color: var(--border-color);
+  border-color: color-mix(in srgb, var(--tag-color, var(--primary-color)) 34%, var(--border-color));
+  background: color-mix(in srgb, var(--bg-secondary) 94%, var(--tag-soft));
 }
 
 .tag-card-head {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 9px;
+  margin-bottom: 14px;
 }
 
 .tag-dot {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   flex-shrink: 0;
+  box-shadow: none;
 }
 
 .tag-name {
   flex: 1;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 650;
   color: var(--text-primary);
   cursor: pointer;
   min-width: 0;
@@ -404,12 +406,14 @@ function filterFolders(tag) {
   display: flex;
   gap: 2px;
   flex-shrink: 0;
+  opacity: 0.72;
 }
 
 .icon-btn {
   width: 26px;
   height: 26px;
-  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  border-radius: 5px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -419,6 +423,7 @@ function filterFolders(tag) {
 
 .icon-btn:hover {
   background: var(--bg-hover);
+  border-color: var(--border-light);
   color: var(--text-primary);
 }
 
@@ -430,13 +435,16 @@ function filterFolders(tag) {
 .tag-colors {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 12px;
+  gap: 7px;
+  padding: 8px 0 10px;
+  margin-bottom: 9px;
+  border-top: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light);
 }
 
 .color-swatch {
-  width: 18px;
-  height: 18px;
+  width: 17px;
+  height: 17px;
   border-radius: 50%;
   border: 2px solid transparent;
   cursor: pointer;
@@ -449,8 +457,8 @@ function filterFolders(tag) {
 }
 
 .color-swatch.active {
-  border-color: var(--text-primary);
-  box-shadow: 0 0 0 2px var(--bg-secondary), 0 0 0 3px var(--text-primary);
+  border-color: var(--bg-secondary);
+  box-shadow: 0 0 0 2px var(--bg-secondary), 0 0 0 3px var(--tag-color, var(--primary-color));
 }
 
 .color-swatch.lg {
@@ -460,7 +468,7 @@ function filterFolders(tag) {
 
 .tag-stats {
   display: flex;
-  gap: 8px;
+  gap: 7px;
   flex-wrap: wrap;
 }
 
@@ -468,26 +476,29 @@ function filterFolders(tag) {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 12px;
+  padding: 5px 9px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  font-size: 11.5px;
   font-weight: 500;
   cursor: pointer;
   transition: all var(--transition-fast);
 }
 
 .stat-chip.notes {
-  background: var(--primary-soft);
-  color: var(--primary-dark);
+  background: transparent;
+  color: var(--text-secondary);
+  border-color: var(--border-light);
 }
 
 .stat-chip.folders {
-  background: var(--secondary-soft);
-  color: var(--secondary-dark);
+  background: transparent;
+  color: var(--text-secondary);
+  border-color: var(--border-light);
 }
 
 .stat-chip:hover {
-  filter: brightness(0.95);
+  filter: brightness(0.98);
   transform: translateY(-1px);
 }
 

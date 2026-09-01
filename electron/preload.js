@@ -1,5 +1,36 @@
 const { contextBridge, ipcRenderer } = require('electron')
 
+// 渲染进程只能调用这里明确列出的后端业务通道，不能把任意字符串交给
+// ipcRenderer.invoke。这样即使页面出现注入问题，也不会自动获得全部 IPC 权限。
+const ALLOWED_BACKEND_CHANNELS = new Set([
+  'backend:notes:list', 'backend:notes:get', 'backend:notes:create', 'backend:notes:update',
+  'backend:notes:updateTags', 'backend:notes:delete', 'backend:notes:restore',
+  'backend:notes:hardDelete', 'backend:notes:duplicate', 'backend:notes:listAll',
+  'backend:blocks:list', 'backend:blocks:create', 'backend:blocks:update',
+  'backend:blocks:delete', 'backend:blocks:batch',
+  'backend:connections:list', 'backend:connections:create', 'backend:connections:update',
+  'backend:connections:delete',
+  'backend:folders:list', 'backend:folders:get', 'backend:folders:create',
+  'backend:folders:update', 'backend:folders:updateTags', 'backend:folders:delete',
+  'backend:folders:listAll',
+  'backend:plans:list', 'backend:plans:get', 'backend:plans:create', 'backend:plans:update',
+  'backend:plans:delete', 'backend:plans:toggleComplete', 'backend:plans:listAll',
+  'backend:tags:list', 'backend:tags:get', 'backend:tags:create', 'backend:tags:update',
+  'backend:tags:delete',
+  'backend:images:upload', 'backend:images:download', 'backend:images:delete',
+  'backend:images:listRefs', 'backend:images:listAllWithMeta', 'backend:images:rename',
+  'backend:images:updateTags', 'backend:images:fetchRemote',
+  'backend:sync:pull', 'backend:sync:exportAll', 'backend:sync:importAll',
+  'backend:sync:clearAll'
+])
+
+function invokeBackend(channel, ...args) {
+  if (!ALLOWED_BACKEND_CHANNELS.has(channel)) {
+    return Promise.reject(new Error(`不允许的后端通道: ${channel}`))
+  }
+  return ipcRenderer.invoke(channel, ...args)
+}
+
 contextBridge.exposeInMainWorld('electronAPI', {
   exportData: data => ipcRenderer.invoke('export-data', data),
   selectExportDir: () => ipcRenderer.invoke('select-export-dir'),
@@ -27,8 +58,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   changeDataDir: dir => ipcRenderer.invoke('change-data-dir', dir),
   resetDataDir: () => ipcRenderer.invoke('reset-data-dir'),
 
-  // ★ 后端统一入口：所有 backend:* 通道通过此方法调用
-  backend: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
+  ai: {
+    status: () => ipcRenderer.invoke('ai:status'),
+    saveApiKey: value => ipcRenderer.invoke('ai:save-api-key', value),
+    clearApiKey: () => ipcRenderer.invoke('ai:clear-api-key'),
+    validateApiKey: candidate => ipcRenderer.invoke('ai:validate-api-key', candidate),
+    request: payload => ipcRenderer.invoke('ai:request', payload),
+    cancel: requestId => ipcRenderer.invoke('ai:cancel', requestId)
+  },
+
+  // 兼容现有 REST → IPC 路由层；内部仍会执行静态白名单校验。
+  backend: invokeBackend,
 
   windowMinimize: () => ipcRenderer.invoke('window-minimize'),
   windowToggleMaximize: () => ipcRenderer.invoke('window-toggle-maximize'),

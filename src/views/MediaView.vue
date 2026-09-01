@@ -175,32 +175,28 @@
               <div class="media-info">
                 <div class="media-info-header">
                   <span class="media-name" :title="'素材名称：' + itemName(item)">{{ itemName(item) }}</span>
+                  <span class="media-format">{{ itemFormat(item) }}</span>
                 </div>
-                <div v-if="itemFolderName(item) || item.notes.length || itemTagNames(item).length" class="media-info-meta">
-                  <span v-if="itemFolderName(item)" class="media-folder">
+                <div class="media-info-meta">
+                  <span class="media-folder" :title="'所在文件夹：' + (itemFolderName(item) || '根目录')">
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                    {{ itemFolderName(item) }}
+                    {{ itemFolderName(item) || '根目录' }}
                   </span>
-                  <span v-if="item.notes.length" class="media-note-count" @click.stop>
-                    {{ item.notes.length }} 个笔记
-                  </span>
-                </div>
-                <div v-if="item.notes.length" class="media-note-items">
+                  <div v-if="itemTagNames(item).length" class="media-tags">
+                    <span
+                      v-for="t in itemTagNames(item).slice(0, 2)"
+                      :key="t.id"
+                      class="media-tag-chip"
+                      :style="{ background: t.color + '1a', color: t.color, borderColor: t.color + '33' }"
+                    >{{ t.name }}</span>
+                    <span v-if="itemTagNames(item).length > 2" class="media-tag-chip media-tag-chip-more">+{{ itemTagNames(item).length - 2 }}</span>
+                  </div>
                   <span
-                    v-for="n in item.notes"
-                    :key="n.id"
-                    class="media-note-chip"
-                    @click.stop="goToNote(n.id)"
-                    :title="'跳转到笔记：' + n.title"
-                  >{{ n.title }}</span>
-                </div>
-                <div v-if="itemTagNames(item).length" class="media-tags">
-                  <span
-                    v-for="t in itemTagNames(item)"
-                    :key="t.id"
-                    class="media-tag-chip"
-                    :style="{ background: t.color + '1a', color: t.color, borderColor: t.color + '33' }"
-                  >{{ t.name }}</span>
+                    v-if="item.notes.length"
+                    class="media-note-count"
+                    :title="itemNoteNames(item).join('、')"
+                    @click.stop
+                  >{{ item.notes.length }} 个笔记</span>
                 </div>
               </div>
             </div>
@@ -563,8 +559,8 @@ const parentFolderId = computed(() => {
 const gridRef = ref(null)
 const cardPositions = ref({}) // id -> { position, left, top, width, visibility }
 const gridHeight = ref(0)
-const GRID_GAP = 16
-const GRID_MIN_CARD = 180
+const GRID_GAP = 14
+const GRID_MIN_CARD = 208
 let resizeObserver = null
 
 function layoutMasonry() {
@@ -780,6 +776,18 @@ function itemName(item) {
   if (item.type === 'audio') return typeLabel.audio + '频'
   if (item.type === 'video') return typeLabel.video + '频'
   return '未命名素材'
+}
+
+/** 优先展示真实文件格式，无法判断时回退到素材类型。 */
+function itemFormat(item) {
+  const candidates = [item.displayName, item.name, item.ref, item.url]
+  for (const value of candidates) {
+    if (!value) continue
+    const cleanValue = String(value).split(/[?#]/)[0]
+    const match = cleanValue.match(/\.([a-z0-9]{2,5})$/i)
+    if (match) return match[1].toUpperCase()
+  }
+  return { image: '图片', audio: '音频', video: '视频' }[item.type] || '文件'
 }
 
 /** 素材所属文件夹名称（独立素材才有） */
@@ -1482,6 +1490,7 @@ watch(
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
   padding: 20px 28px;
   border-bottom: 1px solid var(--border-light);
   background: var(--bg-secondary);
@@ -1492,7 +1501,9 @@ watch(
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex: 0 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
 }
 
 /* 返回上级文件夹按钮 */
@@ -1803,7 +1814,7 @@ watch(
 .media-content {
   flex: 1;
   overflow-y: auto;
-  padding: 24px 28px;
+  padding: 24px 12px;
   position: relative;
   scrollbar-width: none; /* Firefox 隐藏滚动条 */
   -ms-overflow-style: none; /* IE/Edge 隐藏滚动条 */
@@ -1822,10 +1833,12 @@ watch(
   align-items: center;
   gap: 12px;
   margin-left: auto;
+  min-width: 0;
 }
 
 .filter-tabs {
   display: flex;
+  flex-shrink: 0;
   gap: 4px;
   background: var(--bg-tertiary);
   border-radius: var(--radius-md);
@@ -1844,6 +1857,7 @@ watch(
   display: flex;
   align-items: center;
   gap: 5px;
+  white-space: nowrap;
 }
 
 .filter-tab:hover {
@@ -1878,7 +1892,10 @@ watch(
   padding: 8px 14px;
   background: var(--bg-tertiary);
   border-radius: var(--radius-lg);
-  width: 280px;
+  box-sizing: border-box;
+  width: 250px;
+  min-width: 180px;
+  flex: 1 1 250px;
   transition: all var(--transition-fast);
 }
 .search-box:focus-within {
@@ -1907,6 +1924,7 @@ watch(
   cursor: pointer;
   transition: all 0.18s cubic-bezier(.34,1.2,.64,1);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 .btn-import-export:hover {
   border-color: color-mix(in srgb, var(--primary-color) 40%, var(--border-color));
@@ -1944,7 +1962,7 @@ watch(
 }
 
 .media-grid {
-  padding: 20px 24px;
+  padding: 18px 24px 24px;
   position: relative;
   /* 瀑布流由 JS 计算每个卡片位置，容器高度也由 JS 设置；滚动交给外层 .media-content */
 }
@@ -1960,14 +1978,15 @@ watch(
 
 .media-card {
   border: 1px solid var(--border-light);
-  border-radius: 14px;
+  border-radius: 8px;
   overflow: hidden;
   cursor: pointer;
-  transition: transform 0.28s cubic-bezier(.34,1.3,.64,1), box-shadow 0.28s ease, border-color 0.2s ease;
+  box-shadow: none;
+  transition: border-color 0.18s ease, background 0.18s ease;
   background: var(--bg-secondary);
   display: flex;
   flex-direction: column;
-  animation: card-in 0.4s cubic-bezier(.22,.61,.36,1) backwards;
+  animation: none;
 }
 @keyframes card-in {
   from { opacity: 0; transform: translateY(12px); }
@@ -1975,19 +1994,17 @@ watch(
 }
 
 .media-card:hover {
-  border-color: color-mix(in srgb, var(--primary-color) 35%, var(--border-color));
-  box-shadow: 0 12px 32px -10px rgba(0,0,0,0.16), 0 4px 12px rgba(0,0,0,0.06);
-  transform: translateY(-5px);
+  border-color: color-mix(in srgb, var(--primary-color) 38%, var(--border-color));
+  background: var(--bg-secondary);
 }
 
 .media-card:active {
-  transform: translateY(-2px);
-  transition-duration: 0.08s;
+  background: var(--bg-tertiary);
 }
 
 .media-thumb {
   position: relative;
-  aspect-ratio: 1;
+  aspect-ratio: 4 / 3;
   background: var(--bg-tertiary);
   display: flex;
   align-items: center;
@@ -1995,14 +2012,9 @@ watch(
   overflow: hidden;
 }
 
-/* 缩略图底部渐变遮罩，与信息区融合增加深度 */
+/* 缩略图不再叠加装饰遮罩，素材本身优先。 */
 .media-thumb::after {
-  content: '';
-  position: absolute;
-  bottom: 0; left: 0; right: 0;
-  height: 40%;
-  background: linear-gradient(to top, rgba(0,0,0,0.08), transparent);
-  pointer-events: none;
+  display: none;
 }
 
 .media-thumb img {
@@ -2012,7 +2024,7 @@ watch(
   transition: transform 0.4s cubic-bezier(.22,.61,.36,1);
 }
 .media-card:hover .media-thumb img {
-  transform: scale(1.07);
+  transform: none;
 }
 
 .thumb-icon {
@@ -2020,7 +2032,7 @@ watch(
   opacity: 0.35;
   transition: opacity 0.25s, transform 0.25s;
 }
-.media-card:hover .thumb-icon { opacity: 0.5; transform: scale(1.08); }
+.media-card:hover .thumb-icon { opacity: 0.45; transform: none; }
 
 .thumb-video-cover {
   position: relative;
@@ -2034,7 +2046,7 @@ watch(
   transition: transform 0.4s cubic-bezier(.22,.61,.36,1);
 }
 .media-card:hover .thumb-video-cover img {
-  transform: scale(1.07);
+  transform: none;
 }
 .play-overlay {
   position: absolute;
@@ -2051,20 +2063,26 @@ watch(
   filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
   transition: transform 0.25s cubic-bezier(.34,1.3,.64,1);
 }
-.media-card:hover .play-overlay svg { transform: scale(1.12); }
+.media-card:hover .play-overlay svg { transform: none; }
 
 .type-badge {
   position: absolute;
-  top: 8px;
-  left: 8px;
+  top: 7px;
+  left: 7px;
   font-size: 10px;
-  padding: 2px 8px;
-  border-radius: 6px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
   font-weight: 600;
   color: #fff;
   letter-spacing: 0.03em;
-  backdrop-filter: blur(6px);
+  backdrop-filter: none;
   z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .type-badge.image { background: color-mix(in srgb, var(--primary-color) 70%, transparent); }
@@ -2072,33 +2090,49 @@ watch(
 .type-badge.video { background: rgba(142, 68, 173, 0.75); }
 
 .media-info {
-  padding: 9px 11px 11px;
+  min-height: 72px;
+  box-sizing: border-box;
+  padding: 10px 11px 11px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  border-top: 1px solid var(--border-light);
 }
 
 .media-info-header {
   display: flex;
   align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
 .media-name {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   line-height: 1.35;
-  letter-spacing: 0.01em;
+}
+
+.media-format {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.02em;
 }
 
 .media-info-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 18px;
+  min-width: 0;
 }
 
 .media-folder {
@@ -2110,42 +2144,19 @@ watch(
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 130px;
+  flex: 0 1 auto;
+  max-width: 38%;
 }
 .media-folder svg { flex-shrink: 0; opacity: 0.65; }
 
 .media-note-count {
-  font-size: 10.5px;
-  color: var(--text-tertiary);
-  white-space: nowrap;
-}
-
-.media-note-items {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-.media-note-chip {
   display: inline-flex;
   align-items: center;
   font-size: 10.5px;
-  font-weight: 500;
-  color: var(--primary-color);
-  background: color-mix(in srgb, var(--primary-color) 7%, transparent);
-  padding: 2px 8px;
-  border-radius: 999px;
-  cursor: pointer;
-  max-width: 100px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: var(--text-tertiary);
   white-space: nowrap;
-  transition: all 0.18s cubic-bezier(.34,1.2,.64,1);
-  border: 1px solid color-mix(in srgb, var(--primary-color) 10%, transparent);
-}
-.media-note-chip:hover {
-  background: color-mix(in srgb, var(--primary-color) 14%, transparent);
-  border-color: color-mix(in srgb, var(--primary-color) 28%, transparent);
-  transform: translateY(-1px);
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 /* 右键菜单 */
@@ -2243,7 +2254,7 @@ watch(
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 28px 8px;
+  padding: 8px 12px;
   flex-wrap: wrap;
 }
 .tag-filter-label {
@@ -2271,22 +2282,31 @@ watch(
 /* 素材卡片标签 */
 .media-tags {
   display: flex;
-  flex-wrap: wrap;
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
   gap: 4px;
+  margin-top: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 .media-tag-chip {
-  padding: 1px 7px;
+  padding: 2px 6px;
   border-radius: 4px;
   font-size: 10px;
   font-weight: 500;
   border: 1px solid transparent;
-  max-width: 70px;
+  max-width: 58px;
+  flex: 0 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: transform 0.15s;
+  line-height: 1.25;
 }
-.media-tag-chip:hover { transform: scale(1.05); }
+.media-tag-chip-more {
+  color: var(--text-tertiary);
+  background: var(--bg-tertiary) !important;
+  border-color: transparent !important;
+}
 
 /* 标签选择弹窗 */
 .tag-picker-modal {

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, protocol, Tray, Menu } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog, shell, protocol, Tray, Menu, safeStorage } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const { execSync } = require('child_process')
@@ -8,6 +8,8 @@ const imageService = require('./backend/service/imageService')
 let mainWindow
 let tray = null
 let isQuitting = false
+const AI_BASE_URL = 'https://open.bigmodel.cn/api/coding/paas/v4'
+const aiRequests = new Map()
 
 // 注册自定义协议（必须在 app.whenReady 之前）
 protocol.registerSchemesAsPrivileged([
@@ -260,6 +262,57 @@ ipcMain.handle('window-is-maximized', () => {
   return mainWindow ? mainWindow.isMaximized() : false
 })
 
+// AI 密钥和请求均留在主进程：渲染进程只能获得“是否已配置”的状态与业务结果，
+// 永远不会读到原始 API Key。
+ipcMain.handle('ai:status', () => {
+  const secureStorageAvailable = safeStorage.isEncryptionAvailable()
+  return {
+    configured: secureStorageAvailable && Boolean(loadConfig().aiApiKeyEncrypted),
+    secureStorageAvailable
+  }
+})
+
+ipcMain.handle('ai:save-api-key', (_event, value) => {
+  saveSecureAiKey(value)
+  return { configured: true }
+})
+
+ipcMain.handle('ai:clear-api-key', () => {
+  clearSecureAiKey()
+  return { configured: false }
+})
+
+ipcMain.handle('ai:validate-api-key', async (_event, candidate) => {
+  const apiKey = typeof candidate === 'string' && candidate.trim() ? candidate.trim() : getSecureAiKey()
+  await aiFetchJson('/chat/completions', {
+    method: 'POST',
+    apiKey,
+    body: { model: 'glm-4.7-flash', messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 },
+    maxRetries: 0
+  })
+  return { valid: true }
+})
+
+ipcMain.handle('ai:request', async (_event, request) => {
+  const requestId = typeof request?.requestId === 'string' ? request.requestId : ''
+  if (!/^[A-Za-z0-9_-]{8,80}$/.test(requestId)) throw new Error('无效的请求标识')
+  if (aiRequests.has(requestId)) throw new Error('请求正在执行')
+  const controller = new AbortController()
+  aiRequests.set(requestId, controller)
+  try {
+    return await runAiRequest(request.operation, request.payload, getSecureAiKey(), controller.signal)
+  } finally {
+    aiRequests.delete(requestId)
+  }
+})
+
+ipcMain.handle('ai:cancel', (_event, requestId) => {
+  const controller = aiRequests.get(requestId)
+  if (!controller) return false
+  controller.abort()
+  return true
+})
+
 // 导出截图：创建屏幕外隐藏窗口，加载应用 export 模式，原生截图
 // 主窗口完全不受影响（无缩放、无跳动），导出内容纯净（只有画布）
 ipcMain.handle('capture-export', async (_event, payload) => {
@@ -405,6 +458,170 @@ function ensureImagesDir() {
     fs.mkdirSync(dir, { recursive: true })
   }
   return dir
+}
+
+function getSecureAiKey() {
+  const encrypted = loadConfig().aiApiKeyEncrypted
+  if (!encrypted) return ''
+  if (!safeStorage.isEncryptionAvailable()) {
+    throw new Error('系统安全存储不可用，无法读取 API Key')
+  }
+  try {
+    return safeStorage.decryptString(Buffer.from(encrypted, 'base64'))
+  } catch (e) {
+    console.error('decrypt AI API key failed:', e)
+    throw new Error('保存的 API Key 无法读取，请在设置中重新保存')
+  }
+}
+
+function saveSecureAiKey(value) {
+  if (typeof value !== 'string' || !value.trim()) throw new Error('API Key 不能为空')
+  if (!safeStorage.isEncryptionAvailable()) {
+    throw new Error('系统安全存储不可用，未保存 API Key')
+  }
+  const config = loadConfig()
+  config.aiApiKeyEncrypted = safeStorage.encryptString(value.trim()).toString('base64')
+  // 兼容早期开发版可能写入配置文件的明文字段，保存时一并清理。
+  delete config.aiApiKey
+  saveConfig(config)
+}
+
+function clearSecureAiKey() {
+  const config = loadConfig()
+  delete config.aiApiKeyEncrypted
+  delete config.aiApiKey
+  saveConfig(config)
+}
+
+function abortError() {
+  const error = new Error('请求已取消')
+  error.name = 'AbortError'
+  return error
+}
+
+function delayWithSignal(ms, signal) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(abortError())
+    const timer = setTimeout(resolve, ms)
+    signal?.addEventListener('abort', () => {
+      clearTimeout(timer)
+      reject(abortError())
+    }, { once: true })
+  })
+}
+
+function normalizeAiModel(value, fallback) {
+  const model = typeof value === 'string' ? value.trim() : ''
+  if (!model) return fallback
+  if (model.length > 120 || !/^[A-Za-z0-9._:-]+$/.test(model)) throw new Error('无效的模型名称')
+  return model
+}
+
+function normalizeAiText(value, field, maxLength) {
+  if (typeof value !== 'string') throw new Error(`${field} 必须是文本`)
+  const text = value.trim()
+  if (!text) throw new Error(`${field} 不能为空`)
+  if (text.length > maxLength) throw new Error(`${field} 过长`)
+  return text
+}
+
+async function aiFetchJson(endpoint, { method = 'GET', body, apiKey, signal, maxRetries = 3 } = {}) {
+  let lastError = null
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const response = await fetch(`${AI_BASE_URL}${endpoint}`, {
+      method,
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+      signal
+    })
+    const data = await response.json().catch(() => ({}))
+    if (response.ok) return data
+
+    const apiError = data?.error || {}
+    const code = apiError.code || ''
+    const message = apiError.message || data?.msg || `HTTP ${response.status}`
+    if (response.status === 429 && attempt < maxRetries && !['1113', '1308', '1310', '1311', '1313', '1314', '1315', '1316', '1317'].includes(String(code))) {
+      lastError = new Error(message)
+      await delayWithSignal(2000 * Math.pow(2, attempt), signal)
+      continue
+    }
+    throw new Error(code ? `请求失败(${code})：${message}` : message)
+  }
+  throw lastError || new Error('请求失败')
+}
+
+function normalizeChatMessages(messages) {
+  if (!Array.isArray(messages) || messages.length === 0 || messages.length > 50) throw new Error('无效的对话内容')
+  return messages.map((message) => ({
+    role: ['user', 'assistant', 'system'].includes(message?.role) ? message.role : 'user',
+    content: normalizeAiText(message?.content, '消息内容', 12000)
+  }))
+}
+
+async function runAiRequest(operation, payload, apiKey, signal) {
+  if (!payload || typeof payload !== 'object') throw new Error('无效的 AI 请求')
+  if (operation === 'chat') {
+    const data = await aiFetchJson('/chat/completions', {
+      method: 'POST', apiKey, signal,
+      body: { model: normalizeAiModel(payload.model, 'glm-4.7-flash'), messages: normalizeChatMessages(payload.messages), temperature: 0.7, max_tokens: 4096 }
+    })
+    return { content: data.choices?.[0]?.message?.content || '(空回复)' }
+  }
+  if (operation === 'image') {
+    const data = await aiFetchJson('/images/generations', {
+      method: 'POST', apiKey, signal,
+      body: { model: normalizeAiModel(payload.model, 'cogview-3-flash'), prompt: normalizeAiText(payload.prompt, '提示词', 4000) }
+    })
+    const url = data.data?.[0]?.url
+    if (!url) throw new Error('未返回图片')
+    return { url }
+  }
+  if (operation === 'video') {
+    const data = await aiFetchJson('/videos/generations', {
+      method: 'POST', apiKey, signal,
+      body: { model: normalizeAiModel(payload.model, 'cogvideox-flash'), prompt: normalizeAiText(payload.prompt, '提示词', 4000) }
+    })
+    const taskId = data.id || data.task?.id
+    if (!taskId || typeof taskId !== 'string') throw new Error(data?.msg || '视频任务创建失败')
+    for (let attempt = 0; attempt < 60; attempt++) {
+      await delayWithSignal(5000, signal)
+      const result = await aiFetchJson(`/async-result/${encodeURIComponent(taskId)}`, { apiKey, signal, maxRetries: 0 })
+      if (result.task_status === 'SUCCESS') {
+        const url = result.video_result?.[0]?.url || result.results?.[0]?.url || result.video_result?.[0]?.cover_image_url
+        if (url) return { url }
+        throw new Error('视频生成成功但未返回地址')
+      }
+      if (result.task_status === 'FAIL') throw new Error(result.fail || '视频生成失败')
+    }
+    throw new Error('视频生成超时，请稍后重试')
+  }
+  throw new Error('不支持的 AI 操作')
+}
+
+/**
+ * 将 renderer 提供的相对文件名限制在指定目录内。
+ * path.join() 本身允许 ../../ 逃出目录，所有旧图片/备份 IPC 都必须经过这里。
+ */
+function resolveContainedPath(baseDir, relativePath) {
+  if (typeof relativePath !== 'string' || !relativePath || path.isAbsolute(relativePath)) {
+    throw new Error('无效的相对路径')
+  }
+  const base = path.resolve(baseDir)
+  const resolved = path.resolve(base, relativePath)
+  const relative = path.relative(base, resolved)
+  if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw new Error('路径超出允许目录')
+  }
+  return resolved
+}
+
+function assertRegularFile(filePath) {
+  const stat = fs.lstatSync(filePath)
+  if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('不允许的文件类型')
+}
+
+function isSafeBackupName(name) {
+  return typeof name === 'string' && /^backup_[A-Za-z0-9._-]+$/.test(name)
 }
 
 ipcMain.handle('get-storage-info', () => {
@@ -573,8 +790,9 @@ ipcMain.handle('save-image', async (_event, base64Data, ext) => {
 
 ipcMain.handle('read-image', async (_event, relativePath) => {
   try {
-    const filePath = path.join(getImagesDir(), relativePath)
+    const filePath = resolveContainedPath(getImagesDir(), relativePath)
     if (!fs.existsSync(filePath)) return null
+    assertRegularFile(filePath)
     const buffer = fs.readFileSync(filePath)
     const ext = path.extname(relativePath).slice(1).toLowerCase() || 'png'
     const mime = ext === 'jpg' ? 'jpeg' : ext
@@ -586,13 +804,22 @@ ipcMain.handle('read-image', async (_event, relativePath) => {
 })
 
 ipcMain.handle('resolve-image-path', async (_event, relativePath) => {
-  return path.join(getImagesDir(), relativePath)
+  try {
+    const filePath = resolveContainedPath(getImagesDir(), relativePath)
+    if (fs.existsSync(filePath)) assertRegularFile(filePath)
+    return filePath
+  } catch (_) {
+    return null
+  }
 })
 
 ipcMain.handle('delete-image', async (_event, relativePath) => {
   try {
-    const filePath = path.join(getImagesDir(), relativePath)
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+    const filePath = resolveContainedPath(getImagesDir(), relativePath)
+    if (fs.existsSync(filePath)) {
+      assertRegularFile(filePath)
+      fs.unlinkSync(filePath)
+    }
     return true
   } catch (e) {
     return false
@@ -732,10 +959,10 @@ ipcMain.handle('open-path', async (_event, targetPath) => {
 
 ipcMain.handle('open-backup', async (_event, name) => {
   try {
-    if (!name || typeof name !== 'string' || !name.startsWith('backup_')) {
+    if (!isSafeBackupName(name)) {
       return { ok: false, error: 'invalid backup name' }
     }
-    const full = path.join(app.getPath('userData'), name)
+    const full = resolveContainedPath(app.getPath('userData'), name)
     if (!fs.existsSync(full)) return { ok: false, error: 'backup not found' }
     const stat = fs.statSync(full)
     if (stat.isDirectory()) await shell.openPath(full)
@@ -844,8 +1071,9 @@ ipcMain.handle('list-backups', async () => {
 ipcMain.handle('delete-backup', async (_event, backupName) => {
   try {
     const userData = app.getPath('userData')
-    const full = path.join(userData, backupName)
-    if (fs.existsSync(full) && backupName.startsWith('backup_')) {
+    if (!isSafeBackupName(backupName)) return false
+    const full = resolveContainedPath(userData, backupName)
+    if (fs.existsSync(full)) {
       fs.rmSync(full, { recursive: true, force: true })
       return true
     }
