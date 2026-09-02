@@ -76,7 +76,6 @@
             <line x1="14" y1="11" x2="14" y2="17"/>
           </svg>
           <span>回收站</span>
-          <span v-if="trashCount" class="badge">{{ trashCount }}</span>
         </router-link>
       </nav>
     </div>
@@ -612,7 +611,6 @@ const folderDropdownStyle = ref({})
 const folderSelectTriggerRef = ref(null)
 
 const todayPlanCount = computed(() => planStore.todayPlans?.length || 0)
-const trashCount = computed(() => noteStore.deletedNotes?.length || 0)
 const tagCount = computed(() => tagStore.tags?.length || 0)
 const currentFolderName = computed(() => {
   if (!noteStore.currentFolderId) return ''

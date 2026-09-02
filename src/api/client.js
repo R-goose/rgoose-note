@@ -22,6 +22,8 @@ const routes = [
   { m: 'PUT',    p: '/notes/:id',              c: 'backend:notes:update',    b: (p, body) => [{ id: p.id, note: body }] },
   { m: 'PATCH',  p: '/notes/:id/tags',         c: 'backend:notes:updateTags', b: (p, body) => [{ id: p.id, tags: body.tags }] },
   { m: 'DELETE', p: '/notes/:id',              c: 'backend:notes:delete',    b: (p) => [p.id] },
+  { m: 'POST',   p: '/notes/:id/restore',      c: 'backend:notes:restore',   b: (p) => [p.id] },
+  { m: 'DELETE', p: '/notes/:id/hard',         c: 'backend:notes:hardDelete', b: (p) => [p.id] },
   { m: 'POST',   p: '/notes/:id/duplicate',    c: 'backend:notes:duplicate', b: (p) => [p.id] },
 
   // ---------- Blocks ----------
@@ -269,4 +271,4 @@ export const http = {
   }
 }
 
-export { isElectron }
+export { isElectron, matchRoute }
