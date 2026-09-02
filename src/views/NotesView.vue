@@ -211,7 +211,7 @@
           :key="note.id"
           class="note-card"
           @click="openNote(note.id)"
-          @contextmenu.prevent="onNoteContextMenu($event, note)"
+          @contextmenu.prevent.stop="onNoteContextMenu($event, note)"
         >
           <div class="note-card-media" :class="{ 'has-cover': getNoteCover(note) }">
             <img v-if="getNoteCover(note)" :src="getNoteCover(note)" alt="" loading="lazy" />
