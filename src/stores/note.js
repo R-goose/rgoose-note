@@ -435,7 +435,10 @@ export const useNoteStore = defineStore('note', () => {
     }
 
     markSaving()
-    notesApi.delete(id)
+    return notesApi.delete(id)
+      .then(() => {
+        toastSuccess(`笔记「${note.title || '未命名笔记'}」已移入回收站`)
+      })
       .catch(err => {
         console.error('删除笔记失败:', err)
         note.deleted = backup.deleted
