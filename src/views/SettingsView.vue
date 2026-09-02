@@ -41,10 +41,29 @@
       </div>
     </header>
 
-    <div class="settings-content">
+    <div ref="settingsContentRef" class="settings-content" @scroll.passive="onSettingsScroll">
      <BgDecor />
+     <div class="settings-layout">
+      <nav class="settings-nav" aria-label="设置快速定位">
+        <div class="settings-nav-title">快速定位</div>
+        <div class="settings-nav-list">
+          <button
+            v-for="section in settingsSections"
+            :key="section.id"
+            type="button"
+            class="settings-nav-item"
+            :class="{ active: activeSettingsSection === section.id }"
+            :aria-current="activeSettingsSection === section.id ? 'location' : undefined"
+            @click="scrollToSettingsSection(section.id)"
+          >
+            <span class="settings-nav-dot" :class="section.color"></span>
+            <span>{{ section.label }}</span>
+          </button>
+        </div>
+      </nav>
+
      <div class="settings-inner">
-      <section class="settings-section">
+      <section id="settings-section-data" class="settings-section">
         <h2 class="section-title"><span class="title-bar bar-blue"></span>数据管理</h2>
         <div class="settings-list">
           <div id="set-export" class="setting-item">
@@ -225,7 +244,7 @@
         </div>
       </section>
 
-      <section class="settings-section">
+      <section id="settings-section-shortcuts" class="settings-section">
         <h2 class="section-title"><span class="title-bar bar-purple"></span>快捷键</h2>
         <div class="shortcut-toolbar">
           <span class="shortcut-tip">点击按键框重新录入，按 Esc 取消</span>
@@ -267,7 +286,7 @@
         </div>
       </section>
 
-      <section class="settings-section">
+      <section id="settings-section-ai" class="settings-section">
         <h2 class="section-title"><span class="title-bar bar-yellow"></span>AI 设置</h2>
         <div class="settings-list">
           <div id="set-ai-key" class="setting-item">
@@ -412,7 +431,7 @@
         </div>
       </section>
 
-      <section v-if="canCloseToTray" class="settings-section">
+      <section v-if="canCloseToTray" id="settings-section-general" class="settings-section">
         <h2 class="section-title"><span class="title-bar bar-blue"></span>通用</h2>
         <div class="settings-list">
           <div id="set-close-to-tray" class="setting-item">
@@ -428,13 +447,13 @@
         </div>
       </section>
 
-      <section class="settings-section">
+      <section id="settings-section-about" class="settings-section">
         <h2 class="section-title"><span class="title-bar bar-green"></span>关于</h2>
         <div class="settings-list">
           <div id="set-about-version" class="setting-item">
             <div class="setting-info">
               <div class="setting-name brand-name">R-Goose Note</div>
-              <div class="setting-desc">版本 2.4.8</div>
+              <div class="setting-desc">版本 2.4.9</div>
             </div>
           </div>
           <div id="set-about-platform" class="setting-item">
@@ -452,6 +471,7 @@
  
         </div>
       </section>
+     </div>
      </div>
     </div>
 
@@ -618,6 +638,60 @@ const showClearCacheConfirm = ref(false)
 // ============ 通用：关闭到托盘 ============
 const canCloseToTray = typeof window !== 'undefined' && !!window.electronAPI?.getCloseToTray
 const closeToTray = ref(false)
+
+const settingsContentRef = ref(null)
+const activeSettingsSection = ref('settings-section-data')
+const settingsSections = computed(() => [
+  { id: 'settings-section-data', label: '数据管理', color: 'is-blue' },
+  { id: 'settings-section-shortcuts', label: '快捷键', color: 'is-purple' },
+  { id: 'settings-section-ai', label: 'AI 设置', color: 'is-yellow' },
+  ...(canCloseToTray ? [{ id: 'settings-section-general', label: '通用', color: 'is-blue' }] : []),
+  { id: 'settings-section-about', label: '关于', color: 'is-green' }
+])
+
+function scrollToSettingsSection(id) {
+  const container = settingsContentRef.value
+  const section = document.getElementById(id)
+  if (!container || !section) return
+
+  const containerRect = container.getBoundingClientRect()
+  const sectionRect = section.getBoundingClientRect()
+  const targetTop = container.scrollTop + sectionRect.top - containerRect.top - 20
+  activeSettingsSection.value = id
+  container.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' })
+}
+
+let settingsScrollFrame = null
+
+function updateActiveSettingsSection() {
+  settingsScrollFrame = null
+  const container = settingsContentRef.value
+  if (!container) return
+
+  const availableSections = settingsSections.value
+    .map(section => ({ ...section, element: document.getElementById(section.id) }))
+    .filter(section => section.element)
+  if (!availableSections.length) return
+
+  if (container.scrollTop + container.clientHeight >= container.scrollHeight - 4) {
+    activeSettingsSection.value = availableSections.at(-1).id
+    return
+  }
+
+  const containerTop = container.getBoundingClientRect().top
+  const activationLine = containerTop + 72
+  let currentId = availableSections[0].id
+  for (const section of availableSections) {
+    if (section.element.getBoundingClientRect().top <= activationLine) currentId = section.id
+    else break
+  }
+  activeSettingsSection.value = currentId
+}
+
+function onSettingsScroll() {
+  if (settingsScrollFrame != null) return
+  settingsScrollFrame = requestAnimationFrame(updateActiveSettingsSection)
+}
 
 async function onToggleCloseToTray() {
   try {
@@ -976,7 +1050,10 @@ function handleDocClick(e) {
   }
 }
 onMounted(() => { document.addEventListener('click', handleDocClick) })
-onUnmounted(() => { document.removeEventListener('click', handleDocClick) })
+onUnmounted(() => {
+  document.removeEventListener('click', handleDocClick)
+  if (settingsScrollFrame != null) cancelAnimationFrame(settingsScrollFrame)
+})
 onMounted(() => { document.addEventListener('mousedown', handleDropdownOutsideClick) })
 onUnmounted(() => { document.removeEventListener('mousedown', handleDropdownOutsideClick) })
 const pendingImportData = ref(null)
@@ -1622,17 +1699,104 @@ function resetAllShortcuts() {
   position: relative;
 }
 
-.settings-inner {
+.settings-layout {
   position: relative;
   z-index: 1;
-  max-width: 900px;
+  display: grid;
+  grid-template-columns: 156px minmax(0, 900px);
+  align-items: start;
+  gap: 28px;
+  max-width: 1084px;
   margin: 0 auto;
+}
+
+.settings-nav {
+  position: sticky;
+  top: 20px;
+  padding: 10px;
+  background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 24px -20px rgba(22, 34, 28, 0.45);
+  backdrop-filter: blur(12px);
+}
+
+.settings-nav-title {
+  padding: 4px 8px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  letter-spacing: 0.06em;
+}
+
+.settings-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.settings-nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 9px 10px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.settings-nav-item:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.settings-nav-item.active {
+  color: var(--primary-dark);
+  background: var(--primary-soft);
+  font-weight: 600;
+}
+
+.settings-nav-item:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+.settings-nav-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--text-tertiary);
+  transition: transform var(--transition-fast), background var(--transition-fast);
+}
+
+.settings-nav-dot.is-blue { background: var(--info-color); }
+.settings-nav-dot.is-purple { background: #9b6dd7; }
+.settings-nav-dot.is-yellow { background: var(--secondary-dark); }
+.settings-nav-dot.is-green { background: var(--primary-color); }
+
+.settings-nav-item.active .settings-nav-dot {
+  transform: scale(1.35);
+}
+
+.settings-inner {
+  position: relative;
+  min-width: 0;
   width: 100%;
 }
 
 .settings-section {
   width: 100%;
   margin-bottom: 36px;
+  scroll-margin-top: 20px;
 }
 
 .section-title {
@@ -2242,6 +2406,40 @@ function resetAllShortcuts() {
 .import-folder-input:focus {
   border-color: var(--primary-color);
   box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+@media (max-width: 980px) {
+  .settings-layout {
+    display: block;
+  }
+
+  .settings-nav {
+    top: 10px;
+    z-index: 10;
+    margin-bottom: 20px;
+    padding: 6px;
+  }
+
+  .settings-nav-title {
+    display: none;
+  }
+
+  .settings-nav-list {
+    flex-direction: row;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .settings-nav-list::-webkit-scrollbar {
+    display: none;
+  }
+
+  .settings-nav-item {
+    width: auto;
+    flex: 0 0 auto;
+    padding: 8px 10px;
+    white-space: nowrap;
+  }
 }
 
 @media (max-width: 768px) {
