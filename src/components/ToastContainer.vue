@@ -76,30 +76,25 @@ const { toasts, removeToast } = useToast()
 }
 
 .toast-enter-active {
-  animation: toastJellyIn 1s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: toastJellyIn var(--motion-jelly-enter) var(--motion-jelly-ease) both;
 }
 
 .toast-leave-active {
-  animation: toastJellyOut 0.26s cubic-bezier(0.55, 0, 0.8, 0.4) both;
+  animation: toastJellyOut var(--motion-jelly-exit) var(--motion-jelly-exit-ease) both;
 }
 
-/* 果冻入场：从顶部落下砸扁再弹起回正 */
+/* 从顶部轻落，只保留一次柔和形变 */
 @keyframes toastJellyIn {
-  0% { transform: translateY(-30px) scale(0.5, 0.4); opacity: 0; }
-  16% { transform: translateY(0) scale(1.16, 0.84); opacity: 1; }
-  32% { transform: scale(0.92, 1.07); }
-  48% { transform: scale(1.07, 0.95); }
-  64% { transform: scale(0.96, 1.03); }
-  78% { transform: scale(1.02, 0.99); }
-  90% { transform: scale(0.99, 1.01); }
-  100% { transform: scale(1, 1); }
+  0% { transform: translateY(-16px) scale(0.94, 0.88); opacity: 0; }
+  54% { transform: translateY(1px) scale(1.014, 0.986); opacity: 1; }
+  78% { transform: translateY(0) scale(0.996, 1.004); }
+  100% { transform: none; opacity: 1; }
 }
 
-/* 果冻退场：先压扁蓄力再缩小弹走 */
+/* 退场直接上移淡出，操作反馈更利落 */
 @keyframes toastJellyOut {
-  0% { transform: scale(1, 1); opacity: 1; }
-  30% { transform: scale(1.1, 0.84); opacity: 1; }
-  100% { transform: translateY(-20px) scale(0.55, 0.35); opacity: 0; }
+  from { transform: none; opacity: 1; }
+  to { transform: translateY(-8px) scale(0.98, 0.96); opacity: 0; }
 }
 
 .toast-move {

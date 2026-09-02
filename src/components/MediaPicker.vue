@@ -151,11 +151,12 @@ function confirm() {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: jellyPop 1s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation: jellyPop var(--motion-jelly-enter) var(--motion-jelly-ease) backwards;
+  transform-origin: center bottom;
 }
 
 .jmodal-leave-active .media-picker-modal {
-  animation: jellyOut 0.24s cubic-bezier(0.55, 0, 0.8, 0.4) both;
+  animation: jellyOut var(--motion-jelly-exit) var(--motion-jelly-exit-ease) both;
 }
 
 .picker-header {

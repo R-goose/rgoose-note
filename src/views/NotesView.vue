@@ -2038,19 +2038,15 @@ onUnmounted(() => {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   padding: 6px;
-  animation: ctxJellyPop 1s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation: ctxJellyPop var(--motion-jelly-menu) var(--motion-jelly-ease) backwards;
   transform-origin: top left;
 }
 
 @keyframes ctxJellyPop {
-  0% { opacity: 0; transform: scale(0.5, 0.36); }
-  16% { opacity: 1; transform: scale(1.14, 0.9); }
-  32% { transform: scale(0.91, 1.07); }
-  48% { transform: scale(1.06, 0.96); }
-  64% { transform: scale(0.96, 1.03); }
-  78% { transform: scale(1.02, 0.99); }
-  90% { transform: scale(0.99, 1.01); }
-  100% { transform: scale(1, 1); }
+  0% { opacity: 0; transform: translateY(-3px) scale(0.92, 0.84); }
+  58% { opacity: 1; transform: translateY(0) scale(1.012, 0.988); }
+  80% { transform: scale(0.996, 1.004); }
+  100% { transform: none; opacity: 1; }
 }
 
 .context-menu-item {

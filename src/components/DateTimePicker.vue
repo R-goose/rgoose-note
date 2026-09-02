@@ -588,30 +588,25 @@ onUnmounted(() => {
 }
 
 .dtp-enter-active {
-  animation: dtpJellyIn 1s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: dtpJellyIn var(--motion-jelly-menu) var(--motion-jelly-ease) both;
   transform-origin: bottom center;
   will-change: transform;
 }
 
 .dtp-leave-active {
-  animation: dtpJellyOut 0.22s cubic-bezier(0.55, 0, 0.8, 0.4) both;
+  animation: dtpJellyOut var(--motion-jelly-exit) var(--motion-jelly-exit-ease) both;
   transform-origin: bottom center;
 }
 
 @keyframes dtpJellyIn {
-  0% { opacity: 0; transform: scale(0.78, 0.3); }
-  16% { opacity: 1; transform: scale(0.94, 1.16); }
-  32% { transform: scale(1.03, 0.9); }
-  48% { transform: scale(0.99, 1.06); }
-  64% { transform: scale(1.005, 0.965); }
-  78% { transform: scale(0.998, 1.025); }
-  90% { transform: scale(1.001, 0.99); }
-  100% { transform: scale(1, 1); }
+  0% { opacity: 0; transform: translateY(5px) scale(0.96, 0.84); }
+  58% { opacity: 1; transform: translateY(0) scale(1.006, 1.012); }
+  80% { transform: scale(0.998, 0.996); }
+  100% { transform: none; opacity: 1; }
 }
 
 @keyframes dtpJellyOut {
-  0% { transform: scaleY(1); opacity: 1; }
-  35% { transform: scaleY(1.1); opacity: 1; }
-  100% { transform: scaleY(0.4) translateY(6px); opacity: 0; }
+  from { transform: none; opacity: 1; }
+  to { transform: translateY(4px) scale(0.98, 0.92); opacity: 0; }
 }
 </style>

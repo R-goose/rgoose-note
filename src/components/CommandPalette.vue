@@ -249,17 +249,17 @@ function executeItem(item) {
   color: var(--text-tertiary, var(--text-secondary));
 }
 .cmd-fade-enter-active {
-  transition: opacity 1.05s ease;
+  transition: opacity var(--motion-jelly-enter) ease-out;
 }
 .cmd-fade-enter-active .cmd-palette {
-  animation: jellyPop 1s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: jellyPop var(--motion-jelly-enter) var(--motion-jelly-ease) both;
   will-change: transform;
 }
 .cmd-fade-leave-active {
-  transition: opacity 0.26s ease;
+  transition: opacity var(--motion-jelly-exit) ease-in;
 }
 .cmd-fade-leave-active .cmd-palette {
-  animation: jellyOut 0.24s cubic-bezier(0.55, 0, 0.8, 0.4) both;
+  animation: jellyOut var(--motion-jelly-exit) var(--motion-jelly-exit-ease) both;
 }
 .cmd-fade-enter-from,
 .cmd-fade-leave-to {

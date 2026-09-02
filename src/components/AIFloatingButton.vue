@@ -932,7 +932,7 @@ const renderMarkdown = renderSafeAiMarkdown
   border-radius: 8px;
   box-shadow: 0 20px 60px rgba(0,0,0,0.5);
   cursor: default;
-  animation: jellyPop 1s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation: jellyPop var(--motion-jelly-enter) var(--motion-jelly-ease) backwards;
 }
 
 .ai-preview-close {
@@ -1195,20 +1195,17 @@ const renderMarkdown = renderSafeAiMarkdown
 .ai-hint-dot.video { background: #8b5cf6; }
 
 /* ===== 过渡：软弹果冻 ===== */
-.ai-chat-enter-active { animation: aiJellyIn 1s cubic-bezier(0.22, 1, 0.36, 1) both; will-change: transform; }
-.ai-chat-leave-active { animation: aiJellyOut 0.24s cubic-bezier(0.55, 0, 0.8, 0.4) both; }
+.ai-chat-enter-active { animation: aiJellyIn var(--motion-jelly-enter) var(--motion-jelly-ease) both; will-change: transform; }
+.ai-chat-leave-active { animation: aiJellyOut var(--motion-jelly-exit) var(--motion-jelly-exit-ease) both; }
 @keyframes aiJellyIn {
-  0% { opacity: 0; transform: scale(0.65, 0.5) translateY(12px); }
-  42% { opacity: 1; transform: scale(1.05, 0.92) translateY(0); }
-  58% { transform: scale(0.96, 1.04); }
-  74% { transform: scale(1.02, 0.98); }
-  88% { transform: scale(0.99, 1.01); }
-  100% { transform: scale(1, 1); }
+  0% { opacity: 0; transform: translateY(10px) scale(0.94, 0.9); }
+  52% { opacity: 1; transform: translateY(-1px) scale(1.018, 0.985); }
+  76% { transform: translateY(0) scale(0.994, 1.006); }
+  100% { transform: none; opacity: 1; }
 }
 @keyframes aiJellyOut {
-  0% { transform: scale(1, 1); opacity: 1; }
-  30% { transform: scale(1.08, 0.88); opacity: 1; }
-  100% { transform: scale(0.6, 0.4) translateY(12px); opacity: 0; }
+  from { transform: none; opacity: 1; }
+  to { transform: translateY(6px) scale(0.97, 0.94); opacity: 0; }
 }
 
 /* ===== 缩放手柄 ===== */

@@ -2169,18 +2169,14 @@ watch(
   border-radius: 10px;
   box-shadow: 0 8px 28px -6px rgba(0,0,0,.18);
   padding: 5px;
-  animation: ctxJellyPop 1s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation: ctxJellyPop var(--motion-jelly-menu) var(--motion-jelly-ease) backwards;
   transform-origin: top left;
 }
 @keyframes ctxJellyPop {
-  0% { opacity: 0; transform: scale(0.5, 0.36); }
-  16% { opacity: 1; transform: scale(1.14, 0.9); }
-  32% { transform: scale(0.91, 1.07); }
-  48% { transform: scale(1.06, 0.96); }
-  64% { transform: scale(0.96, 1.03); }
-  78% { transform: scale(1.02, 0.99); }
-  90% { transform: scale(0.99, 1.01); }
-  100% { transform: scale(1, 1); }
+  0% { opacity: 0; transform: translateY(-3px) scale(0.92, 0.84); }
+  58% { opacity: 1; transform: translateY(0) scale(1.012, 0.988); }
+  80% { transform: scale(0.996, 1.004); }
+  100% { transform: none; opacity: 1; }
 }
 
 .ctx-item {
@@ -2318,12 +2314,12 @@ watch(
   display: flex;
   flex-direction: column;
   box-shadow: 0 8px 32px rgba(0,0,0,.15);
-  animation: jellyPop 0.45s cubic-bezier(0.34, 1.4, 0.44, 1) both;
-  will-change: transform;
+  animation: jellyPop var(--motion-jelly-enter) var(--motion-jelly-ease) backwards;
+  transform-origin: center bottom;
 }
 
 .jmodal-leave-active .tag-picker-modal {
-  animation: jellyOut 0.24s cubic-bezier(0.55, 0, 0.8, 0.4) both;
+  animation: jellyOut var(--motion-jelly-exit) var(--motion-jelly-exit-ease) both;
 }
 .tag-picker-header {
   display: flex;

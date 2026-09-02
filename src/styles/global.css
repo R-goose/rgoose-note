@@ -143,7 +143,7 @@ body[data-theme="dark"] {
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  animation: fadeIn 0.2s ease;
+  animation: fadeIn 180ms ease-out;
 }
 
 .modal-content {
@@ -153,12 +153,13 @@ body[data-theme="dark"] {
   max-width: 90vw;
   max-height: 90vh;
   overflow: auto;
-  animation: jellyPop 1s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation: jellyPop var(--motion-jelly-enter) var(--motion-jelly-ease) backwards;
+  transform-origin: center bottom;
 }
 
-/* JellyModal 退场：遮罩淡出 + 内容果冻压缩 */
+/* JellyModal 退场：遮罩与内容同步快速收起 */
 .jmodal-leave-active {
-  transition: opacity 0.26s ease;
+  transition: opacity var(--motion-jelly-exit) ease-in;
   animation: none;
 }
 
@@ -167,7 +168,7 @@ body[data-theme="dark"] {
 }
 
 .jmodal-leave-active .modal-content {
-  animation: jellyOut 0.24s cubic-bezier(0.55, 0, 0.8, 0.4) both;
+  animation: jellyOut var(--motion-jelly-exit) var(--motion-jelly-exit-ease) both;
 }
 
 .confirm-modal {
@@ -221,32 +222,28 @@ body[data-theme="dark"] {
   to { opacity: 1; }
 }
 
-/* ===== 果冻材质动画（与启动页 splash 同款 squash & stretch） ===== */
-/* 弹窗/面板入场：压扁拉伸弹出回正 */
+/* ===== 交互果冻动画：短促、轻量的 squash & stretch ===== */
+/* 弹窗/面板入场：一次柔和过冲 + 一次微弱回弹 */
 @keyframes jellyPop {
-  0% { transform: scale(0.45, 0.3); opacity: 0; }
-  16% { transform: scale(1.15, 0.88); opacity: 1; }
-  32% { transform: scale(0.91, 1.07); }
-  48% { transform: scale(1.07, 0.95); }
-  64% { transform: scale(0.96, 1.03); }
-  78% { transform: scale(1.02, 0.99); }
-  90% { transform: scale(0.99, 1.01); }
-  100% { transform: scale(1, 1); opacity: 1; }
+  0% { transform: translateY(10px) scale(0.94, 0.9); opacity: 0; }
+  52% { transform: translateY(-1px) scale(1.018, 0.985); opacity: 1; }
+  74% { transform: translateY(0) scale(0.994, 1.006); }
+  88% { transform: scale(1.003, 0.998); }
+  100% { transform: none; opacity: 1; }
 }
 
-/* 退场：先鼓一下再压扁缩小消失 */
+/* 退场不再蓄力回弹，避免操作完成后仍有拖沓感 */
 @keyframes jellyOut {
-  0% { transform: scale(1, 1); opacity: 1; }
-  30% { transform: scale(1.07, 0.88); opacity: 1; }
-  100% { transform: scale(0.55, 0.3); opacity: 0; }
+  from { transform: none; opacity: 1; }
+  to { transform: translateY(6px) scale(0.97, 0.94); opacity: 0; }
 }
 
 /* 小型浮层（下拉/菜单）：轻量果冻弹出 */
 @keyframes jellyPopSm {
-  0% { transform: scale(0.7, 0.5) translateY(-6px); opacity: 0; }
-  50% { transform: scale(1.05, 0.93) translateY(1px); opacity: 1; }
-  72% { transform: scale(0.97, 1.04); }
-  100% { transform: scale(1, 1); }
+  0% { transform: translateY(-4px) scale(0.92, 0.84); opacity: 0; }
+  58% { transform: translateY(0) scale(1.012, 0.988); opacity: 1; }
+  80% { transform: scale(0.996, 1.004); }
+  100% { transform: none; opacity: 1; }
 }
 
 .dropdown {
@@ -258,8 +255,31 @@ body[data-theme="dark"] {
   padding: 6px;
   min-width: 160px;
   z-index: 100;
-  animation: jellyPopSm 1s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation: jellyPopSm var(--motion-jelly-menu) var(--motion-jelly-ease) backwards;
   transform-origin: top center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-overlay,
+  .modal-content,
+  .dropdown,
+  .toast,
+  .folder-context-menu,
+  .context-menu,
+  .media-context-menu,
+  .tag-picker-modal,
+  .media-picker-modal,
+  .cmd-palette-overlay,
+  .cmd-palette,
+  .cs-menu,
+  .dtp-panel,
+  .ai-chat,
+  .ai-preview,
+  .ai-preview-img {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 .dropdown-item {
