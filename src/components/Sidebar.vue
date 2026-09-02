@@ -1816,9 +1816,8 @@ function closeFolderModalTagDropdown(e) {
 }
 
 @keyframes ctxJellyPop {
-  0% { opacity: 0; transform: translateY(-3px) scale(0.92, 0.84); }
-  58% { opacity: 1; transform: translateY(0) scale(1.012, 0.988); }
-  80% { transform: scale(0.996, 1.004); }
+  0% { opacity: 0; transform: scale(0.88); }
+  65% { opacity: 1; transform: scale(1.008); }
   100% { transform: none; opacity: 1; }
 }
 

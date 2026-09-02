@@ -245,7 +245,7 @@ onUnmounted(() => {
   color: var(--primary-color);
 }
 
-/* 下拉动画：短促软弹，方向由 transform-origin 决定 */
+/* 下拉动画：从触发点由小到大渐入 */
 .cs-enter-active {
   animation: csJellyDown var(--motion-jelly-menu) var(--motion-jelly-ease) both;
   transform-origin: top center;
@@ -268,26 +268,24 @@ onUnmounted(() => {
 }
 
 @keyframes csJellyDown {
-  0% { opacity: 0; transform: translateY(-4px) scale(0.96, 0.84); }
-  58% { opacity: 1; transform: translateY(0) scale(1.006, 1.012); }
-  80% { transform: scale(0.998, 0.996); }
+  0% { opacity: 0; transform: scale(0.9); }
+  65% { opacity: 1; transform: scale(1.008); }
   100% { transform: none; opacity: 1; }
 }
 
 @keyframes csJellyOutDown {
   from { transform: none; opacity: 1; }
-  to { transform: translateY(-3px) scale(0.98, 0.92); opacity: 0; }
+  to { transform: scale(0.94); opacity: 0; }
 }
 
 @keyframes csJellyUp {
-  0% { opacity: 0; transform: translateY(4px) scale(0.96, 0.84); }
-  58% { opacity: 1; transform: translateY(0) scale(1.006, 1.012); }
-  80% { transform: scale(0.998, 0.996); }
+  0% { opacity: 0; transform: scale(0.9); }
+  65% { opacity: 1; transform: scale(1.008); }
   100% { transform: none; opacity: 1; }
 }
 
 @keyframes csJellyOutUp {
   from { transform: none; opacity: 1; }
-  to { transform: translateY(3px) scale(0.98, 0.92); opacity: 0; }
+  to { transform: scale(0.94); opacity: 0; }
 }
 </style>

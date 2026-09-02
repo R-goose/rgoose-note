@@ -2173,9 +2173,8 @@ watch(
   transform-origin: top left;
 }
 @keyframes ctxJellyPop {
-  0% { opacity: 0; transform: translateY(-3px) scale(0.92, 0.84); }
-  58% { opacity: 1; transform: translateY(0) scale(1.012, 0.988); }
-  80% { transform: scale(0.996, 1.004); }
+  0% { opacity: 0; transform: scale(0.88); }
+  65% { opacity: 1; transform: scale(1.008); }
   100% { transform: none; opacity: 1; }
 }
 
@@ -2315,7 +2314,7 @@ watch(
   flex-direction: column;
   box-shadow: 0 8px 32px rgba(0,0,0,.15);
   animation: jellyPop var(--motion-jelly-enter) var(--motion-jelly-ease) backwards;
-  transform-origin: center bottom;
+  transform-origin: center;
 }
 
 .jmodal-leave-active .tag-picker-modal {

@@ -599,14 +599,13 @@ onUnmounted(() => {
 }
 
 @keyframes dtpJellyIn {
-  0% { opacity: 0; transform: translateY(5px) scale(0.96, 0.84); }
-  58% { opacity: 1; transform: translateY(0) scale(1.006, 1.012); }
-  80% { transform: scale(0.998, 0.996); }
+  0% { opacity: 0; transform: scale(0.9); }
+  65% { opacity: 1; transform: scale(1.008); }
   100% { transform: none; opacity: 1; }
 }
 
 @keyframes dtpJellyOut {
   from { transform: none; opacity: 1; }
-  to { transform: translateY(4px) scale(0.98, 0.92); opacity: 0; }
+  to { transform: scale(0.94); opacity: 0; }
 }
 </style>

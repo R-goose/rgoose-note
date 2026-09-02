@@ -83,18 +83,17 @@ const { toasts, removeToast } = useToast()
   animation: toastJellyOut var(--motion-jelly-exit) var(--motion-jelly-exit-ease) both;
 }
 
-/* 从顶部轻落，只保留一次柔和形变 */
+/* 整体从小到大渐入，避免方向性跳动 */
 @keyframes toastJellyIn {
-  0% { transform: translateY(-16px) scale(0.94, 0.88); opacity: 0; }
-  54% { transform: translateY(1px) scale(1.014, 0.986); opacity: 1; }
-  78% { transform: translateY(0) scale(0.996, 1.004); }
+  0% { transform: scale(0.9); opacity: 0; }
+  64% { transform: scale(1.01); opacity: 1; }
   100% { transform: none; opacity: 1; }
 }
 
-/* 退场直接上移淡出，操作反馈更利落 */
+/* 退场原位缩小淡出 */
 @keyframes toastJellyOut {
   from { transform: none; opacity: 1; }
-  to { transform: translateY(-8px) scale(0.98, 0.96); opacity: 0; }
+  to { transform: scale(0.96); opacity: 0; }
 }
 
 .toast-move {

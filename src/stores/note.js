@@ -19,7 +19,7 @@ export const useNoteStore = defineStore('note', () => {
   let cachedPullData = null
   const lastSyncTime = ref(0)
   const saveStatus = ref('saved') // 'saved' | 'saving'
-  const { error: toastError } = useToast()
+  const { error: toastError, success: toastSuccess } = useToast()
 
   // ==================== 计算属性（只读，不改动） ====================
 
@@ -307,7 +307,10 @@ export const useNoteStore = defineStore('note', () => {
     }
 
     markSaving()
-    foldersApi.delete(folderId)
+    return foldersApi.delete(folderId)
+      .then(() => {
+        toastSuccess(`文件夹「${folder.name}」已移入回收站`)
+      })
       .catch(err => {
         console.error('删除文件夹失败:', err)
         // 回滚所有文件夹

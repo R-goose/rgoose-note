@@ -1198,14 +1198,14 @@ const renderMarkdown = renderSafeAiMarkdown
 .ai-chat-enter-active { animation: aiJellyIn var(--motion-jelly-enter) var(--motion-jelly-ease) both; will-change: transform; }
 .ai-chat-leave-active { animation: aiJellyOut var(--motion-jelly-exit) var(--motion-jelly-exit-ease) both; }
 @keyframes aiJellyIn {
-  0% { opacity: 0; transform: translateY(10px) scale(0.94, 0.9); }
-  52% { opacity: 1; transform: translateY(-1px) scale(1.018, 0.985); }
-  76% { transform: translateY(0) scale(0.994, 1.006); }
+  0% { opacity: 0; transform: scale(0.86); }
+  62% { opacity: 1; transform: scale(1.012); }
+  82% { transform: scale(0.997); }
   100% { transform: none; opacity: 1; }
 }
 @keyframes aiJellyOut {
   from { transform: none; opacity: 1; }
-  to { transform: translateY(6px) scale(0.97, 0.94); opacity: 0; }
+  to { transform: scale(0.94); opacity: 0; }
 }
 
 /* ===== 缩放手柄 ===== */

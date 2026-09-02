@@ -152,7 +152,7 @@ function confirm() {
   flex-direction: column;
   overflow: hidden;
   animation: jellyPop var(--motion-jelly-enter) var(--motion-jelly-ease) backwards;
-  transform-origin: center bottom;
+  transform-origin: center;
 }
 
 .jmodal-leave-active .media-picker-modal {

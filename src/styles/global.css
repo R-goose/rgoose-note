@@ -154,7 +154,7 @@ body[data-theme="dark"] {
   max-height: 90vh;
   overflow: auto;
   animation: jellyPop var(--motion-jelly-enter) var(--motion-jelly-ease) backwards;
-  transform-origin: center bottom;
+  transform-origin: center;
 }
 
 /* JellyModal 退场：遮罩与内容同步快速收起 */
@@ -222,27 +222,24 @@ body[data-theme="dark"] {
   to { opacity: 1; }
 }
 
-/* ===== 交互果冻动画：短促、轻量的 squash & stretch ===== */
-/* 弹窗/面板入场：一次柔和过冲 + 一次微弱回弹 */
+/* ===== 交互果冻动画：从小到大渐入，保留轻微弹性 ===== */
 @keyframes jellyPop {
-  0% { transform: translateY(10px) scale(0.94, 0.9); opacity: 0; }
-  52% { transform: translateY(-1px) scale(1.018, 0.985); opacity: 1; }
-  74% { transform: translateY(0) scale(0.994, 1.006); }
-  88% { transform: scale(1.003, 0.998); }
+  0% { transform: scale(0.86); opacity: 0; }
+  62% { transform: scale(1.012); opacity: 1; }
+  82% { transform: scale(0.997); }
   100% { transform: none; opacity: 1; }
 }
 
-/* 退场不再蓄力回弹，避免操作完成后仍有拖沓感 */
+/* 退场与入场保持同轴缩放，不产生方向漂移 */
 @keyframes jellyOut {
   from { transform: none; opacity: 1; }
-  to { transform: translateY(6px) scale(0.97, 0.94); opacity: 0; }
+  to { transform: scale(0.94); opacity: 0; }
 }
 
-/* 小型浮层（下拉/菜单）：轻量果冻弹出 */
+/* 小型浮层（下拉/菜单）：从触发点轻量放大渐入 */
 @keyframes jellyPopSm {
-  0% { transform: translateY(-4px) scale(0.92, 0.84); opacity: 0; }
-  58% { transform: translateY(0) scale(1.012, 0.988); opacity: 1; }
-  80% { transform: scale(0.996, 1.004); }
+  0% { transform: scale(0.88); opacity: 0; }
+  65% { transform: scale(1.008); opacity: 1; }
   100% { transform: none; opacity: 1; }
 }
 
