@@ -86,7 +86,7 @@
           <div id="set-import" class="setting-item">
             <div class="setting-info">
               <div class="setting-name">导入数据</div>
-              <div class="setting-desc">从 JSON 备份文件恢复数据</div>
+              <div class="setting-desc">从 zip 压缩包恢复数据（支持导出时生成的 zip）</div>
             </div>
             <button class="btn btn-secondary btn-import" @click="handleImport">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -462,7 +462,7 @@
           <div id="set-about-version" class="setting-item">
             <div class="setting-info">
               <div class="setting-name brand-name">R-Goose Note</div>
-              <div class="setting-desc">版本 2.4.13</div>
+              <div class="setting-desc">版本 2.4.14</div>
             </div>
           </div>
           <div id="set-about-platform" class="setting-item">

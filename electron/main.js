@@ -391,16 +391,48 @@ ipcMain.handle('get-data-path', () => {
 ipcMain.handle('export-data', async (_event, data) => {
   const result = await dialog.showSaveDialog(mainWindow, {
     title: '导出数据',
-    defaultPath: `rgoose-note-backup-${Date.now()}.json`,
-    filters: [{ name: 'JSON', extensions: ['json'] }]
+    defaultPath: `rgoose-note-export-${Date.now()}.zip`,
+    filters: [{ name: '备份压缩包', extensions: ['zip'] }]
   })
+  if (result.canceled || !result.filePath) return false
 
-  if (!result.canceled && result.filePath) {
-    fs.writeFileSync(result.filePath, JSON.stringify(data, null, 2))
-    return true
+  const ts = Date.now()
+  const userData = app.getPath('userData')
+  const stagingDir = path.join(userData, `.export-stage-${ts}`)
+  fs.rmSync(stagingDir, { recursive: true, force: true })
+  fs.mkdirSync(stagingDir, { recursive: true })
+
+  // 写入 data.json（不含 images，避免 JSON 里嵌 base64 过大）
+  const jsonData = { ...data }
+  delete jsonData.images
+  delete jsonData.imageCount
+  fs.writeFileSync(path.join(stagingDir, 'data.json'), JSON.stringify(jsonData, null, 2))
+
+  // 写入 images/ 目录（图片作为独立文件，不嵌 base64）
+  if (data.images && Object.keys(data.images).length > 0) {
+    const imgDir = path.join(stagingDir, 'images')
+    fs.mkdirSync(imgDir, { recursive: true })
+    for (const [name, base64] of Object.entries(data.images)) {
+      fs.writeFileSync(path.join(imgDir, name), Buffer.from(base64, 'base64'))
+    }
   }
 
-  return false
+  // 打包 zip
+  try {
+    const psStaging = stagingDir.replace(/'/g, "''")
+    const psZip = result.filePath.replace(/'/g, "''")
+    execSync(
+      `powershell -NoProfile -NonInteractive -Command "Compress-Archive -Path '${psStaging}\\*' -DestinationPath '${psZip}' -Force"`,
+      { windowsHide: true, timeout: 180000 }
+    )
+  } catch (e) {
+    console.error('zip export failed:', e)
+    fs.rmSync(stagingDir, { recursive: true, force: true })
+    return false
+  }
+
+  fs.rmSync(stagingDir, { recursive: true, force: true })
+  return true
 })
 
 /** 选择导出文件夹（仅弹窗，返回路径） */
@@ -430,16 +462,65 @@ ipcMain.handle('write-media-to-dir', async (_event, { dir, files }) => {
 ipcMain.handle('import-data', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: '导入数据',
-    filters: [{ name: 'JSON', extensions: ['json'] }],
+    filters: [{ name: '备份压缩包', extensions: ['zip'] }],
     properties: ['openFile']
   })
+  if (result.canceled || !result.filePaths.length) return null
 
-  if (!result.canceled && result.filePaths.length > 0) {
-    const content = fs.readFileSync(result.filePaths[0], 'utf-8')
-    return JSON.parse(content)
+  const srcZip = result.filePaths[0]
+  const ts = Date.now()
+  const userData = app.getPath('userData')
+  const stagingDir = path.join(userData, `.import-stage-${ts}`)
+  fs.rmSync(stagingDir, { recursive: true, force: true })
+  fs.mkdirSync(stagingDir, { recursive: true })
+
+  try {
+    // 解压 zip
+    if (process.platform === 'win32') {
+      const psZip = srcZip.replace(/'/g, "''")
+      const psDir = stagingDir.replace(/'/g, "''")
+      execSync(
+        `powershell -NoProfile -NonInteractive -Command "Expand-Archive -LiteralPath '${psZip}' -DestinationPath '${psDir}' -Force"`,
+        { windowsHide: true, timeout: 180000 }
+      )
+    }
+
+    // 递归查找 data.json（兼容嵌套目录结构）
+    function findFile(dir, name) {
+      const files = fs.readdirSync(dir)
+      if (files.includes(name)) return path.join(dir, name)
+      for (const f of files) {
+        const full = path.join(dir, f)
+        if (fs.statSync(full).isDirectory()) {
+          const found = findFile(full, name)
+          if (found) return found
+        }
+      }
+      return null
+    }
+
+    const jsonPath = findFile(stagingDir, 'data.json')
+    if (!jsonPath) return null
+
+    const jsonData = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'))
+
+    // 读取 images/ 目录中的图片，转回 base64 保持与前端 merge 逻辑兼容
+    const imgDir = path.join(path.dirname(jsonPath), 'images')
+    if (fs.existsSync(imgDir)) {
+      jsonData.images = {}
+      for (const f of fs.readdirSync(imgDir)) {
+        const full = path.join(imgDir, f)
+        if (fs.statSync(full).isFile()) {
+          jsonData.images[f] = fs.readFileSync(full).toString('base64')
+        }
+      }
+      jsonData.imageCount = Object.keys(jsonData.images).length
+    }
+
+    return jsonData
+  } finally {
+    fs.rmSync(stagingDir, { recursive: true, force: true })
   }
-
-  return null
 })
 
 function getDataDir() {
