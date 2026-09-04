@@ -741,13 +741,24 @@ function toggleExportSelectAll() {
 }
 
 function toggleExportFolder(folderId) {
-  const next = new Set(exportSelectedFolders.value)
-  if (next.has(folderId)) {
-    next.delete(folderId)
+  const nextFolders = new Set(exportSelectedFolders.value)
+  const nextNotes = new Set(exportSelectedNotes.value)
+  
+  const folderSelected = nextFolders.has(folderId)
+  if (folderSelected) {
+    nextFolders.delete(folderId)
+    // 取消选中文件夹：取消该文件夹下所有笔记
+    const notesInFolder = noteStore.notes.filter(n => n.folderId === folderId && !n.deleted)
+    notesInFolder.forEach(n => nextNotes.delete(n.id))
   } else {
-    next.add(folderId)
+    nextFolders.add(folderId)
+    // 选中文件夹：选中该文件夹下所有笔记
+    const notesInFolder = noteStore.notes.filter(n => n.folderId === folderId && !n.deleted)
+    notesInFolder.forEach(n => nextNotes.add(n.id))
   }
-  exportSelectedFolders.value = next
+  
+  exportSelectedFolders.value = nextFolders
+  exportSelectedNotes.value = nextNotes
 }
 
 function toggleExportNote(noteId) {
@@ -779,7 +790,9 @@ async function confirmExport() {
 
   // 过滤出选中的笔记
   const selectedNotes = noteStore.notes.filter(n => selectedNoteIds.has(n.id) && !n.deleted)
-  const selectedFolders = noteStore.folders.filter(f => selectedFolderIds.has(f.id) && !f.deleted)
+  // 自动包含选中笔记所属的文件夹（即使未勾选文件夹）
+  const noteFolderIds = new Set(selectedNotes.filter(n => n.folderId).map(n => n.folderId))
+  const selectedFolders = noteStore.folders.filter(f => !f.deleted && (selectedFolderIds.has(f.id) || noteFolderIds.has(f.id)))
 
   if (selectedNotes.length === 0) {
     toastError('请至少选择一篇笔记')
