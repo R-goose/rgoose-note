@@ -166,15 +166,7 @@
                 </svg>
                 生成备份
               </button>
-              <button class="btn btn-secondary" @click="handleRestoreBackup">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                  stroke-linecap="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="17 8 12 3 7 8" />
-                  <line x1="12" y1="3" x2="12" y2="15" />
-                </svg>
-                从备份恢复
-              </button>
+
             </div>
           </div>
 
@@ -462,7 +454,7 @@
           <div id="set-about-version" class="setting-item">
             <div class="setting-info">
               <div class="setting-name brand-name">R-Goose Note</div>
-              <div class="setting-desc">版本 2.4.16</div>
+              <div class="setting-desc">版本 2.4.17</div>
             </div>
           </div>
           <div id="set-about-platform" class="setting-item">
@@ -1263,25 +1255,6 @@ async function handleDeleteBackup(name) {
   }
 }
 
-async function handleRestoreBackup() {
-  if (!window.electronAPI?.restoreBackup) {
-    toastError('当前环境不支持恢复备份')
-    return
-  }
-  if (!window.confirm('恢复备份将覆盖当前所有数据（含图片），是否继续？建议先导出备份。')) return
-  try {
-    const res = await window.electronAPI.restoreBackup()
-    if (res?.ok) {
-      toastSuccess('备份恢复成功，正在重新加载…')
-      setTimeout(() => location.reload(), 700)
-    } else if (res?.error !== '已取消') {
-      toastError('恢复失败：' + (res?.error || '未知错误'))
-    }
-  } catch (e) {
-    toastError('恢复失败：' + (e?.message || '未知错误'))
-  }
-}
-
 async function handleChangeStorage() {
   if (!window.electronAPI?.pickDataDir || migrating.value) return
   const picked = await window.electronAPI.pickDataDir()
@@ -1356,7 +1329,16 @@ async function handleExport() {
     version: '2.0.0'
   }
 
+  // 从笔记块中收集引用
   const refs = collectImageRefsFromData(baseData)
+  // 再补充素材库中所有已存在的 ref（未引用的素材也导出）
+  try {
+    const allRefs = await getAllImageRefs()
+    allRefs.forEach(r => refs.add(r))
+  } catch (e) {
+    console.error('getAllImageRefs failed:', e)
+  }
+
   let imageBundle = {}
   try {
     imageBundle = await buildImageBundle(refs)
@@ -1518,12 +1500,16 @@ async function confirmImport() {
       if (n.connections) flatConnections.push(...n.connections)
     }
 
-    // v2.0: 通过后端 API 导入合并后的数据
-    await syncApi.importAll({
-      ...mergedData,
-      blocks: flatBlocks,
-      connections: flatConnections
-    })
+    // v2.0: 通过后端 API 导入合并后的数据（即使失败，前端内存中已合并成功，后续自动保存）
+    try {
+      await syncApi.importAll({
+        ...mergedData,
+        blocks: flatBlocks,
+        connections: flatConnections
+      })
+    } catch (e) {
+      console.warn('syncApi.importAll 失败，但前端数据已合并，后续自动保存会补齐:', e)
+    }
 
     showImportConfirm.value = false
     pendingImportData.value = null

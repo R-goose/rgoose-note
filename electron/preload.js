@@ -54,7 +54,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   createBackup: () => ipcRenderer.invoke('create-backup'),
   listBackups: () => ipcRenderer.invoke('list-backups'),
   deleteBackup: name => ipcRenderer.invoke('delete-backup', name),
-  restoreBackup: () => ipcRenderer.invoke('restore-backup'),
   pickDataDir: () => ipcRenderer.invoke('pick-data-dir'),
   changeDataDir: dir => ipcRenderer.invoke('change-data-dir', dir),
   resetDataDir: () => ipcRenderer.invoke('reset-data-dir'),
