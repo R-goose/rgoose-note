@@ -7,6 +7,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const crypto = require('crypto')
 const imageDao = require('../dao/imageDao')
 const config = require('../config')
 const { now } = require('../common/utils')
@@ -58,6 +59,13 @@ function generateRef(mimeType, originalName) {
 }
 
 function saveBytes(data, mimeType, originalName, displayName) {
+  // 计算内容哈希，判重：同一内容不再重复写入
+  const hash = crypto.createHash('sha256').update(data).digest('hex')
+  const existing = imageDao.findByContentHash(hash)
+  if (existing) {
+    return existing.id
+  }
+
   const ref = generateRef(mimeType, originalName)
   ensureImagesDir()
   const filePath = path.join(getImagesDir(), ref)
@@ -70,6 +78,7 @@ function saveBytes(data, mimeType, originalName, displayName) {
     mimeType: mimeType || 'application/octet-stream',
     sizeBytes: data.length,
     storagePath: 'images/' + ref,
+    contentHash: hash,
     createdAt: now()
   })
   return ref

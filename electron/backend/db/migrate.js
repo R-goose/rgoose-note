@@ -6,7 +6,7 @@
 const fs = require('fs')
 const path = require('path')
 
-const CURRENT_VER = 3
+const CURRENT_VER = 4
 
 /**
  * 对已存在的 blocks 表补齐缺失列（v1 → v2）
@@ -53,7 +53,7 @@ function ensureNoteColumns(db) {
   }
 }
 
-/** 对 images 表补齐 displayName + tags 列（旧库兼容） */
+/** 对 images 表补齐 displayName + tags + contentHash 列（旧库兼容） */
 function ensureImageColumns(db) {
   const cols = db.prepare("PRAGMA table_info(images)").all().map(c => c.name)
   if (!cols.includes('displayName')) {
@@ -61,6 +61,9 @@ function ensureImageColumns(db) {
   }
   if (!cols.includes('tags')) {
     db.exec(`ALTER TABLE images ADD COLUMN tags TEXT DEFAULT '[]'`)
+  }
+  if (!cols.includes('contentHash')) {
+    db.exec(`ALTER TABLE images ADD COLUMN contentHash TEXT`)
   }
 }
 

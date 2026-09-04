@@ -19,11 +19,17 @@ module.exports = {
     return deserialize(db.prepare('SELECT * FROM images WHERE id = ?').get(id))
   },
 
+  findByContentHash(hash) {
+    if (!hash) return null
+    const db = getDb()
+    return deserialize(db.prepare('SELECT * FROM images WHERE contentHash = ?').get(hash))
+  },
+
   insert(image) {
     const db = getDb()
     db.prepare(`
-      INSERT INTO images (id, fileName, displayName, mimeType, sizeBytes, storagePath, tags, createdAt)
-      VALUES (@id, @fileName, @displayName, @mimeType, @sizeBytes, @storagePath, @tags, @createdAt)
+      INSERT INTO images (id, fileName, displayName, mimeType, sizeBytes, storagePath, tags, contentHash, createdAt)
+      VALUES (@id, @fileName, @displayName, @mimeType, @sizeBytes, @storagePath, @tags, @contentHash, @createdAt)
     `).run({
       id: image.id,
       fileName: image.fileName,
@@ -32,6 +38,7 @@ module.exports = {
       sizeBytes: image.sizeBytes || 0,
       storagePath: image.storagePath,
       tags: safeStringify(image.tags || []),
+      contentHash: image.contentHash || null,
       createdAt: image.createdAt
     })
     return this.getById(image.id)

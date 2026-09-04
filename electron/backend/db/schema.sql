@@ -144,6 +144,8 @@ CREATE TABLE IF NOT EXISTS images (
   sizeBytes    INTEGER NOT NULL DEFAULT 0,
   storagePath  TEXT    NOT NULL,
   tags         TEXT    DEFAULT '[]',
+  contentHash  TEXT,
   createdAt    INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_images_created ON images(createdAt);
+CREATE INDEX IF NOT EXISTS idx_images_hash ON images(contentHash);
