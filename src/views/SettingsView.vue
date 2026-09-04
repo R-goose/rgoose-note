@@ -83,6 +83,83 @@
             </button>
           </div>
 
+          <!-- 导出选择弹窗 -->
+          <Teleport to="body">
+            <div v-if="showExportSelect" class="modal-overlay" @click.self="showExportSelect = false">
+              <div class="confirm-modal export-select-modal">
+                <div class="confirm-header">
+                  <div class="confirm-icon info">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3>选择导出内容</h3>
+                    <p>勾选需要导出的文件夹或笔记，未勾选的不会被导出</p>
+                  </div>
+                </div>
+                <div class="export-select-body">
+                  <div class="export-select-toolbar">
+                    <label class="export-select-all">
+                      <input type="checkbox" :checked="exportAllSelected" @change="toggleExportSelectAll" />
+                      <span>全选 / 取消全选</span>
+                    </label>
+                    <span class="export-select-count">已选 {{ exportSelectedCount }} 项</span>
+                  </div>
+                  <div class="export-select-list">
+                    <div v-for="folder in noteStore.folders.filter(f => !f.deleted)" :key="folder.id" class="export-folder-item">
+                      <label class="export-check-label">
+                        <input type="checkbox" :checked="exportSelectedFolders.has(folder.id)" @change="toggleExportFolder(folder.id)" />
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                        </svg>
+                        <span class="export-folder-name">{{ folder.name }}</span>
+                        <span class="export-note-count">({{ noteStore.notes.filter(n => n.folderId === folder.id && !n.deleted).length }})</span>
+                      </label>
+                      <div class="export-notes-in-folder">
+                        <label v-for="note in noteStore.notes.filter(n => n.folderId === folder.id && !n.deleted)" :key="note.id" class="export-check-label export-note-label">
+                          <input type="checkbox" :checked="exportSelectedNotes.has(note.id)" @change="toggleExportNote(note.id)" />
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                            <polyline points="14 2 14 8 20 8" />
+                          </svg>
+                          <span>{{ note.title || '未命名笔记' }}</span>
+                        </label>
+                      </div>
+                    </div>
+                    <!-- 无文件夹的笔记（根目录） -->
+                    <div class="export-folder-item">
+                      <label class="export-check-label">
+                        <input type="checkbox" :checked="exportSelectedRootNotes" @change="toggleExportRootNotes" />
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                        </svg>
+                        <span class="export-folder-name">根目录</span>
+                        <span class="export-note-count">({{ rootNotesCount }})</span>
+                      </label>
+                      <div class="export-notes-in-folder">
+                        <label v-for="note in rootNotes" :key="note.id" class="export-check-label export-note-label">
+                          <input type="checkbox" :checked="exportSelectedNotes.has(note.id)" @change="toggleExportNote(note.id)" />
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                            <polyline points="14 2 14 8 20 8" />
+                          </svg>
+                          <span>{{ note.title || '未命名笔记' }}</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="confirm-actions">
+                  <button class="btn btn-secondary" @click="showExportSelect = false">取消</button>
+                  <button class="btn btn-export" @click="confirmExport">确认导出 ({{ exportSelectedCount }})</button>
+                </div>
+              </div>
+            </div>
+          </Teleport>
+
           <div id="set-import" class="setting-item">
             <div class="setting-info">
               <div class="setting-name">导入数据</div>
@@ -130,16 +207,13 @@
               <div class="setting-name">存储占用 <span class="total-usage">共 {{ formatBytes(usageTotal) }}</span></div>
               <div class="storage-usage-bar">
                 <div class="usage-segment notes" :style="{ width: notesUsagePercent + '%' }" title="笔记数据"></div>
-                <div class="usage-segment images" :style="{ width: imagesUsagePercent + '%' }" title="图片文件"></div>
+                <div class="usage-segment images" :style="{ width: imagesUsagePercent + '%' }" title="媒体文件（图片+音视频）"></div>
                 <div class="usage-segment backups" :style="{ width: backupUsagePercent + '%' }" title="备份文件"></div>
               </div>
               <div class="storage-usage-detail">
                 <span class="usage-tag notes">笔记 {{ formatBytes(storageSize.dataFileSize != null ? storageSize.dataFileSize : storageSize.dataSize) }}</span>
-                <span class="usage-tag images">图片 {{ formatBytes(storageSize.imagesDirSize) }}</span>
+                <span class="usage-tag images">媒体文件 {{ formatBytes(storageSize.imagesDirSize) }}</span>
                 <span class="usage-tag backups">备份 {{ formatBytes(storageSize.backupSize) }}（{{ storageSize.backupCount }} 份）</span>
-              </div>
-              <div v-if="storageSize.appSize != null" class="storage-usage-detail app-usage-line">
-                <span class="usage-tag app">应用本体 {{ formatBytes(storageSize.appSize) }}</span>
               </div>
             </div>
           </div>
@@ -454,7 +528,7 @@
           <div id="set-about-version" class="setting-item">
             <div class="setting-info">
               <div class="setting-name brand-name">R-Goose Note</div>
-              <div class="setting-desc">版本 2.4.17</div>
+              <div class="setting-desc">版本 2.4.18</div>
             </div>
           </div>
           <div id="set-about-platform" class="setting-item">
@@ -635,6 +709,131 @@ const importFolderOptions = computed(() => [
   ...noteStore.folders.filter(f => !f.deleted).map(f => ({ label: f.name, value: f.id }))
 ])
 const showClearCacheConfirm = ref(false)
+
+// ============ 导出选择 ============
+const showExportSelect = ref(false)
+const exportSelectedFolders = ref(new Set())
+const exportSelectedNotes = ref(new Set())
+const rootNotes = computed(() => noteStore.notes.filter(n => !n.folderId && !n.deleted))
+const rootNotesCount = computed(() => rootNotes.value.length)
+const allFolders = computed(() => noteStore.folders.filter(f => !f.deleted))
+const allNotes = computed(() => noteStore.notes.filter(n => !n.deleted))
+const exportAllSelected = computed(() => {
+  const totalNotes = allNotes.value.length
+  const selectedNotes = exportSelectedNotes.value.size
+  const totalFolders = allFolders.value.length
+  const selectedFolders = exportSelectedFolders.value.size
+  return selectedNotes === totalNotes && selectedFolders === totalFolders
+})
+const exportSelectedRootNotes = computed(() => {
+  return rootNotes.value.every(n => exportSelectedNotes.value.has(n.id))
+})
+const exportSelectedCount = computed(() => exportSelectedNotes.value.size + exportSelectedFolders.value.size)
+
+function toggleExportSelectAll() {
+  if (exportAllSelected.value) {
+    exportSelectedFolders.value = new Set()
+    exportSelectedNotes.value = new Set()
+  } else {
+    exportSelectedFolders.value = new Set(allFolders.value.map(f => f.id))
+    exportSelectedNotes.value = new Set(allNotes.value.map(n => n.id))
+  }
+}
+
+function toggleExportFolder(folderId) {
+  const next = new Set(exportSelectedFolders.value)
+  if (next.has(folderId)) {
+    next.delete(folderId)
+  } else {
+    next.add(folderId)
+  }
+  exportSelectedFolders.value = next
+}
+
+function toggleExportNote(noteId) {
+  const next = new Set(exportSelectedNotes.value)
+  if (next.has(noteId)) {
+    next.delete(noteId)
+  } else {
+    next.add(noteId)
+  }
+  exportSelectedNotes.value = next
+}
+
+function toggleExportRootNotes() {
+  const next = new Set(exportSelectedNotes.value)
+  const rootIds = rootNotes.value.map(n => n.id)
+  const allSelected = rootIds.every(id => next.has(id))
+  if (allSelected) {
+    rootIds.forEach(id => next.delete(id))
+  } else {
+    rootIds.forEach(id => next.add(id))
+  }
+  exportSelectedNotes.value = next
+}
+
+async function confirmExport() {
+  showExportSelect.value = false
+  const selectedFolderIds = exportSelectedFolders.value
+  const selectedNoteIds = exportSelectedNotes.value
+
+  // 过滤出选中的笔记
+  const selectedNotes = noteStore.notes.filter(n => selectedNoteIds.has(n.id) && !n.deleted)
+  const selectedFolders = noteStore.folders.filter(f => selectedFolderIds.has(f.id) && !f.deleted)
+
+  if (selectedNotes.length === 0) {
+    toastError('请至少选择一篇笔记')
+    return
+  }
+
+  const baseData = {
+    notes: selectedNotes,
+    folders: selectedFolders,
+    plans: planStore.plans,
+    tags: tagStore.tags,
+    exportedAt: Date.now(),
+    version: '2.0.0'
+  }
+
+  // 从笔记块中收集引用
+  const refs = collectImageRefsFromData(baseData)
+  // 再补充素材库中所有已存在的 ref（未引用的素材也导出）
+  try {
+    const allRefs = await getAllImageRefs()
+    allRefs.forEach(r => refs.add(r))
+  } catch (e) {
+    console.error('getAllImageRefs failed:', e)
+  }
+
+  let imageBundle = {}
+  try {
+    imageBundle = await buildImageBundle(refs)
+  } catch (e) {
+    console.error('buildImageBundle failed:', e)
+  }
+
+  const payload = {
+    ...baseData,
+    images: imageBundle,
+    imageCount: Object.keys(imageBundle).length
+  }
+
+  try {
+    const safePayload = JSON.parse(JSON.stringify(payload))
+    if (window.electronAPI?.exportData) {
+      const ok = await window.electronAPI.exportData(safePayload)
+      if (!ok) {
+        toastError('导出已取消')
+        return
+      }
+    } else {
+      exportAsJSON(safePayload)
+    }
+    toastSuccess(`数据已导出（含 ${safePayload.imageCount} 张图片，${selectedNotes.length} 篇笔记）`)
+  } catch (err) {
+    toastError('导出失败：' + (err?.message || '未知错误'))
+  }
+}
 
 // ============ 通用：关闭到托盘 ============
 const canCloseToTray = typeof window !== 'undefined' && !!window.electronAPI?.getCloseToTray
@@ -1320,54 +1519,10 @@ async function performResetStorage() {
 }
 
 async function handleExport() {
-  const baseData = {
-    notes: noteStore.notes,
-    folders: noteStore.folders,
-    plans: planStore.plans,
-    tags: tagStore.tags,
-    exportedAt: Date.now(),
-    version: '2.0.0'
-  }
-
-  // 从笔记块中收集引用
-  const refs = collectImageRefsFromData(baseData)
-  // 再补充素材库中所有已存在的 ref（未引用的素材也导出）
-  try {
-    const allRefs = await getAllImageRefs()
-    allRefs.forEach(r => refs.add(r))
-  } catch (e) {
-    console.error('getAllImageRefs failed:', e)
-  }
-
-  let imageBundle = {}
-  try {
-    imageBundle = await buildImageBundle(refs)
-  } catch (e) {
-    console.error('buildImageBundle failed:', e)
-  }
-
-  const payload = {
-    ...baseData,
-    images: imageBundle,
-    imageCount: Object.keys(imageBundle).length
-  }
-
-  try {
-    // 深拷贝去除 Vue Proxy，避免 IPC 序列化报「An object could not be cloned」
-    const safePayload = JSON.parse(JSON.stringify(payload))
-    if (window.electronAPI?.exportData) {
-      const ok = await window.electronAPI.exportData(safePayload)
-      if (!ok) {
-        toastError('导出已取消')
-        return
-      }
-    } else {
-      exportAsJSON(safePayload)
-    }
-    toastSuccess(`数据已导出（含 ${safePayload.imageCount} 张图片）`)
-  } catch (err) {
-    toastError('导出失败：' + (err?.message || '未知错误'))
-  }
+  // 初始化全部选中
+  exportSelectedFolders.value = new Set(allFolders.value.map(f => f.id))
+  exportSelectedNotes.value = new Set(allNotes.value.map(n => n.id))
+  showExportSelect.value = true
 }
 
 function pickJSONFile() {
@@ -2327,6 +2482,103 @@ function resetAllShortcuts() {
   padding: 24px;
 }
 
+.export-select-modal {
+  width: 520px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.export-select-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 8px 0 16px;
+}
+
+.export-select-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+
+.export-select-all {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text-primary);
+  user-select: none;
+}
+
+.export-select-all input[type="checkbox"] {
+  accent-color: var(--primary-color);
+}
+
+.export-select-count {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.export-select-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.export-folder-item {
+  padding: 4px 0;
+}
+
+.export-check-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text-primary);
+  padding: 4px 8px;
+  border-radius: 6px;
+  user-select: none;
+  transition: background 0.12s;
+}
+
+.export-check-label:hover {
+  background: var(--bg-hover);
+}
+
+.export-check-label input[type="checkbox"] {
+  accent-color: var(--primary-color);
+}
+
+.export-folder-name {
+  font-weight: 500;
+}
+
+.export-note-count {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-left: 2px;
+}
+
+.export-notes-in-folder {
+  margin-left: 24px;
+  padding-left: 12px;
+  border-left: 1px solid var(--border-light);
+}
+
+.export-note-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
 .confirm-header {
   display: flex;
   gap: 16px;
@@ -2668,12 +2920,6 @@ function resetAllShortcuts() {
 .usage-tag.images::before { background: var(--secondary-color, #d4b27a); }
 .usage-tag.backups::before { background: color-mix(in srgb, var(--text-tertiary, #999) 60%, transparent); }
 .usage-tag.app::before { background: var(--info-color, #6ba6d9); }
-
-.app-usage-line {
-  margin-top: 4px;
-  padding-top: 4px;
-  border-top: 1px dashed var(--border-light);
-}
 
 .backup-list {
   display: flex;

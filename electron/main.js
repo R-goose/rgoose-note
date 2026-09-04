@@ -1008,6 +1008,7 @@ ipcMain.handle('get-storage-size', async () => {
     result.dataDirSize = result.dataFileSize + result.imagesDirSize
     result.dataSize = result.dataFileSize
     result.totalSize = result.dataFileSize + result.imagesDirSize + result.backupSize
+    result.appSize = 0
   } catch (e) {
     console.error('get-storage-size failed:', e)
   }
