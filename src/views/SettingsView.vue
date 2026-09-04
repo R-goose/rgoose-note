@@ -2493,6 +2493,9 @@ function resetAllShortcuts() {
   width: 420px;
   max-width: 90vw;
   padding: 24px;
+  background: var(--bg-primary);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
 }
 
 .export-select-modal {
