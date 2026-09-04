@@ -994,11 +994,8 @@ ipcMain.handle('create-backup', async () => {
 
     const srcData = path.join(getDataDir(), 'rgoose.db')
     if (fs.existsSync(srcData)) {
-      // 备份 rgoose.db 及 WAL/SHM 附属文件
-      for (const suffix of ['', '-wal', '-shm']) {
-        const f = path.join(getDataDir(), `rgoose.db${suffix}`)
-        if (fs.existsSync(f)) fs.copyFileSync(f, path.join(stagingDir, `rgoose.db${suffix}`))
-      }
+      // flush 已完成 WAL checkpoint，主 db 即为完整数据，只打包单文件（不再带 -wal/-shm）
+      fs.copyFileSync(srcData, path.join(stagingDir, 'rgoose.db'))
     }
     const srcImages = getImagesDir()
     if (fs.existsSync(srcImages)) {
@@ -1028,10 +1025,7 @@ ipcMain.handle('create-backup', async () => {
     } else {
       const backupDir = path.join(userData, `backup_${ts}`)
       fs.mkdirSync(backupDir, { recursive: true })
-      for (const suffix of ['', '-wal', '-shm']) {
-        const f = path.join(getDataDir(), `rgoose.db${suffix}`)
-        if (fs.existsSync(f)) fs.copyFileSync(f, path.join(backupDir, `rgoose.db${suffix}`))
-      }
+      fs.copyFileSync(srcData, path.join(backupDir, 'rgoose.db'))
       if (fs.existsSync(srcImages)) fs.cpSync(srcImages, path.join(backupDir, 'images'), { recursive: true })
       finalPath = backupDir
     }
@@ -1080,6 +1074,85 @@ ipcMain.handle('delete-backup', async (_event, backupName) => {
     return false
   } catch (e) {
     return false
+  }
+})
+
+/** 从压缩包恢复备份：选 zip → 解压 → 替换 rgoose.db + images → 重启数据库 */
+ipcMain.handle('restore-backup', async () => {
+  let stagingDir = null
+  try {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: '选择备份压缩包恢复',
+      filters: [{ name: '备份压缩包', extensions: ['zip'] }],
+      properties: ['openFile']
+    })
+    if (result.canceled || !result.filePaths.length) return { ok: false, error: '已取消' }
+
+    const srcZip = result.filePaths[0]
+    const ts = Date.now()
+    const userData = app.getPath('userData')
+    stagingDir = path.join(userData, `.restore-stage-${ts}`)
+    fs.mkdirSync(stagingDir, { recursive: true })
+
+    // 解压 zip（Windows 用 PowerShell Expand-Archive）
+    if (process.platform === 'win32') {
+      const psZip = srcZip.replace(/'/g, "''")
+      const psDir = stagingDir.replace(/'/g, "''")
+      execSync(
+        `powershell -NoProfile -NonInteractive -Command "Expand-Archive -LiteralPath '${psZip}' -DestinationPath '${psDir}' -Force"`,
+        { windowsHide: true, timeout: 180000 }
+      )
+    }
+
+    const extractedDb = path.join(stagingDir, 'rgoose.db')
+    if (!fs.existsSync(extractedDb)) {
+      return { ok: false, error: '备份文件无效：缺少 rgoose.db' }
+    }
+
+    const dataDir = getDataDir()
+    const imagesDir = getImagesDir()
+
+    // 恢复前安全快照，误操作可回退（存当前数据目录内 .pre-restore-*）
+    const safetyDir = path.join(dataDir, `.pre-restore-${ts}`)
+    fs.mkdirSync(safetyDir, { recursive: true })
+    for (const suffix of ['', '-wal', '-shm']) {
+      const f = path.join(dataDir, `rgoose.db${suffix}`)
+      if (fs.existsSync(f)) fs.copyFileSync(f, path.join(safetyDir, `rgoose.db${suffix}`))
+    }
+    if (fs.existsSync(imagesDir)) fs.cpSync(imagesDir, path.join(safetyDir, 'images'), { recursive: true })
+
+    // 关闭后端释放 SQLite 句柄，替换数据文件
+    backend.stop()
+    for (const suffix of ['', '-wal', '-shm']) {
+      const f = path.join(dataDir, `rgoose.db${suffix}`)
+      if (fs.existsSync(f)) fs.rmSync(f, { force: true })
+    }
+    fs.copyFileSync(extractedDb, path.join(dataDir, 'rgoose.db'))
+
+    const extractedImages = path.join(stagingDir, 'images')
+    if (fs.existsSync(imagesDir)) fs.rmSync(imagesDir, { recursive: true, force: true })
+    if (fs.existsSync(extractedImages)) {
+      fs.cpSync(extractedImages, imagesDir, { recursive: true })
+    } else {
+      fs.mkdirSync(imagesDir, { recursive: true })
+    }
+
+    // 清理临时解压目录
+    fs.rmSync(stagingDir, { recursive: true, force: true })
+    stagingDir = null
+
+    // 重启数据库（不重注册 IPC）
+    backend.restart(getDataDir())
+
+    return { ok: true }
+  } catch (e) {
+    console.error('restore-backup failed:', e)
+    try { backend.restart(getDataDir()) } catch (_) {}
+    return { ok: false, error: e.message }
+  } finally {
+    if (stagingDir && fs.existsSync(stagingDir)) {
+      try { fs.rmSync(stagingDir, { recursive: true, force: true }) } catch (_) {}
+    }
   }
 })
 

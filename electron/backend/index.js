@@ -49,4 +49,16 @@ function flush() {
   checkpoint()
 }
 
-module.exports = { start, stop, flush }
+/**
+ * 恢复备份后重启数据库（仅重开 db，不重新注册 IPC，避免重复 handle 报错）
+ * - 备份恢复流程会先 backend.stop() 释放 SQLite 句柄，替换文件后调用本方法重新打开
+ */
+function restart(dataDir) {
+  config.dataDir = dataDir
+  closeDb()
+  const db = getDb(dataDir)
+  runMigrations(db)
+  log('backend', `SQLite restarted at ${dataDir}\\rgoose.db`)
+}
+
+module.exports = { start, stop, flush, restart }

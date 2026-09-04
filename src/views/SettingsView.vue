@@ -166,6 +166,15 @@
                 </svg>
                 生成备份
               </button>
+              <button class="btn btn-secondary" @click="handleRestoreBackup">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+                从备份恢复
+              </button>
             </div>
           </div>
 
@@ -453,7 +462,7 @@
           <div id="set-about-version" class="setting-item">
             <div class="setting-info">
               <div class="setting-name brand-name">R-Goose Note</div>
-              <div class="setting-desc">版本 2.4.11</div>
+              <div class="setting-desc">版本 2.4.12</div>
             </div>
           </div>
           <div id="set-about-platform" class="setting-item">
@@ -1254,6 +1263,25 @@ async function handleDeleteBackup(name) {
   }
 }
 
+async function handleRestoreBackup() {
+  if (!window.electronAPI?.restoreBackup) {
+    toastError('当前环境不支持恢复备份')
+    return
+  }
+  if (!window.confirm('恢复备份将覆盖当前所有数据（含图片），是否继续？建议先导出备份。')) return
+  try {
+    const res = await window.electronAPI.restoreBackup()
+    if (res?.ok) {
+      toastSuccess('备份恢复成功，正在重新加载…')
+      setTimeout(() => location.reload(), 700)
+    } else if (res?.error !== '已取消') {
+      toastError('恢复失败：' + (res?.error || '未知错误'))
+    }
+  } catch (e) {
+    toastError('恢复失败：' + (e?.message || '未知错误'))
+  }
+}
+
 async function handleChangeStorage() {
   if (!window.electronAPI?.pickDataDir || migrating.value) return
   const picked = await window.electronAPI.pickDataDir()
@@ -1343,16 +1371,18 @@ async function handleExport() {
   }
 
   try {
+    // 深拷贝去除 Vue Proxy，避免 IPC 序列化报「An object could not be cloned」
+    const safePayload = JSON.parse(JSON.stringify(payload))
     if (window.electronAPI?.exportData) {
-      const ok = await window.electronAPI.exportData(payload)
+      const ok = await window.electronAPI.exportData(safePayload)
       if (!ok) {
         toastError('导出已取消')
         return
       }
     } else {
-      exportAsJSON(payload)
+      exportAsJSON(safePayload)
     }
-    toastSuccess(`数据已导出（含 ${payload.imageCount} 张图片）`)
+    toastSuccess(`数据已导出（含 ${safePayload.imageCount} 张图片）`)
   } catch (err) {
     toastError('导出失败：' + (err?.message || '未知错误'))
   }
