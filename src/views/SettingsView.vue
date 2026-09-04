@@ -462,7 +462,7 @@
           <div id="set-about-version" class="setting-item">
             <div class="setting-info">
               <div class="setting-name brand-name">R-Goose Note</div>
-              <div class="setting-desc">版本 2.4.14</div>
+              <div class="setting-desc">版本 2.4.15</div>
             </div>
           </div>
           <div id="set-about-platform" class="setting-item">

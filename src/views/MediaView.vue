@@ -74,6 +74,45 @@
           导入
         </button>
         <input ref="importInputRef" type="file" accept="image/*,audio/*,video/*" multiple style="display:none" @change="importMedia" />
+        <!-- 批量选择 -->
+        <button
+          v-if="!selectMode"
+          class="btn-import-export"
+          @click="toggleSelectMode"
+          title="进入批量选择模式"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <polyline points="9 11 12 14 22 4"/>
+          </svg>
+          选择
+        </button>
+        <template v-if="selectMode">
+          <button class="btn-import-export" @click="selectAll" title="全选当前筛选结果">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><polyline points="9 11 12 14 22 4"/></svg>
+            全选
+          </button>
+          <button class="btn-import-export" @click="deselectAll" title="取消全选">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
+            取消
+          </button>
+          <button
+            class="btn-import-export btn-delete-selected"
+            :class="{ disabled: !selectedIds.size }"
+            :disabled="!selectedIds.size"
+            @click="deleteSelectedMedia"
+            title="删除选中的素材"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+            </svg>
+            删除选中（{{ selectedIds.size }}）
+          </button>
+          <button class="btn-import-export" @click="toggleSelectMode" title="退出选择模式">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            退出
+          </button>
+        </template>
       </div>
     </div>
 
@@ -147,11 +186,19 @@
               v-for="item in filteredItems"
               :key="item.id"
               class="media-card"
+              :class="{ 'media-card-selected': selectedIds.has(item.id) }"
               :data-id="item.id"
               :style="cardPositions[item.id] || { visibility: 'hidden' }"
-              @click.stop="onCardClick($event, item)"
+              @click.stop="selectMode ? toggleSelect(item.id) : onCardClick($event, item)"
               @contextmenu.prevent="showContextMenu($event, item)"
             >
+              <!-- 选择模式下的勾选框 -->
+              <div v-if="selectMode" class="media-card-check" @click.stop="toggleSelect(item.id)">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" :stroke="selectedIds.has(item.id) ? 'var(--primary-color)' : '#ccc'" stroke-width="2" stroke-linecap="round">
+                  <rect x="3" y="3" width="18" height="18" rx="3" :fill="selectedIds.has(item.id) ? 'var(--primary-color)' : 'none'"/>
+                  <polyline v-if="selectedIds.has(item.id)" points="9 12 11 14 16 9" stroke="#fff" stroke-width="2.5"/>
+                </svg>
+              </div>
               <div class="media-thumb">
                 <img v-if="item.type === 'image' && item.url" :src="item.url" alt="" />
                 <div v-else-if="item.type === 'video' && item.thumbUrl" class="thumb-video-cover">
@@ -547,6 +594,25 @@ const allItems = ref([])
 const activeFilter = ref('all')
 const searchText = ref('')
 const previewItem_data = ref(null)
+
+// ===== 批量选择状态 =====
+const selectMode = ref(false)
+const selectedIds = ref(new Set())
+function toggleSelectMode() {
+  selectMode.value = !selectMode.value
+  if (!selectMode.value) selectedIds.value = new Set()
+}
+function toggleSelect(id) {
+  const s = new Set(selectedIds.value)
+  if (s.has(id)) s.delete(id); else s.add(id)
+  selectedIds.value = s
+}
+function selectAll() {
+  selectedIds.value = new Set(filteredItems.value.map(i => i.id))
+}
+function deselectAll() {
+  selectedIds.value = new Set()
+}
 
 // 当前文件夹的父级 ID（用于返回按钮）
 const parentFolderId = computed(() => {
@@ -1118,6 +1184,42 @@ async function deleteMediaItem() {
     await deleteImage(item.ref)
   }
 
+  await collectMedia()
+}
+
+/** 批量删除选中的素材 */
+async function deleteSelectedMedia() {
+  const ids = [...selectedIds.value]
+  if (!ids.length) return
+  if (!window.confirm(`确定删除选中的 ${ids.length} 个素材吗？该操作不可撤销。`)) return
+
+  // 关闭选择模式
+  selectMode.value = false
+  selectedIds.value = new Set()
+
+  // 找出选中项对应的全量数据
+  const itemsToDelete = allItems.value.filter(i => ids.includes(i.id))
+
+  for (const item of itemsToDelete) {
+    if (!isImageRef(item.ref)) continue
+    // 从引用笔记中移除 block
+    for (const n of (item.notes || [])) {
+      const note = noteStore.notes.find(x => x.id === n.id)
+      if (note && note.blocks) {
+        for (const b of note.blocks) {
+          const isMatch =
+            (b.type === 'image' && b.imageUrl === item.ref) ||
+            ((b.type === 'audio' || b.type === 'video') && b.mediaUrl === item.ref) ||
+            (b.type === 'gallery' && Array.isArray(b.images) && b.images.includes(item.ref))
+          if (isMatch) noteStore.deleteBlock(note.id, b.id)
+        }
+      }
+    }
+    // 删除文件
+    await deleteImage(item.ref)
+  }
+
+  toastSuccess(`已删除 ${itemsToDelete.length} 个素材`)
   await collectMedia()
 }
 
@@ -1977,6 +2079,7 @@ watch(
 .media-grid > .media-card:nth-child(n+9) { animation-delay: 0.26s; }
 
 .media-card {
+  position: relative;
   border: 1px solid var(--border-light);
   border-radius: 8px;
   overflow: hidden;
@@ -2000,6 +2103,45 @@ watch(
 
 .media-card:active {
   background: var(--bg-tertiary);
+}
+
+.media-card-selected {
+  border-color: var(--primary-color) !important;
+  box-shadow: 0 0 0 1px var(--primary-color);
+}
+
+.media-card-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 5;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.9);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  transition: transform 0.15s ease;
+}
+.media-card-check:hover {
+  transform: scale(1.12);
+}
+.media-card-check svg {
+  display: block;
+}
+
+.btn-delete-selected {
+  color: var(--error-color, #e74c3c) !important;
+  border-color: var(--error-color, #e74c3c) !important;
+}
+.btn-delete-selected.disabled {
+  opacity: 0.4;
+  cursor: default;
+  color: var(--text-disabled) !important;
+  border-color: var(--border-light) !important;
 }
 
 .media-thumb {
