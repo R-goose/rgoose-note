@@ -1005,10 +1005,11 @@ ipcMain.handle('create-backup', async () => {
     let zipped = false
     if (process.platform === 'win32') {
       try {
+        // 打包 stagingDir 下的内容（rgoose.db + images）到 zip 根，不包含 staging 目录本身
         const psStaging = stagingDir.replace(/'/g, "''")
         const psZip = zipPath.replace(/'/g, "''")
         execSync(
-          `powershell -NoProfile -NonInteractive -Command "Compress-Archive -LiteralPath '${psStaging}\\*' -DestinationPath '${psZip}' -Force"`,
+          `powershell -NoProfile -NonInteractive -Command "Compress-Archive -Path '${psStaging}\\*' -DestinationPath '${psZip}' -Force"`,
           { windowsHide: true, timeout: 180000 }
         )
         zipped = fs.existsSync(zipPath)
@@ -1104,10 +1105,27 @@ ipcMain.handle('restore-backup', async () => {
       )
     }
 
-    const extractedDb = path.join(stagingDir, 'rgoose.db')
-    if (!fs.existsSync(extractedDb)) {
-      return { ok: false, error: '备份文件无效：缺少 rgoose.db' }
+    // 自动查找 rgoose.db，兼容嵌套目录（比如之前版本的压缩包）
+    function findDb(dir) {
+      const files = fs.readdirSync(dir)
+      if (files.includes('rgoose.db')) return path.join(dir, 'rgoose.db')
+      for (const f of files) {
+        const full = path.join(dir, f)
+        if (fs.statSync(full).isDirectory()) {
+          const found = findDb(full)
+          if (found) return found
+        }
+      }
+      return null
     }
+
+    const extractedDb = findDb(stagingDir)
+    if (!extractedDb) {
+      return { ok: false, error: '备份文件无效：zip 中未找到 rgoose.db' }
+    }
+
+    // rgoose.db 所在目录即为「备份根目录」，images 也在这里
+    const backupRoot = path.dirname(extractedDb)
 
     const dataDir = getDataDir()
     const imagesDir = getImagesDir()
@@ -1129,7 +1147,7 @@ ipcMain.handle('restore-backup', async () => {
     }
     fs.copyFileSync(extractedDb, path.join(dataDir, 'rgoose.db'))
 
-    const extractedImages = path.join(stagingDir, 'images')
+    const extractedImages = path.join(backupRoot, 'images')
     if (fs.existsSync(imagesDir)) fs.rmSync(imagesDir, { recursive: true, force: true })
     if (fs.existsSync(extractedImages)) {
       fs.cpSync(extractedImages, imagesDir, { recursive: true })
