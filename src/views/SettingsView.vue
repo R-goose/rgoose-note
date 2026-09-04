@@ -231,14 +231,16 @@
                 </svg>
                 打开目录
               </button>
-              <button class="btn btn-export" @click="handleCreateBackup">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              <button class="btn btn-export" :class="{ 'btn-loading': backupLoading }" :disabled="backupLoading" @click="handleCreateBackup">
+                <svg v-if="!backupLoading" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                   stroke-linecap="round">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                   <polyline points="7 10 12 15 17 10" />
                   <line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
-                生成备份
+                <span v-if="!backupLoading">生成备份</span>
+                <span v-else class="btn-loading-spinner"></span>
+                <span v-if="backupLoading">正在生成…</span>
               </button>
 
             </div>
@@ -1282,6 +1284,7 @@ const storageType = ref('')
 const storageIsCustom = ref(false)
 const storageSize = ref(null)
 const backups = ref([])
+const backupLoading = ref(false)
 const migrating = ref(false)
 const showStorageMigrateConfirm = ref(false)
 const showStorageResetConfirm = ref(false)
@@ -1442,18 +1445,24 @@ async function confirmClearCache() {
 }
 
 async function handleCreateBackup() {
+  backupLoading.value = true
   if (window.electronAPI?.createBackup) {
-    const res = await window.electronAPI.createBackup()
-    if (res?.ok) {
-      toastSuccess('备份已生成')
-      await loadBackups()
-      await loadStorageSize()
-    } else {
-      toastError('备份失败：' + (res?.error || '未知错误'))
+    try {
+      const res = await window.electronAPI.createBackup()
+      if (res?.ok) {
+        toastSuccess('备份已生成')
+        await loadBackups()
+        await loadStorageSize()
+      } else {
+        toastError('备份失败：' + (res?.error || '未知错误'))
+      }
+    } catch (e) {
+      toastError('备份失败：' + e.message)
     }
   } else {
     toastError('当前环境不支持本地备份')
   }
+  backupLoading.value = false
 }
 
 async function handleDeleteBackup(name) {
@@ -2874,6 +2883,24 @@ function resetAllShortcuts() {
   border-top-color: var(--primary-color, #6bbd8f);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
+}
+
+.btn-loading {
+  opacity: 0.7;
+  cursor: not-allowed !important;
+  pointer-events: auto;
+}
+
+.btn-loading-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: middle;
+  margin-right: 4px;
 }
 
 @keyframes spin {
