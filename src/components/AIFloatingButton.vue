@@ -255,6 +255,8 @@ const MIN_W = 340
 const MIN_H = 380
 const DEFAULT_W = 880
 const DEFAULT_H = 840
+const FLOAT_SIZE = 48
+const VIEWPORT_MARGIN = 12
 
 function loadSize() {
   try {
@@ -369,6 +371,7 @@ const chatPos = reactive({ x: 0, y: 0 })
 const chatSize = reactive(loadSize())
 let dragging = null
 let moved = false
+let viewportResizeFrame = null
 
 watch(chatSize, (val) => {
   try { localStorage.setItem(SIZE_KEY, JSON.stringify({ w: val.w, h: val.h })) } catch { /* ignore */ }
@@ -388,19 +391,60 @@ async function migrateLegacyAiKey() {
   }
 }
 
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), Math.max(min, max))
+}
+
+function clampFloatPosition() {
+  const width = floatRef.value?.offsetWidth || FLOAT_SIZE
+  const height = floatRef.value?.offsetHeight || FLOAT_SIZE
+  pos.x = clamp(pos.x, 0, window.innerWidth - width)
+  pos.y = clamp(pos.y, 0, window.innerHeight - height)
+}
+
+function clampChatSize() {
+  const maxWidth = Math.max(0, window.innerWidth - VIEWPORT_MARGIN * 2)
+  const maxHeight = Math.max(0, window.innerHeight - VIEWPORT_MARGIN * 2)
+  chatSize.w = clamp(chatSize.w, Math.min(MIN_W, maxWidth), maxWidth)
+  chatSize.h = clamp(chatSize.h, Math.min(MIN_H, maxHeight), maxHeight)
+}
+
+function clampChatPosition() {
+  chatPos.x = clamp(chatPos.x, VIEWPORT_MARGIN, window.innerWidth - chatSize.w - VIEWPORT_MARGIN)
+  chatPos.y = clamp(chatPos.y, VIEWPORT_MARGIN, window.innerHeight - chatSize.h - VIEWPORT_MARGIN)
+}
+
+function syncFloatingLayout() {
+  viewportResizeFrame = null
+  clampFloatPosition()
+  clampChatSize()
+  clampChatPosition()
+}
+
+function onViewportResize() {
+  if (viewportResizeFrame !== null) return
+  viewportResizeFrame = requestAnimationFrame(syncFloatingLayout)
+}
+
 onMounted(async () => {
   const margin = 24
   pos.x = window.innerWidth - 72 - margin
   pos.y = window.innerHeight - 72 - margin
   chatPos.x = window.innerWidth - chatSize.w - margin
   chatPos.y = window.innerHeight - chatSize.h - margin
+  syncFloatingLayout()
   window.addEventListener('keydown', onCalcKeydown)
+  window.addEventListener('resize', onViewportResize)
   await migrateLegacyAiKey()
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', onCalcKeydown)
+  window.removeEventListener('resize', onViewportResize)
   document.removeEventListener('pointerdown', onDocPointerDown)
+  document.removeEventListener('mousemove', onDragMove)
+  document.removeEventListener('mouseup', onDragEnd)
+  if (viewportResizeFrame !== null) cancelAnimationFrame(viewportResizeFrame)
 })
 
 // ===== 计算器键盘输入 =====
@@ -432,12 +476,13 @@ function onCalcKeydown(e) {
 
 function onFloatClick() {
   if (moved) { moved = false; return }
+  clampFloatPosition()
+  clampChatSize()
   chatOpen.value = true
   nextTick(() => {
     chatPos.x = pos.x - chatSize.w + 36
     chatPos.y = pos.y - chatSize.h + 60
-    chatPos.x = Math.max(12, Math.min(chatPos.x, window.innerWidth - chatSize.w - 12))
-    chatPos.y = Math.max(12, Math.min(chatPos.y, window.innerHeight - chatSize.h - 12))
+    clampChatPosition()
     inputRef.value?.focus()
   })
 }
@@ -473,14 +518,22 @@ function onResizeStart(e) {
 function onDragMove(e) {
   if (!dragging) return
   if (dragging.mode === 'resize') {
-    chatSize.w = Math.max(MIN_W, Math.min(dragging.startW + (e.clientX - dragging.startX), window.innerWidth - chatPos.x - 12))
-    chatSize.h = Math.max(MIN_H, Math.min(dragging.startH + (e.clientY - dragging.startY), window.innerHeight - chatPos.y - 12))
+    const maxWidth = Math.max(0, window.innerWidth - chatPos.x - VIEWPORT_MARGIN)
+    const maxHeight = Math.max(0, window.innerHeight - chatPos.y - VIEWPORT_MARGIN)
+    chatSize.w = clamp(dragging.startW + (e.clientX - dragging.startX), Math.min(MIN_W, maxWidth), maxWidth)
+    chatSize.h = clamp(dragging.startH + (e.clientY - dragging.startY), Math.min(MIN_H, maxHeight), maxHeight)
     return
   }
   moved = true
-  const target = dragging.mode === 'float' ? pos : chatPos
-  target.x = Math.max(0, Math.min(e.clientX - dragging.dx, window.innerWidth - 60))
-  target.y = Math.max(0, Math.min(e.clientY - dragging.dy, window.innerHeight - 60))
+  if (dragging.mode === 'float') {
+    pos.x = e.clientX - dragging.dx
+    pos.y = e.clientY - dragging.dy
+    clampFloatPosition()
+    return
+  }
+  chatPos.x = e.clientX - dragging.dx
+  chatPos.y = e.clientY - dragging.dy
+  clampChatPosition()
 }
 function onDragEnd() {
   dragging = null
@@ -1031,7 +1084,8 @@ const renderMarkdown = renderSafeAiMarkdown
 
 /* ===== 弹窗容器 ===== */
 .ai-chat {
-  position: fixed; min-width: 340px; min-height: 380px; z-index: 9999;
+  position: fixed; min-width: min(340px, calc(100vw - 24px)); min-height: min(380px, calc(100vh - 24px));
+  max-width: calc(100vw - 24px); max-height: calc(100vh - 24px); z-index: 9999;
   display: flex; flex-direction: column;
   background: var(--bg-secondary, #fff);
   border: 1px solid var(--border-color, #e6e8e6);
