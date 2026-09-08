@@ -69,7 +69,7 @@
           <div id="set-export" class="setting-item">
             <div class="setting-info">
               <div class="setting-name">导出数据</div>
-              <div class="setting-desc">将所有笔记和计划导出为 JSON 文件备份</div>
+              <div class="setting-desc">将所选数据和素材导出为 ZIP 完整备份</div>
             </div>
             <button class="btn btn-secondary btn-export" @click="handleExport">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -163,7 +163,7 @@
           <div id="set-import" class="setting-item">
             <div class="setting-info">
               <div class="setting-name">导入数据</div>
-              <div class="setting-desc">从 zip 压缩包恢复数据（支持导出时生成的 zip）</div>
+              <div class="setting-desc">支持 ZIP 完整备份与 JSON 数据文件导入</div>
             </div>
             <button class="btn btn-secondary btn-import" @click="handleImport">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -530,7 +530,7 @@
           <div id="set-about-version" class="setting-item">
             <div class="setting-info">
               <div class="setting-name brand-name">R-Goose Note</div>
-              <div class="setting-desc">版本 2.4.20</div>
+              <div class="setting-desc">版本 2.4.21</div>
             </div>
           </div>
           <div id="set-about-platform" class="setting-item">
@@ -1173,8 +1173,8 @@ const highlightIndex = ref(0)
 // 搜索索引：将所有设置项结构化
 const settingsIndex = computed(() => {
   const items = [
-    { id: 'set-export', name: '导出数据', group: '数据管理', desc: '将所有笔记和计划导出为 JSON 文件备份', keywords: '导出 备份 json 数据 export 下载' },
-    { id: 'set-import', name: '导入数据', group: '数据管理', desc: '从 JSON 备份文件恢复数据', keywords: '导入 恢复 json 数据 import 上传' },
+    { id: 'set-export', name: '导出数据', group: '数据管理', desc: '将所选数据和素材导出为 ZIP 完整备份', keywords: '导出 备份 zip 压缩包 数据 export 下载' },
+    { id: 'set-import', name: '导入数据', group: '数据管理', desc: '支持 ZIP 完整备份与 JSON 数据文件导入', keywords: '导入 恢复 zip json 数据 import 上传' },
     { id: 'set-sync', name: '保存状态', group: '数据管理', desc: '上次保存时间', keywords: '保存 同步 状态 sync 时间' },
     { id: 'set-cache', name: '清除缓存', group: '数据管理', desc: '清除本地存储数据', keywords: '清除 缓存 删除 清空 cache 重置' },
     { id: 'set-usage', name: '存储占用', group: '数据管理', desc: '磁盘空间使用情况', keywords: '存储 占用 空间 磁盘 大小 容量 usage' },

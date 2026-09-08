@@ -462,12 +462,21 @@ ipcMain.handle('write-media-to-dir', async (_event, { dir, files }) => {
 ipcMain.handle('import-data', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: '导入数据',
-    filters: [{ name: '备份压缩包', extensions: ['zip'] }],
+    filters: [
+      { name: '备份文件（ZIP / JSON）', extensions: ['zip', 'json'] },
+      { name: '备份压缩包', extensions: ['zip'] },
+      { name: 'JSON 数据文件', extensions: ['json'] }
+    ],
     properties: ['openFile']
   })
   if (result.canceled || !result.filePaths.length) return null
 
-  const srcZip = result.filePaths[0]
+  const sourceFile = result.filePaths[0]
+  if (path.extname(sourceFile).toLowerCase() === '.json') {
+    return JSON.parse(fs.readFileSync(sourceFile, 'utf-8'))
+  }
+
+  const srcZip = sourceFile
   const ts = Date.now()
   const userData = app.getPath('userData')
   const stagingDir = path.join(userData, `.import-stage-${ts}`)
