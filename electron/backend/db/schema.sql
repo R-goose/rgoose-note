@@ -148,4 +148,8 @@ CREATE TABLE IF NOT EXISTS images (
   createdAt    INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_images_created ON images(createdAt);
-CREATE INDEX IF NOT EXISTS idx_images_hash ON images(contentHash);
+-- 注意：idx_images_hash 不能放在 schema.sql 里。
+-- 旧库（v3）的 images 表已存在但没有 contentHash 列，
+-- 若在建表脚本里对 contentHash 建索引，会先于补列迁移抛出
+-- "no such column: contentHash"，导致整个迁移失败、后端无法启动。
+-- 该索引统一在 migrate.js 的 ensureImageColumns() 中补列后创建。

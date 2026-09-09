@@ -65,6 +65,10 @@ function ensureImageColumns(db) {
   if (!cols.includes('contentHash')) {
     db.exec(`ALTER TABLE images ADD COLUMN contentHash TEXT`)
   }
+  // 对 contentHash 的索引必须在此（补列之后）创建。
+  // 若放在 schema.sql 中，会对旧库中尚不存在该列的 images 表建索引而报错，
+  // 导致整个 runMigrations 抛异常、后端启动失败（表现为新装应用/覆盖升级后无任何数据）。
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_images_hash ON images(contentHash)`)
 }
 
 /** 对已存在的 connections 表补齐 updatedAt 列（旧库兼容） */
