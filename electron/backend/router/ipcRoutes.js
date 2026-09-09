@@ -9,6 +9,7 @@ const blockService = require('../service/blockService')
 const connectionService = require('../service/connectionService')
 const folderService = require('../service/folderService')
 const tagService = require('../service/tagService')
+const templateService = require('../service/templateService')
 const imageService = require('../service/imageService')
 const syncService = require('../service/syncService')
 const { wrap } = require('../common/response')
@@ -74,6 +75,13 @@ function register() {
   ipcMain.handle('backend:tags:create',   (_e, tag) => wrap(() => tagService.create(tag)))
   ipcMain.handle('backend:tags:update',   (_e, { id, tag }) => wrap(() => tagService.update(id, tag)))
   ipcMain.handle('backend:tags:delete',   (_e, id) => wrap(() => tagService.delete(id)))
+
+  // ---------- Templates ----------
+  ipcMain.handle('backend:templates:list',   () => wrap(() => templateService.list()))
+  ipcMain.handle('backend:templates:get',    (_e, id) => wrap(() => templateService.get(id)))
+  ipcMain.handle('backend:templates:create', (_e, t) => wrap(() => templateService.create(t)))
+  ipcMain.handle('backend:templates:update', (_e, { id, template }) => wrap(() => templateService.update(id, template)))
+  ipcMain.handle('backend:templates:delete', (_e, id) => wrap(() => templateService.delete(id)))
 
   // ---------- Images ----------
   ipcMain.handle('backend:images:upload',   (_e, { base64, fileName }) => wrap(() => {

@@ -138,6 +138,13 @@
               </div>
             </div>
           </div>
+          <button v-if="!isReadOnly" class="btn btn-secondary" @click="openSaveAsTemplate" title="存为模板">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 3h-6.18C14.4 1.84 13.3 1 12 1s-2.4.84-2.82 2H3a1 1 0 0 0-1 1v15a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1z"/>
+              <path d="M7 8h10M7 12h10M7 16h6"/>
+            </svg>
+            存为模板
+          </button>
           <button
             v-if="!isReadOnly"
             class="btn"
@@ -885,6 +892,38 @@
       </div>
     </JellyModal>
 
+    <!-- 存为模板 -->
+    <JellyModal :show="saveAsTemplate.show" @close="saveAsTemplate.show = false">
+      <div class="modal-content save-template-modal">
+        <div class="modal-header">
+          <h3>将笔记存为模板</h3>
+        </div>
+        <input
+          v-model="saveAsTemplate.name"
+          type="text"
+          class="input"
+          placeholder="模板名称"
+          maxlength="50"
+          @keyup.enter="confirmSaveAsTemplate"
+        />
+        <input
+          v-model="saveAsTemplate.desc"
+          type="text"
+          class="input"
+          placeholder="模板描述（可选）"
+          maxlength="100"
+        />
+        <p v-if="saveAsTemplate.dropped" class="save-template-tip">
+          有 {{ saveAsTemplate.dropped }} 个媒体/引用类块无法存入模板，已自动跳过。
+        </p>
+        <p v-else-if="!saveAsTemplate.count" class="save-template-tip">当前笔记无可用内容块。</p>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" @click="saveAsTemplate.show = false">取消</button>
+          <button class="btn btn-primary" :disabled="!saveAsTemplate.name.trim()" @click="confirmSaveAsTemplate">保存</button>
+        </div>
+      </div>
+    </JellyModal>
+
     <!-- 大纲面板 -->
     <transition name="outline-slide">
       <div v-if="showOutline" class="outline-panel">
@@ -1120,6 +1159,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useNoteStore } from '@/stores/note'
 import { useTagStore, TAG_PRESET_COLORS } from '@/stores/tag'
+import { useTemplateStore } from '@/stores/template'
 import { useShortcutStore } from '@/stores/shortcut'
 import NoteBlock from '@/components/NoteBlock.vue'
 import MediaPicker from '@/components/MediaPicker.vue'
@@ -1138,6 +1178,7 @@ const route = useRoute()
 const router = useRouter()
 const noteStore = useNoteStore()
 const tagStore = useTagStore()
+const templateStore = useTemplateStore()
 const shortcutStore = useShortcutStore()
 tagStore.init()
 shortcutStore.init()
@@ -1505,6 +1546,37 @@ const showNoteLinkModal = ref(false)
 const noteLinkSearch = ref('')
 const expandedLinkId = ref(null)
 const highlightBlockId = ref(null)
+
+// ===== 存为模板 =====
+const saveAsTemplate = ref({ show: false, name: '', desc: '', count: 0, dropped: 0 })
+
+function openSaveAsTemplate() {
+  const { blocks: kept, dropped } = templateStore.sanitizeBlocks(blocks.value)
+  saveAsTemplate.value = {
+    show: true,
+    name: note.value?.title || '',
+    desc: '',
+    count: kept.length,
+    dropped
+  }
+}
+
+async function confirmSaveAsTemplate() {
+  const name = saveAsTemplate.value.name.trim()
+  if (!name) {
+    showToast('请输入模板名称', 'warning')
+    return
+  }
+  try {
+    const { blocks: kept } = templateStore.sanitizeBlocks(blocks.value)
+    await templateStore.create({ name, desc: saveAsTemplate.value.desc.trim(), blocks: kept })
+    saveAsTemplate.value.show = false
+    toastSuccess('已保存为模板')
+    showToast('已保存为模板', 'success')
+  } catch (err) {
+    showToast('保存失败：' + (err?.message || '未知错误'), 'error')
+  }
+}
 const noteLinkSourceBlockId = ref(null)
 
 const linkSelectionMode = ref(false)
@@ -6154,6 +6226,45 @@ function deleteSelectedConnection() {
   padding: 0 !important;
   display: flex;
   flex-direction: column;
+}
+
+.save-template-modal {
+  width: 400px;
+  max-width: 90vw;
+  padding: 24px;
+}
+
+.save-template-modal .modal-header {
+  padding: 0 0 14px;
+  border-bottom: 1px solid var(--border-light);
+  margin-bottom: 16px;
+}
+
+.save-template-modal .modal-header h3 {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.save-template-modal .input {
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+.save-template-tip {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .modal-header {

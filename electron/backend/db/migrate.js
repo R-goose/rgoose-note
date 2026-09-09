@@ -6,7 +6,7 @@
 const fs = require('fs')
 const path = require('path')
 
-const CURRENT_VER = 4
+const CURRENT_VER = 5
 
 /**
  * 对已存在的 blocks 表补齐缺失列（v1 → v2）
@@ -92,6 +92,7 @@ function purgeInvalidRows(db) {
     DELETE FROM connections WHERE id IS NULL OR id = '' OR noteId IS NULL OR noteId = '';
     DELETE FROM tags       WHERE id IS NULL OR id = '';
     DELETE FROM images      WHERE id IS NULL OR id = '';
+    DELETE FROM templates   WHERE id IS NULL OR id = '';
   `)
 }
 

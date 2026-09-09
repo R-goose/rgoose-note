@@ -15,6 +15,8 @@ const ALLOWED_BACKEND_CHANNELS = new Set([
   'backend:folders:listAll',
   'backend:tags:list', 'backend:tags:get', 'backend:tags:create', 'backend:tags:update',
   'backend:tags:delete',
+  'backend:templates:list', 'backend:templates:get', 'backend:templates:create',
+  'backend:templates:update', 'backend:templates:delete',
   'backend:images:upload', 'backend:images:download', 'backend:images:delete',
   'backend:images:listRefs', 'backend:images:listAllWithMeta', 'backend:images:rename',
   'backend:images:updateTags', 'backend:images:fetchRemote',

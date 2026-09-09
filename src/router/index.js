@@ -30,6 +30,18 @@ const routes = [
     meta: { title: '标签' }
   },
   {
+    path: '/templates',
+    name: 'Templates',
+    component: () => import('@/views/TemplatesView.vue'),
+    meta: { title: '模板' }
+  },
+  {
+    path: '/templates/:id/edit',
+    name: 'TemplateEditor',
+    component: () => import('@/views/TemplateEditorView.vue'),
+    meta: { title: '编辑模板' }
+  },
+  {
     path: '/media',
     name: 'Media',
     component: () => import('@/views/MediaView.vue'),

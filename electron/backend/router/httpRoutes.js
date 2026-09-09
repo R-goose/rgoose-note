@@ -10,6 +10,7 @@ const blockService = require('../service/blockService')
 const connectionService = require('../service/connectionService')
 const folderService = require('../service/folderService')
 const tagService = require('../service/tagService')
+const templateService = require('../service/templateService')
 const imageService = require('../service/imageService')
 const syncService = require('../service/syncService')
 const { ok, handleError } = require('../common/response')
@@ -85,6 +86,13 @@ function createRouter() {
   app.post('/api/tags', (req, res) => res.json(ok(tagService.create(req.body))))
   app.put('/api/tags/:id', (req, res) => res.json(ok(tagService.update(req.params.id, req.body))))
   app.delete('/api/tags/:id', (req, res) => { tagService.delete(req.params.id); res.json(ok()) })
+
+  // ---------- Templates ----------
+  app.get('/api/templates', (_req, res) => res.json(ok(templateService.list())))
+  app.get('/api/templates/:id', (req, res) => res.json(ok(templateService.get(req.params.id))))
+  app.post('/api/templates', (req, res) => res.json(ok(templateService.create(req.body))))
+  app.put('/api/templates/:id', (req, res) => res.json(ok(templateService.update(req.params.id, req.body))))
+  app.delete('/api/templates/:id', (req, res) => { templateService.delete(req.params.id); res.json(ok()) })
 
   // ---------- Images ----------
   app.post('/api/images', upload.single('file'), (req, res) => {

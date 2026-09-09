@@ -56,6 +56,13 @@ const routes = [
   { m: 'PUT',    p: '/tags/:id',         c: 'backend:tags:update', b: (p, body) => [{ id: p.id, tag: body }] },
   { m: 'DELETE', p: '/tags/:id',         c: 'backend:tags:delete', b: (p) => [p.id] },
 
+  // ---------- Templates ----------
+  { m: 'GET',    p: '/templates',             c: 'backend:templates:list' },
+  { m: 'GET',    p: '/templates/:id',         c: 'backend:templates:get',    b: (p) => [p.id] },
+  { m: 'POST',   p: '/templates',             c: 'backend:templates:create', b: (_p, body) => [body] },
+  { m: 'PUT',    p: '/templates/:id',         c: 'backend:templates:update', b: (p, body) => [{ id: p.id, template: body }] },
+  { m: 'DELETE', p: '/templates/:id',         c: 'backend:templates:delete', b: (p) => [p.id] },
+
   // ---------- Images (listRefs / delete) ----------
   { m: 'GET',    p: '/images',           c: 'backend:images:listRefs' },
   { m: 'DELETE', p: '/images/:ref',      c: 'backend:images:delete', b: (p) => [decodeURIComponent(p.ref)] },

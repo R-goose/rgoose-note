@@ -116,6 +116,20 @@ CREATE TABLE IF NOT EXISTS tags (
   updatedAt  INTEGER NOT NULL
 );
 
+-- ---------- 自定义笔记模板 ----------
+CREATE TABLE IF NOT EXISTS templates (
+  id         TEXT    PRIMARY KEY,
+  name       TEXT    NOT NULL UNIQUE,
+  desc       TEXT    NOT NULL DEFAULT '',
+  icon       TEXT,
+  blocks     TEXT,
+  isBuiltin  INTEGER NOT NULL DEFAULT 0,
+  sort       INTEGER,
+  createdAt  INTEGER NOT NULL,
+  updatedAt  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_templates_updated ON templates(updatedAt);
+
 -- ---------- 媒体文件元数据 ----------
 CREATE TABLE IF NOT EXISTS images (
   id           TEXT    PRIMARY KEY,
