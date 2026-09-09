@@ -49,15 +49,6 @@ const routes = [
   { m: 'PATCH',  p: '/folders/:id/tags', c: 'backend:folders:updateTags', b: (p, body) => [{ id: p.id, tags: body.tags }] },
   { m: 'DELETE', p: '/folders/:id',      c: 'backend:folders:delete',   b: (p) => [p.id] },
 
-  // ---------- Plans ----------
-  { m: 'GET',    p: '/plans',            c: 'backend:plans:list',         b: (_p, _b, q) => [normalizePlanQuery(q)] },
-  { m: 'GET',    p: '/plans/all',        c: 'backend:plans:listAll' },
-  { m: 'GET',    p: '/plans/:id',        c: 'backend:plans:get',          b: (p) => [p.id] },
-  { m: 'POST',   p: '/plans',            c: 'backend:plans:create',       b: (_p, body) => [body] },
-  { m: 'PUT',    p: '/plans/:id',        c: 'backend:plans:update',       b: (p, body) => [{ id: p.id, plan: body }] },
-  { m: 'DELETE', p: '/plans/:id',        c: 'backend:plans:delete',       b: (p) => [p.id] },
-  { m: 'PATCH',  p: '/plans/:id/complete', c: 'backend:plans:toggleComplete', b: (p) => [p.id] },
-
   // ---------- Tags ----------
   { m: 'GET',    p: '/tags',             c: 'backend:tags:list' },
   { m: 'GET',    p: '/tags/:id',         c: 'backend:tags:get',    b: (p) => [p.id] },
@@ -75,22 +66,6 @@ const routes = [
   { m: 'POST',   p: '/data/import',      c: 'backend:sync:importAll',  b: (_p, body) => [body] },
   { m: 'DELETE', p: '/data/all',         c: 'backend:sync:clearAll' }
 ]
-
-/** plans.list 查询参数类型规范化（兼容字符串与原始类型） */
-function normalizePlanQuery(q) {
-  if (!q) return {}
-  const out = {}
-  if (q.completed != null && q.completed !== '') {
-    out.completed = q.completed === true || q.completed === 'true'
-  }
-  if (q.dueBefore != null && q.dueBefore !== '') {
-    out.dueBefore = Number(q.dueBefore)
-  }
-  if (q.dueAfter != null && q.dueAfter !== '') {
-    out.dueAfter = Number(q.dueAfter)
-  }
-  return out
-}
 
 /**
  * 匹配路由

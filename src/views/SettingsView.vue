@@ -530,7 +530,7 @@
           <div id="set-about-version" class="setting-item">
             <div class="setting-info">
               <div class="setting-name brand-name">R-Goose Note</div>
-              <div class="setting-desc">版本 2.4.22</div>
+              <div class="setting-desc">版本 2.4.23</div>
             </div>
           </div>
           <div id="set-about-platform" class="setting-item">
@@ -620,7 +620,7 @@
             </div>
             <div>
               <h3>确认清除缓存</h3>
-              <p>此操作将删除本地存储的所有笔记和计划数据，且不可恢复。建议操作前先「导出数据」备份。</p>
+              <p>此操作将删除本地存储的所有笔记数据，且不可恢复。建议操作前先「导出数据」备份。</p>
             </div>
           </div>
           <div class="confirm-actions">
@@ -684,7 +684,6 @@
 <script setup>
 import { computed, ref, onMounted, nextTick, onUnmounted } from 'vue'
 import { useNoteStore } from '@/stores/note'
-import { usePlanStore } from '@/stores/plan'
 import { useTagStore } from '@/stores/tag'
 import { useShortcutStore, eventToCombo, ACTION_META } from '@/stores/shortcut'
 import { exportAsJSON, importFromJSON, mergeData, loadFromStore, saveToStore } from '@/utils/storage'
@@ -698,7 +697,6 @@ import CustomSelect from '@/components/CustomSelect.vue'
 const { error: toastError, success: toastSuccess, info: toastInfo } = useToast()
 
 const noteStore = useNoteStore()
-const planStore = usePlanStore()
 const tagStore = useTagStore()
 const shortcutStore = useShortcutStore()
 shortcutStore.init()
@@ -804,7 +802,6 @@ async function confirmExport() {
   const baseData = {
     notes: selectedNotes,
     folders: selectedFolders,
-    plans: planStore.plans,
     tags: tagStore.tags,
     exportedAt: Date.now(),
     version: '2.0.0'
@@ -1274,7 +1271,7 @@ onUnmounted(() => { document.removeEventListener('mousedown', handleDropdownOuts
 const pendingImportData = ref(null)
 
 const lastSyncTimeStr = computed(() => {
-  const lastSync = Math.max(noteStore.lastSyncTime || 0, planStore.lastSyncTime || 0)
+  const lastSync = noteStore.lastSyncTime || 0
   if (!lastSync) return '尚未同步'
   return formatDate(lastSync, 'YYYY年MM月DD日 HH:mm')
 })
@@ -1427,15 +1424,12 @@ async function handleClearCache() {
 
 async function confirmClearCache() {
   showClearCacheConfirm.value = false
-  // 先停止计划提醒定时器，避免对清空后的数据继续跑空检测
-  planStore.dispose?.()
   try {
     // v2.0: 调用后端清空全部数据
     await syncApi.clearAll()
     await noteStore.clearCache()
     noteStore.replaceAll([])
     noteStore.replaceAllFolders([])
-    planStore.replaceAll([])
     tagStore.replaceAll([])
     toastSuccess('所有数据已清除')
   } catch (err) {
@@ -1638,7 +1632,6 @@ async function confirmImport() {
     const currentData = {
       notes: noteStore.notes,
       folders: noteStore.folders,
-      plans: planStore.plans,
       tags: tagStore.tags
     }
     const beforeNoteIds = new Set(noteStore.notes.map(n => n.id))
@@ -1646,7 +1639,6 @@ async function confirmImport() {
 
     if (mergedData.folders) noteStore.replaceAllFolders(mergedData.folders)
     noteStore.replaceAll(mergedData.notes || [])
-    planStore.replaceAll(mergedData.plans || [])
     tagStore.replaceAll(mergedData.tags || [])
 
     const importedNoteIds = new Set(noteStore.notes.filter(n => !beforeNoteIds.has(n.id)).map(n => n.id))

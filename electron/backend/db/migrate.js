@@ -90,8 +90,7 @@ function purgeInvalidRows(db) {
     DELETE FROM folders     WHERE id IS NULL OR id = '';
     DELETE FROM blocks      WHERE id IS NULL OR id = '' OR noteId IS NULL OR noteId = '';
     DELETE FROM connections WHERE id IS NULL OR id = '' OR noteId IS NULL OR noteId = '';
-    DELETE FROM plans       WHERE id IS NULL OR id = '';
-    DELETE FROM tags        WHERE id IS NULL OR id = '';
+    DELETE FROM tags       WHERE id IS NULL OR id = '';
     DELETE FROM images      WHERE id IS NULL OR id = '';
   `)
 }

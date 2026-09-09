@@ -57,9 +57,6 @@ defineProps({ variant: { type: String, default: 'notes' } })
 /* ==================== 各面板微调 ==================== */
 .v-media .jb-1 { width: 250px; height: 250px; bottom: -96px; }
 .v-media .jb-2 { width: 210px; height: 210px; bottom: -118px; }
-.v-plans .jb-1 { --jb-bg: #b3d2ee; }
-.v-plans .jb-2 { --jb-bg: #8fd8ac; }
-.v-plans .jb-3 { --jb-bg: #c9bdf0; }
 .v-tags .jb-1 { --jb-bg: #b3d2ee; }
 .v-tags .jb-2 { --jb-bg: #8fd8ac; }
 .v-dashboard .jb-5 { --jb-bg: #f0b3b3; --jb-r: 18px; --jb-sh: -7px 7px 0 rgba(26,31,28,0.06); }

@@ -7,7 +7,6 @@ const folderDao = require('../dao/folderDao')
 const noteDao = require('../dao/noteDao')
 const blockDao = require('../dao/blockDao')
 const connectionDao = require('../dao/connectionDao')
-const planDao = require('../dao/planDao')
 const tagDao = require('../dao/tagDao')
 const imageService = require('./imageService')
 const { getDb } = require('../db/connection')
@@ -20,7 +19,6 @@ module.exports = {
     // 全量场景只返回未软删数据；增量场景返回所有变更（含 tombstone，供客户端同步删除）
     const folders = incremental ? folderDao.listSince(since)    : folderDao.listAll().filter(f => !f.deleted)
     const notes   = incremental ? noteDao.listSince(since)      : noteDao.listAll().filter(n => !n.deleted)
-    const plans   = incremental ? planDao.listSince(since)      : planDao.listAll()
     const tags    = incremental ? tagDao.listSince(since)       : tagDao.listAll()
 
     // blocks/connections 是子资源，无独立 since；增量时按 noteId 反查
@@ -41,7 +39,7 @@ module.exports = {
       connections = connectionDao.listAll().filter(c => validNoteIds.has(c.noteId))
     }
 
-    return { serverTime: now(), folders, notes, plans, tags, blocks, connections }
+    return { serverTime: now(), folders, notes, tags, blocks, connections }
   },
 
   /** 数据导入，按 updatedAt LWW 合并 */
@@ -50,7 +48,6 @@ module.exports = {
     const tx = db.transaction(() => {
       mergeAll(folderDao, data.folders)
       mergeAll(noteDao, data.notes)
-      mergeAll(planDao, data.plans)
       mergeAll(tagDao, data.tags)
       mergeAll(blockDao, data.blocks)
       mergeAll(connectionDao, data.connections)
@@ -65,7 +62,6 @@ module.exports = {
       db.prepare('DELETE FROM connections').run()
       db.prepare('DELETE FROM blocks').run()
       db.prepare('DELETE FROM notes').run()
-      db.prepare('DELETE FROM plans').run()
       db.prepare('DELETE FROM tags').run()
       db.prepare('DELETE FROM folders').run()
     })

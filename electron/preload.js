@@ -13,8 +13,6 @@ const ALLOWED_BACKEND_CHANNELS = new Set([
   'backend:folders:list', 'backend:folders:get', 'backend:folders:create',
   'backend:folders:update', 'backend:folders:updateTags', 'backend:folders:delete',
   'backend:folders:listAll',
-  'backend:plans:list', 'backend:plans:get', 'backend:plans:create', 'backend:plans:update',
-  'backend:plans:delete', 'backend:plans:toggleComplete', 'backend:plans:listAll',
   'backend:tags:list', 'backend:tags:get', 'backend:tags:create', 'backend:tags:update',
   'backend:tags:delete',
   'backend:images:upload', 'backend:images:download', 'backend:images:delete',

@@ -58,16 +58,6 @@
           </svg>
           <span>素材库</span>
         </router-link>
-        <router-link to="/plans" class="nav-item nav-plans" active-class="active">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <rect x="3" y="4" width="18" height="18" rx="2"/>
-            <line x1="16" y1="2" x2="16" y2="6"/>
-            <line x1="8" y1="2" x2="8" y2="6"/>
-            <line x1="3" y1="10" x2="21" y2="10"/>
-          </svg>
-          <span>计划</span>
-          <span v-if="todayPlanCount" class="badge">{{ todayPlanCount }}</span>
-        </router-link>
         <router-link to="/trash" class="nav-item nav-trash" active-class="active">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <polyline points="3 6 5 6 21 6"/>
@@ -272,7 +262,6 @@
             <template v-else-if="h.icon === 'dashboard'"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></template>
             <template v-else-if="h.icon === 'tag'"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></template>
             <template v-else-if="h.icon === 'media'"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></template>
-            <template v-else-if="h.icon === 'plan'"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></template>
             <template v-else-if="h.icon === 'settings'"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></template>
           </svg>
           <span class="history-title">{{ h.title }}</span>
@@ -546,7 +535,6 @@
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useNoteStore } from '@/stores/note'
-import { usePlanStore } from '@/stores/plan'
 import { useTagStore, TAG_PRESET_COLORS } from '@/stores/tag'
 import { useThemeStore } from '@/stores/theme'
 import { useToast } from '@/composables/useToast'
@@ -561,7 +549,6 @@ defineEmits(['toggle-collapse'])
 const router = useRouter()
 const route = useRoute()
 const noteStore = useNoteStore()
-const planStore = usePlanStore()
 const tagStore = useTagStore()
 const themeStore = useThemeStore()
 const { error: toastError } = useToast()
@@ -610,7 +597,6 @@ const folderDropdownOpen = ref(false)
 const folderDropdownStyle = ref({})
 const folderSelectTriggerRef = ref(null)
 
-const todayPlanCount = computed(() => planStore.todayPlans?.length || 0)
 const tagCount = computed(() => tagStore.tags?.length || 0)
 const currentFolderName = computed(() => {
   if (!noteStore.currentFolderId) return ''
@@ -1057,7 +1043,6 @@ const routeMeta = {
   NoteEditor: { color: '#3b82f6', icon: 'edit', label: '编辑笔记' },
   Tags: { color: '#ec4899', icon: 'tag', label: '标签' },
   Media: { color: '#06b6d4', icon: 'media', label: '素材库' },
-  Plans: { color: '#f59e0b', icon: 'plan', label: '计划' },
   Settings: { color: '#6b7280', icon: 'settings', label: '设置' }
 }
 
@@ -1139,7 +1124,6 @@ let historyTimer = null
 
 onMounted(async () => {
   await noteStore.init()
-  await planStore.init()
   await tagStore.init()
   document.addEventListener('click', hideFolderContextMenu)
   document.addEventListener('click', handleFolderSelectDocClick)
@@ -1320,14 +1304,12 @@ function closeFolderModalTagDropdown(e) {
 }
 
 .nav-notes svg { color: var(--primary-color); }
-.nav-plans svg { color: var(--secondary-dark); }
 .nav-dashboard svg { color: #4a9e9e; }
 .nav-tags svg { color: #9b7bd6; }
 .nav-media svg { color: #e8a838; }
 .nav-settings svg { color: var(--info-color); }
 
 .nav-notes:hover svg { color: var(--primary-dark); }
-.nav-plans:hover svg { color: var(--secondary-dark); }
 .nav-dashboard:hover svg { color: #3a8585; }
 .nav-tags:hover svg { color: #9b7bd6; }
 .nav-settings:hover svg { color: var(--info-dark); }
@@ -1338,13 +1320,11 @@ function closeFolderModalTagDropdown(e) {
 }
 
 .nav-notes.active { background: var(--primary-soft); color: var(--primary-dark); }
-.nav-plans.active { background: var(--secondary-soft); color: var(--secondary-dark); }
 .nav-dashboard.active { background: rgba(74, 158, 158, 0.16); color: #4a9e9e; }
 .nav-tags.active { background: rgba(155, 123, 214, 0.16); color: #9b7bd6; }
 .nav-settings.active { background: var(--info-soft); color: var(--info-dark); }
 
 .nav-notes.active svg { color: var(--primary-color); }
-.nav-plans.active svg { color: var(--secondary-color); }
 .nav-dashboard.active svg { color: #4a9e9e; }
 .nav-tags.active svg { color: #9b7bd6; }
 .nav-settings.active svg { color: var(--info-color); }

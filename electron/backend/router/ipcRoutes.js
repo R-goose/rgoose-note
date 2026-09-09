@@ -8,7 +8,6 @@ const noteService = require('../service/noteService')
 const blockService = require('../service/blockService')
 const connectionService = require('../service/connectionService')
 const folderService = require('../service/folderService')
-const planService = require('../service/planService')
 const tagService = require('../service/tagService')
 const imageService = require('../service/imageService')
 const syncService = require('../service/syncService')
@@ -68,15 +67,6 @@ function register() {
   ipcMain.handle('backend:folders:updateTags', (_e, { id, tags }) => wrap(() => folderService.updateTags(id, tags)))
   ipcMain.handle('backend:folders:delete',   (_e, id) => wrap(() => folderService.delete(id)))
   ipcMain.handle('backend:folders:listAll',  () => wrap(() => folderService.listAll()))
-
-  // ---------- Plans ----------
-  ipcMain.handle('backend:plans:list',           (_e, params) => wrap(() => planService.list(params || {})))
-  ipcMain.handle('backend:plans:get',            (_e, id) => wrap(() => planService.get(id)))
-  ipcMain.handle('backend:plans:create',         (_e, plan) => wrap(() => planService.create(plan)))
-  ipcMain.handle('backend:plans:update',         (_e, { id, plan }) => wrap(() => planService.update(id, plan)))
-  ipcMain.handle('backend:plans:delete',         (_e, id) => wrap(() => planService.delete(id)))
-  ipcMain.handle('backend:plans:toggleComplete', (_e, id) => wrap(() => planService.toggleComplete(id)))
-  ipcMain.handle('backend:plans:listAll',        () => wrap(() => planService.listAll()))
 
   // ---------- Tags ----------
   ipcMain.handle('backend:tags:list',     () => wrap(() => tagService.list()))

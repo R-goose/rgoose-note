@@ -18,12 +18,6 @@ const routes = [
     meta: { title: '编辑笔记' }
   },
   {
-    path: '/plans',
-    name: 'Plans',
-    component: () => import('@/views/PlansView.vue'),
-    meta: { title: '计划' }
-  },
-  {
     path: '/dashboard',
     name: 'Dashboard',
     component: () => import('@/views/DashboardView.vue'),

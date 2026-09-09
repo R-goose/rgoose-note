@@ -106,25 +106,6 @@ CREATE TABLE IF NOT EXISTS connections (
 );
 CREATE INDEX IF NOT EXISTS idx_connections_note ON connections(noteId);
 
--- ---------- 计划/待办 ----------
-CREATE TABLE IF NOT EXISTS plans (
-  id            TEXT    PRIMARY KEY,
-  title         TEXT    NOT NULL,
-  description   TEXT,
-  dueDate       INTEGER,
-  reminder      TEXT,
-  completed     INTEGER NOT NULL DEFAULT 0,
-  priority      TEXT    NOT NULL DEFAULT 'normal',
-  tags          TEXT,
-  noteId        TEXT,
-  blockId       TEXT,
-  createdAt     INTEGER NOT NULL,
-  updatedAt     INTEGER NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_plans_due     ON plans(dueDate, completed);
-CREATE INDEX IF NOT EXISTS idx_plans_note    ON plans(noteId);
-CREATE INDEX IF NOT EXISTS idx_plans_updated ON plans(updatedAt);
-
 -- ---------- 标签 ----------
 CREATE TABLE IF NOT EXISTS tags (
   id         TEXT    PRIMARY KEY,

@@ -9,7 +9,6 @@ const noteService = require('../service/noteService')
 const blockService = require('../service/blockService')
 const connectionService = require('../service/connectionService')
 const folderService = require('../service/folderService')
-const planService = require('../service/planService')
 const tagService = require('../service/tagService')
 const imageService = require('../service/imageService')
 const syncService = require('../service/syncService')
@@ -79,22 +78,6 @@ function createRouter() {
   app.put('/api/folders/:id', (req, res) => res.json(ok(folderService.update(req.params.id, req.body))))
   app.patch('/api/folders/:id/tags', (req, res) => res.json(ok(folderService.updateTags(req.params.id, req.body.tags))))
   app.delete('/api/folders/:id', (req, res) => res.json(ok(folderService.delete(req.params.id))))
-
-  // ---------- Plans ----------
-  app.get('/api/plans', (req, res) => {
-    const { completed, dueBefore, dueAfter } = req.query
-    res.json(ok(planService.list({
-      completed: completed == null ? null : completed === 'true',
-      dueBefore: dueBefore == null ? null : Number(dueBefore),
-      dueAfter: dueAfter == null ? null : Number(dueAfter)
-    })))
-  })
-  app.get('/api/plans/all', (_req, res) => res.json(ok(planService.listAll())))
-  app.get('/api/plans/:id', (req, res) => res.json(ok(planService.get(req.params.id))))
-  app.post('/api/plans', (req, res) => res.json(ok(planService.create(req.body))))
-  app.put('/api/plans/:id', (req, res) => res.json(ok(planService.update(req.params.id, req.body))))
-  app.delete('/api/plans/:id', (req, res) => { planService.delete(req.params.id); res.json(ok()) })
-  app.patch('/api/plans/:id/complete', (req, res) => { planService.toggleComplete(req.params.id); res.json(ok()) })
 
   // ---------- Tags ----------
   app.get('/api/tags', (_req, res) => res.json(ok(tagService.list())))

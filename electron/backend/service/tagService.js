@@ -6,7 +6,6 @@
 const tagDao = require('../dao/tagDao')
 const noteDao = require('../dao/noteDao')
 const folderDao = require('../dao/folderDao')
-const planDao = require('../dao/planDao')
 const { getDb } = require('../db/connection')
 const { now } = require('../common/utils')
 const { notFound, conflict } = require('../common/errors')
@@ -43,14 +42,13 @@ module.exports = {
     return tagDao.update(id, { ...tag, updatedAt: now() })
   },
 
-  /** 删除标签 + 从 notes/folders/plans 的 tags 列中移除该 tagId */
+  /** 删除标签 + 从 notes/folders 的 tags 列中移除该 tagId */
   delete(id) {
     const db = getDb()
     const tx = db.transaction(() => {
       tagDao.delete(id)
       removeFromNotes(id)
       removeFromFolders(id)
-      removeFromPlans(id)
     })
     tx()
   },
@@ -77,16 +75,6 @@ function removeFromFolders(tagId) {
     if (Array.isArray(folder.tags) && folder.tags.includes(tagId)) {
       const newTags = folder.tags.filter(t => t !== tagId)
       folderDao.update(folder.id, { ...folder, tags: newTags, updatedAt: now() })
-    }
-  }
-}
-
-function removeFromPlans(tagId) {
-  const plans = planDao.listAll()
-  for (const plan of plans) {
-    if (Array.isArray(plan.tags) && plan.tags.includes(tagId)) {
-      const newTags = plan.tags.filter(t => t !== tagId)
-      planDao.update(plan.id, { ...plan, tags: newTags, updatedAt: now() })
     }
   }
 }

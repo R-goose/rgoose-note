@@ -277,66 +277,6 @@
         </div>
       </div>
 
-      <div
-        v-else-if="block.type === 'todo'"
-        class="todo-block"
-        :class="{ 'is-done': block.status === 'done' }"
-        @wheel.stop
-      >
-        <div class="todo-row">
-          <button
-            class="todo-status-btn"
-            :class="'status-' + (block.status || 'todo')"
-            @click.stop="cycleTodoStatus"
-            @mousedown.prevent
-            :title="todoStatusLabel"
-          >
-            <svg v-if="(block.status || 'todo') === 'done'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            <svg v-else-if="(block.status || 'todo') === 'doing'" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0 0 20 10 10 0 0 0 0-20zm0 4a6 6 0 0 1 6 6h-6V6z"/></svg>
-            <svg v-else-if="(block.status || 'todo') === 'paused'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
-            <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="9"/></svg>
-          </button>
-          <input
-            type="text"
-            class="todo-title-input"
-            :value="block.title || ''"
-            placeholder="任务标题..."
-            :readonly="readOnly"
-            @input="onTodoField('title', $event.target.value)"
-            @mousedown.stop
-            @click.stop
-          />
-        </div>
-        <div class="todo-meta-row">
-          <button
-            class="todo-priority-pill"
-            :class="'priority-' + (block.priority || 'normal')"
-            @click.stop="cycleTodoPriority"
-            @mousedown.prevent
-            title="优先级"
-          >{{ todoPriorityLabel }}</button>
-          <div class="todo-due-wrap" @mousedown.stop @click.stop>
-            <DateTimePicker
-              :model-value="block.dueDate || ''"
-              date-only
-              compact
-              :disabled="readOnly"
-              @update:model-value="onTodoField('dueDate', $event || null)"
-            />
-          </div>
-        </div>
-        <textarea
-          class="todo-notes-input"
-          :value="block.content || ''"
-          placeholder="备注（可选）..."
-          :readonly="readOnly"
-          rows="2"
-          @input="onTodoField('content', $event.target.value)"
-          @mousedown.stop
-          @click.stop
-        ></textarea>
-      </div>
-
       <!-- 进度条块 -->
       <div
         v-else-if="block.type === 'progress'"
@@ -360,7 +300,7 @@
         <div class="progress-track-wrap">
           <div
             class="progress-track"
-            :class="{ 'is-auto': block.mode === 'auto', 'is-dragging': progressDragging }"
+            :class="{ 'is-dragging': progressDragging }"
             ref="progressTrackRef"
             @mousedown.stop.prevent="onProgressDragStart"
           >
@@ -372,105 +312,6 @@
             <button class="progress-step-btn" @mousedown.prevent @click.stop="progressStep(5)" title="+5%">+</button>
           </div>
         </div>
-        <div class="progress-mode-row" v-if="!readOnly">
-          <button
-            class="progress-mode-toggle"
-            :class="{ active: block.mode === 'auto' }"
-            @mousedown.prevent
-            @click.stop="toggleProgressMode"
-            :title="block.mode === 'auto' ? '自动模式：按关联任务块计算完成率' : '手动模式：手动调整百分比'"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-9-9"/><path d="M21 3v6h-6"/></svg>
-            {{ block.mode === 'auto' ? '自动（按任务）' : '手动' }}
-          </button>
-          <span v-if="block.mode === 'auto'" class="progress-auto-hint">{{ progressAutoText }}</span>
-          <button
-            v-if="block.mode === 'auto' && progressLinkedTodos.length > 0"
-            class="progress-link-toggle"
-            @mousedown.prevent
-            @click.stop="progressShowLinks = !progressShowLinks"
-            :class="{ active: progressShowLinks }"
-          >
-            {{ progressShowLinks ? '收起' : '关联任务' }}
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
-        </div>
-        <div v-if="block.mode === 'auto' && progressShowLinks && progressLinkedTodos.length > 0" class="progress-link-list">
-          <div class="progress-link-header">
-            <span>选择要计入的任务（不选则全部计入）</span>
-            <button v-if="(block.linkedTodoIds || []).length > 0" class="progress-link-clear" @mousedown.prevent @click.stop="clearProgressLinks">清除选择</button>
-          </div>
-          <label
-            v-for="t in progressLinkedTodos"
-            :key="t.id"
-            class="progress-link-item"
-            :class="{ checked: (block.linkedTodoIds || []).includes(t.id) }"
-            @mousedown.stop
-            @click.stop="toggleProgressLink(t.id)"
-          >
-            <span class="progress-link-check">
-              <svg v-if="(block.linkedTodoIds || []).includes(t.id)" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-            </span>
-            <span class="progress-link-status" :class="'status-' + (t.status || 'todo')"></span>
-            <span class="progress-link-title">{{ t.title || '未命名任务' }}</span>
-          </label>
-        </div>
-        <div v-else-if="block.mode === 'auto' && progressLinkedTodos.length === 0 && progressShowLinks" class="progress-link-empty">
-          本笔记还没有任务块，右键画布创建任务块后再来关联
-        </div>
-      </div>
-
-      <!-- 里程碑块 -->
-      <div
-        v-else-if="block.type === 'milestone'"
-        class="milestone-block"
-        :class="{ 'is-done': block.done }"
-        @wheel.stop
-      >
-        <div class="milestone-row">
-          <button
-            class="milestone-icon-btn"
-            :class="{ done: block.done }"
-            @click.stop="toggleMilestoneDone"
-            @mousedown.prevent
-            :title="block.done ? '标记为未完成' : '标记为已完成'"
-          >
-            <svg v-if="block.done" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 22V4l5 3 5-3 6 3v14l-6-3-5 3z"/></svg>
-            <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 22V4l5 3 5-3 6 3v14l-6-3-5 3z"/></svg>
-          </button>
-          <input
-            type="text"
-            class="milestone-title-input"
-            :value="block.title || ''"
-            placeholder="里程碑名称（如：v0.3 Demo）"
-            :readonly="readOnly"
-            @input="onMilestoneField('title', $event.target.value)"
-            @mousedown.stop
-            @click.stop
-          />
-        </div>
-        <div class="milestone-meta-row">
-          <div class="milestone-date-wrap" @mousedown.stop @click.stop>
-            <DateTimePicker
-              :model-value="block.date || ''"
-              date-only
-              compact
-              :disabled="readOnly"
-              @update:model-value="onMilestoneField('date', $event || null)"
-            />
-          </div>
-          <div v-if="block.date" class="milestone-relative" :class="{ overdue: milestoneOverdue }">{{ milestoneRelative }}</div>
-        </div>
-        <textarea
-          class="milestone-desc-input"
-          :value="block.desc || ''"
-          placeholder="版本目标 / 交付内容..."
-          :readonly="readOnly"
-          rows="2"
-          @input="onMilestoneField('desc', $event.target.value)"
-          @mousedown.stop
-          @click.stop
-        ></textarea>
       </div>
 
       <div
@@ -693,7 +534,7 @@ import { useNoteStore } from '@/stores/note'
 import { useShortcutStore } from '@/stores/shortcut'
 import { resolveImageUrl, isImageRef } from '@/utils/imageStore'
 import { markdownToHtml, convertInlineMd, isLikelyMarkdown, escapeHtml, splitTableCells } from '@/utils/markdown'
-import DateTimePicker from '@/components/DateTimePicker.vue'
+
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 
@@ -1165,79 +1006,12 @@ function onMouseDown(e) {
   emit('drag-start', props.block.id, e.clientX, e.clientY, e)
 }
 
-// ===== Todo 块 =====
-const TODO_STATUSES = ['todo', 'doing', 'done', 'paused']
-const TODO_STATUS_LABELS = { todo: '待办', doing: '进行中', done: '已完成', paused: '已搁置' }
-const TODO_PRIORITIES = ['low', 'normal', 'high']
-const TODO_PRIORITY_LABELS = { low: '低', normal: '中', high: '高' }
-
-const todoStatusLabel = computed(() => TODO_STATUS_LABELS[props.block?.status || 'todo'])
-const todoPriorityLabel = computed(() => '优先级：' + TODO_PRIORITY_LABELS[props.block?.priority || 'normal'])
-
-function cycleTodoStatus() {
-  if (props.readOnly) return
-  const cur = props.block?.status || 'todo'
-  const next = TODO_STATUSES[(TODO_STATUSES.indexOf(cur) + 1) % TODO_STATUSES.length]
-  emit('save-history', props.block.id)
-  emit('update', props.block.id, { status: next })
-}
-
-function cycleTodoPriority() {
-  if (props.readOnly) return
-  const cur = props.block?.priority || 'normal'
-  const next = TODO_PRIORITIES[(TODO_PRIORITIES.indexOf(cur) + 1) % TODO_PRIORITIES.length]
-  emit('save-history', props.block.id)
-  emit('update', props.block.id, { priority: next })
-}
-
-let todoFieldHistorySaved = false
-function onTodoField(field, value) {
-  if (props.readOnly) return
-  if (!todoFieldHistorySaved) {
-    emit('save-history', props.block.id)
-    todoFieldHistorySaved = true
-    setTimeout(() => { todoFieldHistorySaved = false }, 800)
-  }
-  emit('update', props.block.id, { [field]: value })
-}
-
 // ===== 进度条块 =====
 const progressTrackRef = ref(null)
 const progressDragging = ref(false)
-const progressShowLinks = ref(false)
 
 const progressValue = computed(() => {
-  if (props.block?.mode === 'auto') {
-    return progressAutoValue.value
-  }
   return Math.max(0, Math.min(100, props.block?.value ?? 0))
-})
-
-const progressLinkedTodos = computed(() => {
-  return (props.allBlocks || []).filter(b => b.type === 'todo')
-})
-
-const progressAutoValue = computed(() => {
-  const linked = props.block?.linkedTodoIds
-  const todos = (linked && linked.length > 0)
-    ? progressLinkedTodos.value.filter(t => linked.includes(t.id))
-    : progressLinkedTodos.value
-  if (todos.length === 0) return 0
-  const done = todos.filter(b => b.status === 'done').length
-  return Math.round((done / todos.length) * 100)
-})
-
-const progressAutoText = computed(() => {
-  const linked = props.block?.linkedTodoIds
-  const todos = (linked && linked.length > 0)
-    ? progressLinkedTodos.value.filter(t => linked.includes(t.id))
-    : progressLinkedTodos.value
-  if (todos.length === 0) {
-    return linked && linked.length > 0 ? '关联任务已被删除' : '本笔记暂无任务块'
-  }
-  const done = todos.filter(b => b.status === 'done').length
-  const scope = linked && linked.length > 0 ? `关联 ${todos.length} 项` : `全部 ${todos.length} 项`
-  return `${done}/${todos.length} 完成 · ${scope}`
 })
 
 let progressFieldHistorySaved = false
@@ -1251,22 +1025,6 @@ function onProgressField(field, value) {
   emit('update', props.block.id, { [field]: value })
 }
 
-function toggleProgressLink(todoId) {
-  if (props.readOnly) return
-  const linked = [...(props.block?.linkedTodoIds || [])]
-  const idx = linked.indexOf(todoId)
-  if (idx >= 0) linked.splice(idx, 1)
-  else linked.push(todoId)
-  emit('save-history', props.block.id)
-  emit('update', props.block.id, { linkedTodoIds: linked })
-}
-
-function clearProgressLinks() {
-  if (props.readOnly) return
-  emit('save-history', props.block.id)
-  emit('update', props.block.id, { linkedTodoIds: [] })
-}
-
 function progressStep(delta) {
   if (props.readOnly) return
   const cur = props.block?.value ?? 0
@@ -1276,7 +1034,7 @@ function progressStep(delta) {
 }
 
 function onProgressDragStart(e) {
-  if (props.readOnly || props.block?.mode === 'auto') return
+  if (props.readOnly) return
   progressDragging.value = true
   emit('save-history', props.block.id)
   updateProgressFromPointer(e)
@@ -1297,54 +1055,6 @@ function updateProgressFromPointer(e) {
   let pct = Math.round(((e.clientX - rect.left) / rect.width) * 100)
   pct = Math.max(0, Math.min(100, pct))
   emit('update', props.block.id, { value: pct })
-}
-
-function toggleProgressMode() {
-  if (props.readOnly) return
-  const next = props.block?.mode === 'auto' ? 'manual' : 'auto'
-  emit('save-history', props.block.id)
-  emit('update', props.block.id, { mode: next })
-}
-
-// ===== 里程碑块 =====
-const milestoneRelative = computed(() => {
-  const date = props.block?.date
-  if (!date) return ''
-  const target = new Date(date + 'T00:00:00')
-  const now = new Date()
-  now.setHours(0, 0, 0, 0)
-  const diff = Math.round((target - now) / 86400000)
-  if (props.block?.done) return '已完成'
-  if (diff === 0) return '今天'
-  if (diff > 0) return `还有 ${diff} 天`
-  return `逾期 ${-diff} 天`
-})
-
-const milestoneOverdue = computed(() => {
-  if (props.block?.done) return false
-  const date = props.block?.date
-  if (!date) return false
-  const target = new Date(date + 'T00:00:00')
-  const now = new Date()
-  now.setHours(0, 0, 0, 0)
-  return target < now
-})
-
-function toggleMilestoneDone() {
-  if (props.readOnly) return
-  emit('save-history', props.block.id)
-  emit('update', props.block.id, { done: !props.block?.done })
-}
-
-let milestoneFieldHistorySaved = false
-function onMilestoneField(field, value) {
-  if (props.readOnly) return
-  if (!milestoneFieldHistorySaved) {
-    emit('save-history', props.block.id)
-    milestoneFieldHistorySaved = true
-    setTimeout(() => { milestoneFieldHistorySaved = false }, 800)
-  }
-  emit('update', props.block.id, { [field]: value })
 }
 
 const AUTO_LINK_URL_RE = /\b(?:https?:\/\/|www\.)\S+/gi
@@ -3188,92 +2898,6 @@ onUnmounted(() => {
   100% { box-shadow: 0 0 0 2px var(--primary-color), var(--shadow-lg); }
 }
 
-/* ===== Todo 块 ===== */
-.todo-block {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 4px 2px;
-}
-.todo-block.is-done {
-  opacity: 0.62;
-}
-.todo-block.is-done .todo-title-input {
-  text-decoration: line-through;
-}
-.todo-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.todo-status-btn {
-  flex-shrink: 0;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.todo-status-btn.status-todo { color: #b0b6bf; }
-.todo-status-btn.status-doing { color: #4a90d9; background: rgba(74,144,217,0.12); }
-.todo-status-btn.status-done { color: #fff; background: #6bbd8f; }
-.todo-status-btn.status-paused { color: #e8a44a; background: rgba(232,164,74,0.14); }
-.todo-status-btn:hover { filter: brightness(1.08); }
-.todo-title-input {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  outline: none;
-  background: transparent;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary, #222);
-  padding: 2px 0;
-}
-.todo-title-input::placeholder { color: var(--text-tertiary, #bbb); font-weight: 500; }
-.todo-meta-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding-left: 32px;
-}
-.todo-priority-pill {
-  border: none;
-  border-radius: 10px;
-  padding: 2px 9px;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  line-height: 1.6;
-}
-.todo-priority-pill.priority-low { background: rgba(150,160,170,0.18); color: #7a8ca6; }
-.todo-priority-pill.priority-normal { background: rgba(74,144,217,0.16); color: #4a90d9; }
-.todo-priority-pill.priority-high { background: rgba(217,107,110,0.18); color: #d96b6e; }
-.todo-due-wrap {
-  display: flex;
-  align-items: center;
-}
-.todo-notes-input {
-  width: 100%;
-  margin-left: 32px;
-  width: calc(100% - 32px);
-  border: none;
-  outline: none;
-  background: transparent;
-  resize: vertical;
-  font-size: 13px;
-  color: var(--text-secondary, #555);
-  font-family: inherit;
-  line-height: 1.5;
-  min-height: 0;
-}
-.todo-notes-input::placeholder { color: var(--text-tertiary, #bbb); }
-
 /* ===== 进度条块 ===== */
 .progress-block {
   display: flex;
@@ -3326,7 +2950,6 @@ onUnmounted(() => {
   overflow: visible;
 }
 .progress-track.is-dragging { cursor: grabbing; }
-.progress-track.is-auto { cursor: default; }
 .progress-track.is-dragging .progress-thumb {
   transform: translate(-50%, -50%) scale(1.25);
   box-shadow: 0 2px 8px rgba(0,0,0,0.3);
@@ -3383,207 +3006,6 @@ onUnmounted(() => {
   color: var(--primary-color);
   background: var(--primary-soft, rgba(74,144,217,0.08));
 }
-.progress-mode-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.progress-mode-toggle {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  border: 1px solid var(--border-light, #e0e0e0);
-  border-radius: 12px;
-  background: var(--bg-secondary, #fff);
-  color: var(--text-tertiary);
-  font-size: 11px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.progress-mode-toggle.active {
-  background: var(--primary-soft, rgba(74,144,217,0.12));
-  border-color: var(--primary-color);
-  color: var(--primary-color);
-}
-.progress-auto-hint {
-  font-size: 11px;
-  color: var(--text-tertiary);
-}
-.progress-link-toggle {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  margin-left: auto;
-  padding: 3px 8px;
-  border: 1px solid var(--border-light, #e0e0e0);
-  border-radius: 12px;
-  background: var(--bg-secondary, #fff);
-  color: var(--text-tertiary);
-  font-size: 11px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.progress-link-toggle:hover { color: var(--primary-color); border-color: var(--primary-color); }
-.progress-link-toggle.active { background: var(--primary-soft, rgba(74,144,217,0.12)); color: var(--primary-color); border-color: var(--primary-color); }
-.progress-link-list {
-  margin-top: 4px;
-  padding: 8px;
-  border: 1px solid var(--border-light, #e0e0e0);
-  border-radius: 8px;
-  background: var(--bg-tertiary, #f9f9f9);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  max-height: 180px;
-  overflow-y: auto;
-}
-.progress-link-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 11px;
-  color: var(--text-tertiary);
-  padding-bottom: 4px;
-  border-bottom: 1px solid var(--border-light, #eee);
-  margin-bottom: 2px;
-}
-.progress-link-clear {
-  border: none;
-  background: transparent;
-  color: var(--primary-color);
-  font-size: 11px;
-  cursor: pointer;
-  padding: 0;
-}
-.progress-link-clear:hover { text-decoration: underline; }
-.progress-link-item {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 5px 6px;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: background 0.12s;
-}
-.progress-link-item:hover { background: var(--bg-secondary, #fff); }
-.progress-link-check {
-  width: 15px;
-  height: 15px;
-  border: 1.5px solid var(--border-color, #ccc);
-  border-radius: 3px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: transparent;
-  transition: all 0.12s;
-}
-.progress-link-item.checked .progress-link-check {
-  background: var(--primary-color);
-  border-color: var(--primary-color);
-  color: #fff;
-}
-.progress-link-status {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  background: var(--text-quaternary, #ccc);
-}
-.progress-link-status.status-todo { background: #9ca3af; }
-.progress-link-status.status-doing { background: var(--primary-color); }
-.progress-link-status.status-done { background: #4a8a64; }
-.progress-link-status.status-paused { background: #d4a657; }
-.progress-link-title {
-  font-size: 12px;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.progress-link-empty {
-  margin-top: 4px;
-  padding: 10px;
-  font-size: 11px;
-  color: var(--text-tertiary);
-  text-align: center;
-  background: var(--bg-tertiary, #f9f9f9);
-  border-radius: 6px;
-}
-
-/* ===== 里程碑块 ===== */
-.milestone-block {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 6px 2px;
-}
-.milestone-block.is-done { opacity: 0.65; }
-.milestone-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.milestone-icon-btn {
-  flex-shrink: 0;
-  width: 30px;
-  height: 30px;
-  border: none;
-  background: transparent;
-  color: var(--text-tertiary);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: color 0.15s, transform 0.15s;
-}
-.milestone-icon-btn:hover { transform: scale(1.15); }
-.milestone-icon-btn.done { color: #4a8a64; }
-.milestone-title-input {
-  flex: 1;
-  border: none;
-  outline: none;
-  background: transparent;
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text-primary);
-  padding: 2px 0;
-}
-.milestone-block.is-done .milestone-title-input { text-decoration: line-through; }
-.milestone-title-input::placeholder { color: var(--text-tertiary, #bbb); font-weight: 600; }
-.milestone-meta-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding-left: 38px;
-}
-.milestone-date-wrap {
-  display: flex;
-  align-items: center;
-}
-.milestone-relative {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-tertiary);
-}
-.milestone-relative.overdue { color: #d96b6e; }
-.milestone-desc-input {
-  width: 100%;
-  border: 1px solid var(--border-light, #e0e0e0);
-  border-radius: 6px;
-  padding: 6px 8px;
-  font-size: 13px;
-  color: var(--text-secondary);
-  background: var(--bg-tertiary, #f9f9f9);
-  resize: vertical;
-  outline: none;
-  font-family: inherit;
-  line-height: 1.5;
-  min-height: 0;
-}
-.milestone-desc-input:focus { border-color: var(--primary-color); }
-.milestone-desc-input::placeholder { color: var(--text-tertiary, #bbb); }
 
 .connect-dot {
   position: absolute;

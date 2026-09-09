@@ -7,7 +7,7 @@ export const syncApi = {
   /**
    * 增量同步：拉取服务器变更
    * @param {number} since - 毫秒时间戳，0 表示全量拉取
-   * @returns {Promise<object>} { serverTime, folders, notes, plans, tags }
+   * @returns {Promise<object>} { serverTime, folders, notes, tags }
    */
   pull(since = 0) {
     return http.get('/sync', { since })

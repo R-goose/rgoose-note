@@ -677,8 +677,8 @@ const NOTE_TEMPLATES = [
   },
   {
     key: 'tasks',
-    name: '任务清单',
-    desc: '开发待办管理',
+    name: '开发规划',
+    desc: '项目功能规划',
     icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>'
   }
 ]
@@ -690,7 +690,6 @@ function buildTemplateBlocks(tplKey) {
   let cursorY = 60
   // 估算块渲染高度（含块 header + padding 开销 + 浏览器默认标题/段落/列表 margin）
   const estHeight = (data) => {
-    if (data.type === 'todo') return 132
     // 文本块：根据内容粗略估算
     const html = data.content || ''
     const pCount = (html.match(/<p/g) || []).length
@@ -726,7 +725,7 @@ function buildTemplateBlocks(tplKey) {
   if (tplKey === 'character') {
     mkRow(
       { x: PAD_X, width: 320, minHeight: 90, type: 'text', content: '<h2>角色名</h2><p>填写角色基本信息、背景设定</p>' },
-      { x: PAD_X + 320 + GAP, width: 260, minHeight: 90, type: 'todo', title: '完成角色立绘', status: 'todo', priority: 'normal', dueDate: null, content: '' }
+      { x: PAD_X + 320 + GAP, width: 260, minHeight: 100, type: 'text', content: '<h3>立绘说明</h3><p>角色立绘的要点与进度备注</p>' }
     )
     mk({ width: 600, minHeight: 130, type: 'text', content: '<h3>属性面板</h3><ul><li>生命值 / 攻击力 / 防御力</li><li>特殊技能</li><li>弱点与抗性</li></ul>' })
     mk({ width: 600, minHeight: 130, type: 'text', content: '<h3>背景故事</h3><p>角色的身世、动机、关键事件...</p>' })
@@ -734,26 +733,26 @@ function buildTemplateBlocks(tplKey) {
     mk({ width: 340, minHeight: 90, type: 'text', content: '<h2>关卡名称</h2><p>主题 / 难度 / 时长</p>' })
     mk({ width: 600, minHeight: 100, type: 'text', content: '<h3>关卡目标</h3><p>玩家需要完成什么...</p>' })
     mk({ width: 600, minHeight: 150, type: 'text', content: '<h3>地图结构</h3><ul><li>起点 → 中段 → Boss</li><li>隐藏区域 / 收集品</li></ul>' })
-    mk({ width: 300, minHeight: 100, type: 'todo', title: '设计敌人配置', status: 'todo', priority: 'high', dueDate: null, content: '' })
+    mk({ width: 300, minHeight: 130, type: 'text', content: '<h3>敌人配置</h3><p>敌人的类型、参数与设计要点</p>' })
   } else if (tplKey === 'system') {
     mk({ width: 340, minHeight: 90, type: 'text', content: '<h2>系统名称</h2><p>一句话描述这个系统</p>' })
     mk({ width: 600, minHeight: 150, type: 'text', content: '<h3>核心机制</h3><p>这个系统如何运作？输入 → 处理 → 输出...</p>' })
     mk({ width: 600, minHeight: 130, type: 'text', content: '<h3>数值平衡</h3><ul><li>成长曲线</li><li>消耗与收益</li></ul>' })
-    mk({ width: 300, minHeight: 100, type: 'todo', title: '原型验证', status: 'todo', priority: 'normal', dueDate: null, content: '' })
+    mk({ width: 300, minHeight: 130, type: 'text', content: '<h3>原型验证</h3><p>原型验证的内容、方法与结论</p>' })
   } else if (tplKey === 'story') {
     mk({ width: 340, minHeight: 90, type: 'text', content: '<h2>故事标题</h2><p>题材 / 基调</p>' })
     mk({ width: 600, minHeight: 100, type: 'text', content: '<h3>第一幕：开端</h3><p>引入、设定、激励事件...</p>' })
     mk({ width: 600, minHeight: 100, type: 'text', content: '<h3>第二幕：发展</h3><p>冲突升级、转折点...</p>' })
     mk({ width: 600, minHeight: 100, type: 'text', content: '<h3>第三幕：结局</h3><p>高潮、解决、余韵...</p>' })
   } else if (tplKey === 'tasks') {
-    mk({ width: 340, minHeight: 90, type: 'text', content: '<h2>项目待办</h2><p>按优先级跟踪开发进度</p>' })
+    mk({ width: 340, minHeight: 90, type: 'text', content: '<h2>项目规划</h2><p>分区记录各模块的目标与进度</p>' })
     mkRow(
-      { x: PAD_X, width: 290, minHeight: 100, type: 'todo', title: '核心玩法原型', status: 'doing', priority: 'high', dueDate: null, content: '' },
-      { x: PAD_X + 290 + GAP, width: 290, minHeight: 100, type: 'todo', title: '美术资源整理', status: 'todo', priority: 'normal', dueDate: null, content: '' }
+      { x: PAD_X, width: 290, minHeight: 130, type: 'text', content: '<h3>核心玩法原型</h3><p>阶段目标与说明</p>' },
+      { x: PAD_X + 290 + GAP, width: 290, minHeight: 130, type: 'text', content: '<h3>美术资源整理</h3><p>资源清单与进度</p>' }
     )
     mkRow(
-      { x: PAD_X, width: 290, minHeight: 100, type: 'todo', title: '音效接入', status: 'todo', priority: 'low', dueDate: null, content: '' },
-      { x: PAD_X + 290 + GAP, width: 290, minHeight: 100, type: 'todo', title: 'Bug 修复', status: 'paused', priority: 'normal', dueDate: null, content: '' }
+      { x: PAD_X, width: 290, minHeight: 130, type: 'text', content: '<h3>音效接入</h3><p>音效清单与进度</p>' },
+      { x: PAD_X + 290 + GAP, width: 290, minHeight: 130, type: 'text', content: '<h3>Bug 修复</h3><p>问题记录与修复说明</p>' }
     )
   }
   return blocks

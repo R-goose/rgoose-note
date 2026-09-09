@@ -47,8 +47,6 @@ import ToastContainer from '@/components/ToastContainer.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
 import AIFloatingButton from '@/components/AIFloatingButton.vue'
 import { useThemeStore } from '@/stores/theme'
-import { useNoteStore } from '@/stores/note'
-import { usePlanStore } from '@/stores/plan'
 import { useTagStore } from '@/stores/tag'
 import { useToast } from '@/composables/useToast'
 
@@ -79,15 +77,7 @@ function handleApiLoading(e) {
 }
 const route = useRoute()
 const isExportMode = computed(() => route.query.export === '1')
-const { warning: toastWarning, error: toastError } = useToast()
-
-function handlePlanReminder(e) {
-  const { plan, phase, text } = e.detail
-  if (plan) {
-    const label = phase === '已过期' ? '⏰ 已过期' : '⏰ 即将到期'
-    toastWarning(`${label}：${text}`, 6000)
-  }
-}
+const { error: toastError } = useToast()
 
 // 存储失败（如 localStorage 超限）提示：防抖，避免连续保存刷屏
 let lastStorageErrorAt = 0
@@ -144,15 +134,12 @@ onMounted(() => {
     unsubMaximize = api.onMaximizeChange(v => { isMaximized.value = !!v })
   }
 
-  const noteStore = useNoteStore()
-  const planStore = usePlanStore()
   const tagStore = useTagStore()
   tagStore.init()
   // v2.0: 数据实时同步到后端，不再需要 beforeunload 刷新
   onBeforeUnload = () => {}
   window.addEventListener('beforeunload', onBeforeUnload)
   window.addEventListener('keydown', onGlobalKeydown)
-  window.addEventListener('plan-reminder', handlePlanReminder)
   window.addEventListener('rgoose-storage-error', handleStorageError)
   window.addEventListener('rgoose-loading', handleApiLoading)
 })
@@ -167,7 +154,6 @@ onUnmounted(() => {
     onBeforeUnload = null
   }
   window.removeEventListener('keydown', onGlobalKeydown)
-  window.removeEventListener('plan-reminder', handlePlanReminder)
   window.removeEventListener('rgoose-storage-error', handleStorageError)
   window.removeEventListener('rgoose-loading', handleApiLoading)
   if (loadingShowTimer) {

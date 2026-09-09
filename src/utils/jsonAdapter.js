@@ -4,7 +4,6 @@ export function isAppFormatData(data) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return false
   if (Array.isArray(data.notes) && data.notes.length > 0) return true
   if (Array.isArray(data.folders) && data.folders.length > 0) return true
-  if (Array.isArray(data.plans) && data.plans.length > 0) return true
   if (Array.isArray(data.tags) && data.tags.length > 0) return true
   if (data.exportedAt || data.version === '2.0.0') return true
   return false

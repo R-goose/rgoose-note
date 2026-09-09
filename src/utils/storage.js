@@ -136,15 +136,12 @@ export function mergeData(localData, remoteData) {
   const remoteFolders = remoteData.folders || []
   const localNotes = localData.notes || []
   const remoteNotes = remoteData.notes || []
-  const localPlans = localData.plans || []
-  const remotePlans = remoteData.plans || []
   const localTags = localData.tags || []
   const remoteTags = remoteData.tags || []
 
   const merged = {
     folders: [...localFolders],
     notes: [...localNotes],
-    plans: [...localPlans],
     tags: [...localTags],
     updatedAt: Math.max(Number(localData.updatedAt) || 0, Number(remoteData.updatedAt) || 0)
   }
@@ -179,21 +176,6 @@ export function mergeData(localData, remoteData) {
         merged.notes[idx] = remoteNote
       } else {
         merged.notes.push(remoteNote)
-      }
-    }
-  })
-
-  const localPlanMap = new Map(localPlans.map(p => [p.id, p]))
-  remotePlans.forEach(remotePlan => {
-    const localPlan = localPlanMap.get(remotePlan.id)
-    const remoteTs = Number(remotePlan.updatedAt) || 0
-    const localTs = Number(localPlan?.updatedAt) || 0
-    if (!localPlan || remoteTs >= localTs) {
-      const idx = merged.plans.findIndex(p => p.id === remotePlan.id)
-      if (idx >= 0) {
-        merged.plans[idx] = remotePlan
-      } else {
-        merged.plans.push(remotePlan)
       }
     }
   })

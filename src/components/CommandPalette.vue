@@ -10,7 +10,7 @@
             ref="inputRef"
             v-model="query"
             class="cmd-input"
-            placeholder="搜索笔记 / 计划 / 标签，或输入命令..."
+            placeholder="搜索笔记 / 标签，或输入命令..."
             spellcheck="false"
             @keydown="onKeyDown"
           />
@@ -40,7 +40,6 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNoteStore } from '@/stores/note'
-import { usePlanStore } from '@/stores/plan'
 import { useTagStore } from '@/stores/tag'
 
 const props = defineProps({ show: Boolean })
@@ -48,7 +47,6 @@ const emit = defineEmits(['close'])
 
 const router = useRouter()
 const noteStore = useNoteStore()
-const planStore = usePlanStore()
 const tagStore = useTagStore()
 
 const query = ref('')
@@ -57,14 +55,12 @@ const inputRef = ref(null)
 
 const ICON_NOTE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'
 const ICON_CMD = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>'
-const ICON_PLAN = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>'
 const ICON_TAG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>'
 const ICON_FOLDER = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>'
 
 // 静态命令（路由跳转 + 新建），不依赖数据集合
 const cmdItems = computed(() => [
   { id: 'cmd-notes', label: '前往笔记列表', icon: ICON_CMD, action: () => router.push('/notes') },
-  { id: 'cmd-plans', label: '前往计划', icon: ICON_CMD, action: () => router.push('/plans') },
   { id: 'cmd-dashboard', label: '前往仪表盘', icon: ICON_CMD, action: () => router.push('/dashboard') },
   { id: 'cmd-tags', label: '前往标签', icon: ICON_CMD, action: () => router.push('/tags') },
   { id: 'cmd-media', label: '前往素材库', icon: ICON_CMD, action: () => router.push('/media') },
@@ -81,16 +77,6 @@ const noteItems = computed(() => (noteStore.notes || [])
     hint: noteStore.getFolderPathString(n.folderId) || '',
     icon: ICON_NOTE,
     action: () => router.push(`/note/${n.id}`)
-  })))
-
-const planItems = computed(() => (planStore.plans || [])
-  .filter(p => !p.completed)
-  .map(p => ({
-    id: `plan-${p.id}`,
-    label: p.title || '未命名计划',
-    hint: p.dueDate ? new Date(p.dueDate).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '',
-    icon: ICON_PLAN,
-    action: () => router.push('/plans')
   })))
 
 const tagItems = computed(() => (tagStore.tags || [])
@@ -119,7 +105,6 @@ const folderItems = computed(() => (noteStore.folders || [])
 const allItems = computed(() => [
   ...cmdItems.value,
   ...noteItems.value,
-  ...planItems.value,
   ...tagItems.value,
   ...folderItems.value
 ])

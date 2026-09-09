@@ -152,31 +152,6 @@
             </svg>
             连线
           </button>
-          <button
-            class="btn"
-            :class="showKanban ? 'btn-primary' : 'btn-secondary'"
-            @click="showKanban = !showKanban"
-            title="任务看板（聚合本笔记所有任务，按状态分栏）"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-              <rect x="3" y="3" width="6" height="18" rx="1"/>
-              <rect x="10" y="3" width="6" height="12" rx="1"/>
-              <rect x="17" y="3" width="4" height="8" rx="1"/>
-            </svg>
-            看板
-          </button>
-          <button
-            v-if="linkedPlans.length"
-            class="btn btn-secondary"
-            @click="router.push('/plans')"
-            :title="`本笔记关联了 ${linkedPlans.length} 个计划，点击查看`"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M9 11l3 3L22 4"/>
-              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-            </svg>
-            {{ linkedPlans.length }} 计划
-          </button>
           <div class="bg-type-wrapper">
             <button
               class="btn"
@@ -988,13 +963,6 @@
           新建文本块
           <span class="shortcut">{{ sc('newBlock') }}</span>
         </div>
-        <div class="context-menu-item" @click="addTodoBlockAtContext">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <polyline points="9 11 12 14 22 4"/>
-            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-          </svg>
-          新建任务块
-        </div>
 
         <div class="context-menu-divider"></div>
         <div class="context-menu-label">富文本</div>
@@ -1057,12 +1025,6 @@
             <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
           </svg>
           新建进度条
-        </div>
-        <div class="context-menu-item" @click="addMilestoneBlockAtContext">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <path d="M4 22V4l5 3 5-3 6 3v14l-6-3-5 3z"/>
-          </svg>
-          新建里程碑
         </div>
         <div class="context-menu-item" @click="pasteBlockHere">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -1150,107 +1112,6 @@
         <span v-if="previewImageUrls.length > 1" class="image-preview-counter">{{ previewImageIndex + 1 }} / {{ previewImageUrls.length }}</span>
       </div>
     </Teleport>
-
-    <Teleport to="body">
-      <div v-if="showKanban" class="kanban-overlay" @click.self="showKanban = false">
-        <div class="kanban-panel">
-          <div class="kanban-header">
-            <div class="kanban-title">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="6" height="18" rx="1"/><rect x="10" y="3" width="6" height="12" rx="1"/><rect x="17" y="3" width="4" height="8" rx="1"/></svg>
-              任务看板
-              <span class="kanban-total">{{ todoBlocks.length }} 项</span>
-            </div>
-            <div class="kanban-header-actions">
-              <button class="btn btn-secondary btn-sm" @click="addTodoBlockFromKanban" title="新建任务块并加入看板">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                新建任务
-              </button>
-              <button class="btn btn-ghost btn-icon" @click="showKanban = false" title="关闭">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            </div>
-          </div>
-          <div v-if="progressBlocks.length > 0" class="kanban-overview">
-            <div class="kanban-overview-label">进度概览</div>
-            <div class="kanban-progress-list">
-              <div
-                v-for="pb in progressBlocks"
-                :key="pb.id"
-                class="kanban-progress-item"
-                @click="focusTodoOnCanvas(pb.id)"
-              >
-                <span class="kanban-progress-name">{{ pb.label || '未命名进度' }}</span>
-                <div class="kanban-progress-bar">
-                  <div class="kanban-progress-fill" :style="{ width: progressDisplayValue(pb) + '%' }"></div>
-                </div>
-                <span class="kanban-progress-pct">{{ progressDisplayValue(pb) }}%</span>
-              </div>
-            </div>
-          </div>
-          <div v-if="milestoneBlocks.length > 0" class="kanban-overview">
-            <div class="kanban-overview-label">里程碑</div>
-            <div class="kanban-milestone-list">
-              <div
-                v-for="ms in milestoneBlocks"
-                :key="ms.id"
-                class="kanban-milestone-item"
-                :class="{ done: ms.done }"
-                @click="focusTodoOnCanvas(ms.id)"
-              >
-                <svg v-if="ms.done" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-                <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 22V4l5 3 5-3 6 3v14l-6-3-5 3z"/></svg>
-                <span class="kanban-milestone-title">{{ ms.title || '未命名里程碑' }}</span>
-                <span v-if="ms.date" class="kanban-milestone-date">{{ ms.date }}</span>
-              </div>
-            </div>
-          </div>
-          <div v-if="todoBlocks.length === 0 && progressBlocks.length === 0 && milestoneBlocks.length === 0" class="kanban-empty">
-            本笔记还没有任务/进度/里程碑块。点击右上角「新建任务」按钮，或关闭看板后右键画布选择对应块类型即可添加。
-          </div>
-          <div v-if="todoBlocks.length > 0" class="kanban-columns">
-            <div
-              v-for="col in KANBAN_COLUMNS"
-              :key="col.key"
-              class="kanban-col"
-              :style="{ '--col-color': col.color }"
-              @dragover.prevent
-              @drop="onKanbanDrop($event, col.key)"
-            >
-              <div class="kanban-col-header">
-                <span class="kanban-col-dot"></span>
-                <span class="kanban-col-label">{{ col.label }}</span>
-                <span class="kanban-col-count">{{ kanbanColumnItems(col.key).length }}</span>
-              </div>
-              <div class="kanban-col-body">
-                <div
-                  v-for="item in kanbanColumnItems(col.key)"
-                  :key="item.id"
-                  class="kanban-card"
-                  :class="{ 'is-high': item.priority === 'high' }"
-                  draggable="true"
-                  @dragstart="onKanbanDragStart($event, item.id)"
-                  @dragend="onKanbanDragEnd"
-                  @click="focusTodoOnCanvas(item.id)"
-                >
-                  <div class="kanban-card-title">{{ item.title || '（未命名任务）' }}</div>
-                  <div class="kanban-card-meta">
-                    <span v-if="item.priority" class="kanban-priority" :class="'priority-' + item.priority">
-                      {{ item.priority === 'high' ? '高' : item.priority === 'low' ? '低' : '中' }}
-                    </span>
-                    <span v-if="item.dueDate" class="kanban-due">
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                      {{ item.dueDate }}
-                    </span>
-                  </div>
-                  <div v-if="item.content" class="kanban-card-notes">{{ item.content }}</div>
-                </div>
-                <div v-if="kanbanColumnItems(col.key).length === 0" class="kanban-col-placeholder">拖拽任务到此处</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Teleport>
   </div>
 </template>
 
@@ -1258,7 +1119,6 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useNoteStore } from '@/stores/note'
-import { usePlanStore } from '@/stores/plan'
 import { useTagStore, TAG_PRESET_COLORS } from '@/stores/tag'
 import { useShortcutStore } from '@/stores/shortcut'
 import NoteBlock from '@/components/NoteBlock.vue'
@@ -1277,7 +1137,6 @@ const { error: toastError, showToast, removeToast, success: toastSuccess } = use
 const route = useRoute()
 const router = useRouter()
 const noteStore = useNoteStore()
-const planStore = usePlanStore()
 const tagStore = useTagStore()
 const shortcutStore = useShortcutStore()
 tagStore.init()
@@ -1872,88 +1731,6 @@ const selectedBlock = computed(() => {
 
 const showBacklinks = ref(true)
 
-// 任务看板
-const showKanban = ref(false)
-const KANBAN_COLUMNS = [
-  { key: 'todo', label: '待办', color: '#b0b6bf' },
-  { key: 'doing', label: '进行中', color: '#4a90d9' },
-  { key: 'done', label: '已完成', color: '#6bbd8f' },
-  { key: 'paused', label: '已搁置', color: '#e8a44a' }
-]
-const kanbanDragId = ref(null)
-
-const todoBlocks = computed(() => {
-  if (!note.value) return []
-  return blocks.value.filter(b => b.type === 'todo')
-})
-
-const progressBlocks = computed(() => {
-  if (!note.value) return []
-  return blocks.value.filter(b => b.type === 'progress')
-})
-
-const milestoneBlocks = computed(() => {
-  if (!note.value) return []
-  return blocks.value.filter(b => b.type === 'milestone')
-})
-
-function progressDisplayValue(block) {
-  if (block.mode === 'auto') {
-    if (!note.value) return 0
-    const linked = block.linkedTodoIds
-    let todos = note.value.blocks.filter(b => b.type === 'todo')
-    if (linked && linked.length > 0) {
-      todos = todos.filter(t => linked.includes(t.id))
-    }
-    if (todos.length === 0) return 0
-    const done = todos.filter(b => b.status === 'done').length
-    return Math.round((done / todos.length) * 100)
-  }
-  return Math.max(0, Math.min(100, block.value ?? 0))
-}
-
-function kanbanColumnItems(status) {
-  return todoBlocks.value.filter(b => (b.status || 'todo') === status)
-}
-
-function setTodoStatus(blockId, status) {
-  if (!note.value) return
-  saveHistory()
-  noteStore.updateBlock(note.value.id, blockId, { status })
-  nextTick(() => { connectionTick.value++ })
-}
-
-function focusTodoOnCanvas(blockId) {
-  focusBlock(blockId)
-  showKanban.value = false
-  const b = blocks.value.find(x => x.id === blockId)
-  if (b) {
-    const { width, height } = getBlockSize(blockId, b)
-    const cx = b.x + width / 2
-    const cy = b.y + height / 2
-    const rect = canvasRef.value?.getBoundingClientRect()
-    if (rect) {
-      canvasConfig.value.offsetX = rect.width / 2 - cx * canvasConfig.value.zoom
-      canvasConfig.value.offsetY = rect.height / 2 - cy * canvasConfig.value.zoom + 40
-      saveCanvasConfig()
-    }
-  }
-}
-
-function onKanbanDragStart(e, blockId) {
-  kanbanDragId.value = blockId
-  e.dataTransfer.effectAllowed = 'move'
-}
-function onKanbanDragEnd() {
-  kanbanDragId.value = null
-}
-function onKanbanDrop(e, status) {
-  e.preventDefault()
-  const id = kanbanDragId.value
-  if (id) setTodoStatus(id, status)
-  kanbanDragId.value = null
-}
-
 // 反向链接：扫描所有笔记中引用了当前笔记的 note-link 块
 const backlinks = computed(() => {
   const curId = note.value?.id
@@ -2109,7 +1886,6 @@ watch(
   },
   { immediate: true }
 )
-const linkedPlans = computed(() => note.value ? planStore.plansByNote(note.value.id) : [])
 
 const canvasBgStyle = computed(() => {
   if (bgType.value === 'none') return { opacity: 0 }
@@ -4254,24 +4030,6 @@ function openInNewWindow() {
   window.open(url, '_blank', 'width=1200,height=800')
 }
 
-function addTodoBlockAt(x, y) {
-  if (note.value) {
-    saveHistory()
-    const block = noteStore.addBlock(note.value.id, {
-      x, y,
-      type: 'todo',
-      title: '',
-      status: 'todo',
-      priority: 'normal',
-      dueDate: null,
-      content: '',
-      width: 280,
-      minHeight: 90
-    })
-    focusAndCenterBlock(block.id)
-  }
-}
-
 function addProgressBlockAt(x, y) {
   if (note.value) {
     saveHistory()
@@ -4291,55 +4049,6 @@ function addProgressBlockAt(x, y) {
 function addProgressBlockAtContext() {
   addProgressBlockAt(contextMenu.value.canvasX - 140, contextMenu.value.canvasY - 45)
   contextMenu.value.show = false
-}
-
-function addMilestoneBlockAt(x, y) {
-  if (note.value) {
-    saveHistory()
-    const block = noteStore.addBlock(note.value.id, {
-      x, y,
-      type: 'milestone',
-      title: '',
-      date: null,
-      done: false,
-      desc: '',
-      width: 300,
-      minHeight: 100
-    })
-    focusAndCenterBlock(block.id)
-  }
-}
-
-function addMilestoneBlockAtContext() {
-  addMilestoneBlockAt(contextMenu.value.canvasX - 150, contextMenu.value.canvasY - 50)
-  contextMenu.value.show = false
-}
-
-function addTodoBlock() {
-  const centerX = -canvasConfig.value.offsetX / canvasConfig.value.zoom + 300 + newBlockOffset.value
-  const centerY = -canvasConfig.value.offsetY / canvasConfig.value.zoom + 200 + newBlockOffset.value
-  newBlockOffset.value += 30
-  addTodoBlockAt(centerX, centerY)
-}
-
-function addTodoBlockAtContext() {
-  addTodoBlockAt(contextMenu.value.canvasX - 140, contextMenu.value.canvasY - 45)
-  contextMenu.value.show = false
-}
-
-function addTodoBlockFromKanban() {
-  // 在画布可见区域中心创建任务块，保持看板打开
-  const rect = canvasRef.value?.getBoundingClientRect()
-  let centerX, centerY
-  if (rect) {
-    centerX = (rect.width / 2 - canvasConfig.value.offsetX) / canvasConfig.value.zoom - 140
-    centerY = (rect.height / 2 - canvasConfig.value.offsetY) / canvasConfig.value.zoom - 45
-  } else {
-    centerX = 100 + newBlockOffset.value
-    centerY = 100 + newBlockOffset.value
-  }
-  newBlockOffset.value += 30
-  addTodoBlockAt(centerX, centerY)
 }
 
 // ===== 来源选择 + 素材库选择器 =====
@@ -7033,259 +6742,6 @@ function deleteSelectedConnection() {
 .find-nav-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
-}
-
-/* ===== 任务看板 ===== */
-.kanban-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(26, 31, 28, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1100;
-}
-.kanban-panel {
-  width: 92vw;
-  max-width: 1100px;
-  max-height: 86vh;
-  background: var(--bg-secondary);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-lg);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.kanban-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border-light);
-  flex-shrink: 0;
-}
-.kanban-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-.kanban-total {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-tertiary);
-  background: var(--bg-tertiary);
-  border-radius: 10px;
-  padding: 1px 8px;
-}
-.kanban-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.kanban-empty {
-  padding: 48px 24px;
-  text-align: center;
-  color: var(--text-tertiary);
-  font-size: 14px;
-}
-.kanban-overview {
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--border-light);
-  flex-shrink: 0;
-}
-.kanban-overview-label {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-tertiary);
-  margin-bottom: 8px;
-}
-.kanban-progress-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.kanban-progress-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 4px 6px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.kanban-progress-item:hover { background: var(--bg-tertiary); }
-.kanban-progress-name {
-  flex-shrink: 0;
-  width: 110px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.kanban-progress-bar {
-  flex: 1;
-  height: 8px;
-  background: var(--bg-tertiary, #e8e8e8);
-  border-radius: 4px;
-  overflow: hidden;
-}
-.kanban-progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--primary-color), var(--primary-dark, #3a8fc4));
-  border-radius: 4px;
-  transition: width 0.3s ease;
-}
-.kanban-progress-pct {
-  flex-shrink: 0;
-  width: 40px;
-  text-align: right;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--primary-color);
-  font-variant-numeric: tabular-nums;
-}
-.kanban-milestone-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.kanban-milestone-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 10px;
-  border-radius: 14px;
-  background: var(--bg-tertiary);
-  font-size: 12px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.kanban-milestone-item:hover { background: var(--primary-soft, rgba(74,144,217,0.12)); }
-.kanban-milestone-item.done { color: #4a8a64; }
-.kanban-milestone-item.done .kanban-milestone-title { text-decoration: line-through; }
-.kanban-milestone-title { font-weight: 600; }
-.kanban-milestone-date { font-size: 11px; color: var(--text-tertiary); }
-.kanban-columns {
-  display: flex;
-  gap: 12px;
-  padding: 16px;
-  overflow-x: auto;
-  flex: 1;
-  min-height: 0;
-}
-.kanban-col {
-  flex: 1;
-  min-width: 220px;
-  max-width: 280px;
-  background: var(--bg-tertiary);
-  border-radius: var(--radius-md);
-  display: flex;
-  flex-direction: column;
-  border-top: 3px solid var(--col-color);
-}
-.kanban-col-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 12px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-.kanban-col-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--col-color);
-}
-.kanban-col-count {
-  margin-left: auto;
-  background: var(--bg-secondary);
-  color: var(--text-tertiary);
-  border-radius: 8px;
-  padding: 0 6px;
-  font-size: 11px;
-  min-width: 18px;
-  text-align: center;
-}
-.kanban-col-body {
-  flex: 1;
-  padding: 4px 8px 8px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-height: 60px;
-}
-.kanban-col-placeholder {
-  border: 1.5px dashed var(--border-light);
-  border-radius: var(--radius-sm);
-  padding: 16px;
-  text-align: center;
-  font-size: 12px;
-  color: var(--text-tertiary);
-}
-.kanban-card {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-sm);
-  padding: 10px;
-  cursor: pointer;
-  transition: box-shadow 0.15s, border-color 0.15s;
-}
-.kanban-card:hover {
-  box-shadow: var(--shadow-sm);
-  border-color: var(--primary-color);
-}
-.kanban-card.is-high {
-  border-left: 3px solid #d96b6e;
-}
-.kanban-card-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-  line-height: 1.4;
-  word-break: break-word;
-}
-.kanban-card-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 6px;
-}
-.kanban-priority {
-  font-size: 10px;
-  font-weight: 700;
-  border-radius: 8px;
-  padding: 1px 6px;
-}
-.kanban-priority.priority-low { background: rgba(150,160,170,0.18); color: #7a8ca6; }
-.kanban-priority.priority-normal { background: rgba(74,144,217,0.16); color: #4a90d9; }
-.kanban-priority.priority-high { background: rgba(217,107,110,0.18); color: #d96b6e; }
-.kanban-due {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 11px;
-  color: var(--text-tertiary);
-}
-.kanban-card-notes {
-  margin-top: 6px;
-  font-size: 12px;
-  color: var(--text-tertiary);
-  line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 
 /* 来源选择弹窗 */
