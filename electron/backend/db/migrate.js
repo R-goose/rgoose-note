@@ -71,6 +71,14 @@ function ensureImageColumns(db) {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_images_hash ON images(contentHash)`)
 }
 
+/** 对已存在的 templates 表补齐 isBuiltin 列（旧库兼容） */
+function ensureTemplateColumns(db) {
+  const cols = db.prepare("PRAGMA table_info(templates)").all().map(c => c.name)
+  if (!cols.includes('isBuiltin')) {
+    db.exec(`ALTER TABLE templates ADD COLUMN isBuiltin INTEGER NOT NULL DEFAULT 0`)
+  }
+}
+
 /** 对已存在的 connections 表补齐 updatedAt 列（旧库兼容） */
 function ensureConnectionColumns(db) {
   const cols = db.prepare("PRAGMA table_info(connections)").all().map(c => c.name)
@@ -105,6 +113,7 @@ function runMigrations(db) {
   ensureBlockColumns(db)
   ensureNoteColumns(db)
   ensureImageColumns(db)
+  ensureTemplateColumns(db)
   ensureConnectionColumns(db)
 
   // 3. 清理无效主键行（修复历史毒数据）

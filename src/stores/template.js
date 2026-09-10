@@ -10,23 +10,15 @@ const KEEP_BLOCK_TYPES = new Set(['text', 'table', 'code', 'callout', 'formula']
 export const EDITABLE_BLOCK_TYPES = ['text', 'table']
 
 export const useTemplateStore = defineStore('template', () => {
-  const templates = ref([]) // 自定义模板
+  const templates = ref([]) // 内置 + 自定义统一存放（builtin 时 isBuiltin=true）
 
-  const builtinTemplates = computed(() => {
-    return BUILTIN_TEMPLATES.map(t => ({
-      id: `builtin:${t.key}`,
-      key: t.key,
-      name: t.name,
-      desc: t.desc,
-      icon: t.icon,
-      builtin: true
-    }))
-  })
+  const builtinTemplates = computed(() => templates.value.filter(t => t.isBuiltin))
+  const customTemplates = computed(() => templates.value.filter(t => !t.isBuiltin))
 
-  /** 内置 + 自定义 合并列表（新建笔记弹窗用） */
+  /** 内置 + 自定义 合并列表（新建笔记弹窗用，内置在前） */
   const allTemplates = computed(() => [
     ...builtinTemplates.value,
-    ...templates.value.map(t => ({ ...t, builtin: false }))
+    ...customTemplates.value
   ])
 
   let initPromise = null
@@ -35,6 +27,7 @@ export const useTemplateStore = defineStore('template', () => {
     initPromise = (async () => {
       try {
         templates.value = await templatesApi.list()
+        await ensureBuiltins()
       } catch (err) {
         console.error('[templateStore] 加载失败:', err)
         templates.value = []
@@ -43,21 +36,51 @@ export const useTemplateStore = defineStore('template', () => {
     return initPromise
   }
 
-  function getTemplateById(tplId) {
-    if (!tplId) return null
-    const custom = templates.value.find(t => t.id === tplId)
-    if (custom) return custom
-    const key = String(tplId).replace(/^builtin:/, '')
-    const builtin = BUILTIN_TEMPLATES.find(t => t.key === key)
-    return builtin ? { ...builtin, builtin: true } : null
+  /** 把内置模板初次写入库（isBuiltin=1），使其可像普通模板一样编辑 */
+  async function ensureBuiltins() {
+    for (const b of BUILTIN_TEMPLATES) {
+      if (templates.value.some(t => t.name === b.name)) continue
+      const record = {
+        id: generateId(),
+        name: b.name,
+        desc: b.desc,
+        icon: b.icon,
+        blocks: buildTemplateBlocks(b.key),
+        isBuiltin: true,
+        createdAt: getTimestamp(),
+        updatedAt: getTimestamp()
+      }
+      templates.value.push(record)
+      try {
+        await templatesApi.create({
+          id: record.id,
+          name: record.name,
+          desc: record.desc,
+          icon: record.icon,
+          blocks: record.blocks,
+          isBuiltin: 1
+        })
+      } catch (err) {
+        console.error('[templateStore] 内置模板初始化失败:', err)
+        const idx = templates.value.findIndex(t => t.id === record.id)
+        if (idx >= 0) templates.value.splice(idx, 1)
+      }
+    }
   }
 
-  /** 模板 → 模板块数组；内置走生成器，自定义深拷贝 blocks */
+  function getTemplateById(tplId) {
+    if (!tplId) return null
+    return templates.value.find(t => t.id === tplId) || null
+  }
+
+  /** 模板 → 模板块数组（深拷贝，避免污染模板数据） */
   function getBlocksById(tplId) {
-    const custom = templates.value.find(t => t.id === tplId)
-    if (custom) return deepClone(custom.blocks || [])
-    const builtin = getTemplateById(tplId)
-    if (builtin && builtin.key) return deepClone(buildTemplateBlocks(builtin.key))
+    const initLocal = templates.value.find(t => t.id === tplId)
+    if (initLocal) return deepClone(initLocal.blocks || [])
+    // 兜底：内置模板按 key 生成
+    const key = String(tplId).replace(/^builtin:/, '')
+    const builtin = BUILTIN_TEMPLATES.find(t => t.key === key)
+    if (builtin) return deepClone(buildTemplateBlocks(builtin.key))
     return []
   }
 
@@ -145,6 +168,7 @@ export const useTemplateStore = defineStore('template', () => {
   return {
     templates,
     builtinTemplates,
+    customTemplates,
     allTemplates,
     init,
     getTemplateById,
