@@ -29,7 +29,8 @@ module.exports = {
   create(t) {
     checkNameUnique(t.name, null)
     const ts = now()
-    return templateDao.insert({ ...t, id: t.id || uuid(), isBuiltin: 0, createdAt: ts, updatedAt: ts })
+    const isBuiltin = t.isBuiltin ? 1 : 0
+    return templateDao.insert({ ...t, id: t.id || uuid(), isBuiltin, createdAt: ts, updatedAt: ts })
   },
 
   update(id, t) {

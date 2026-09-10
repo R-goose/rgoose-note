@@ -2,28 +2,21 @@
   <div class="tpl-editor-view">
     <header class="editor-header">
       <div class="header-left">
-        <button class="btn btn-ghost btn-icon" @click="goBack" title="返回模板列表">
+        <button class="btn btn-ghost btn-icon" @click="goBack" title="返回">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <line x1="19" y1="12" x2="5" y2="12"/>
             <polyline points="12 19 5 12 12 5"/>
           </svg>
         </button>
-        <div class="tpl-title-fields">
-          <input
-            v-model="name"
-            class="title-input"
-            type="text"
-            :placeholder="`模板名称${isNew ? '（新模板）' : ''}`"
-            spellcheck="false"
-          />
-          <input
-            v-model="desc"
-            class="desc-input"
-            type="text"
-            placeholder="模板描述（可选）"
-            spellcheck="false"
-          />
-        </div>
+        <input
+          ref="titleInputRef"
+          v-model="name"
+          type="text"
+          class="title-input"
+          spellcheck="false"
+          placeholder="模板名称"
+          @input="autoSizeTitle"
+        />
       </div>
       <div class="header-center">
         <div class="toolbar">
@@ -48,25 +41,34 @@
             class="btn"
             :class="connectMode ? 'btn-primary' : 'btn-secondary'"
             @click="toggleConnectMode"
-            title="连线模式"
+            title="连接模式"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="12" r="2"/><line x1="7" y1="12" x2="17" y2="12"/><polyline points="15 9 18 12 15 15"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+              <polyline points="15 3 21 3 21 9"/>
+              <line x1="10" y1="14" x2="21" y2="3"/>
+            </svg>
             连线
           </button>
           <button
             class="btn"
             :class="snapToGrid ? 'btn-primary' : 'btn-secondary'"
             @click="snapToGrid = !snapToGrid"
-            title="网格吸附"
+            :title="snapToGrid ? `吸附到网格（${gridSize}px）` : '网格吸附：关'"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="1"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 3v18M11 3v18M17 3v18M3 5h18M3 11h18M3 17h18"/>
+              <rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor" fill-opacity="0.3"/>
+            </svg>
             吸附
           </button>
         </div>
       </div>
       <div class="header-right">
-        <span class="count-hint">{{ draftBlocks.length }} 个元素 · {{ draftConnections.length }} 条连线</span>
-        <button class="btn btn-ghost" @click="goBack">取消</button>
+        <span class="save-indicator" :class="{ saving }">
+          <span class="save-dot"></span>
+          {{ saving ? '保存中...' : '已保存' }}
+        </span>
         <button class="btn btn-primary" :disabled="saving" @click="save">
           <svg v-if="saving" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="spin"><path d="M21 12a9 9 0 1 1-9-9"/></svg>
           <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
@@ -75,7 +77,17 @@
       </div>
     </header>
 
-    <div class="tpl-canvas" ref="canvasRef" @mousemove="onCanvasMousemove" @mouseup="onCanvasMouseup" @click.self="clearSelection">
+    <div
+      ref="canvasRef"
+      class="tpl-canvas"
+      :class="{ 'connect-mode': connectMode, 'panning': isPanning, 'space-held': spaceHeld }"
+      @mousedown="onCanvasMouseDown"
+      @mousemove="onCanvasMousemove"
+      @mouseup="onCanvasMouseup"
+      @mouseleave="onCanvasMouseLeave"
+      @wheel="onWheel"
+      @click.self="clearSelection"
+    >
       <div class="canvas-bg" :style="canvasBgStyle"></div>
 
       <div
@@ -89,6 +101,8 @@
           :block="b"
           :all-blocks="draftBlocks"
           :selected="selectedBlockId === b.id"
+          :connect-mode="connectMode"
+          :connecting-from="connectingFrom"
           :read-only="false"
           @select="selectedBlockId = $event"
           @connect-start="startConnection"
@@ -260,7 +274,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, onMounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useToast } from '@/composables/useToast'
 import { generateId } from '@/utils'
@@ -283,6 +297,35 @@ const selectedBlockId = ref(null)
 const selectedConnectionId = ref(null)
 const saving = ref(false)
 
+// 标题输入框自适应宽度（与笔记编辑器一致）
+const titleInputRef = ref(null)
+let titleMirrorEl = null
+function autoSizeTitle() {
+  const input = titleInputRef.value
+  if (!input) return
+  const text = input.value || input.placeholder || ''
+  if (!titleMirrorEl) {
+    const mirror = document.createElement('span')
+    mirror.style.position = 'absolute'
+    mirror.style.visibility = 'hidden'
+    mirror.style.whiteSpace = 'pre'
+    mirror.style.top = '-9999px'
+    mirror.style.left = '-9999px'
+    mirror.setAttribute('aria-hidden', 'true')
+    document.body.appendChild(mirror)
+    titleMirrorEl = mirror
+  }
+  const mirror = titleMirrorEl
+  const cs = getComputedStyle(input)
+  mirror.style.font = cs.font
+  mirror.style.letterSpacing = cs.letterSpacing
+  mirror.textContent = text || ' '
+  const padL = parseFloat(cs.paddingLeft) || 0
+  const padR = parseFloat(cs.paddingRight) || 0
+  const textWidth = mirror.getBoundingClientRect().width
+  input.style.width = Math.max(80, Math.ceil(textWidth + padL + padR)) + 'px'
+}
+
 const canvasRef = ref(null)
 const PAD = 80
 
@@ -299,8 +342,6 @@ watch(snapToGrid, v => localStorage.setItem('rgoose_snap_grid', v ? 'true' : 'fa
 const canvasBgStyle = computed(() => {
   const size = gridSize.value * canvasConfig.value.zoom
   return {
-    width: canvasWidth.value + 'px',
-    height: canvasHeight.value + 'px',
     backgroundImage:
       'linear-gradient(to right, var(--grid-line) 1px, transparent 1px), linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px)',
     backgroundSize: `${size}px ${size}px`,
@@ -309,21 +350,10 @@ const canvasBgStyle = computed(() => {
   }
 })
 
-// 画布内容区尺寸：随内容自适应，至少覆盖可视滚动区
-const canvasWidth = computed(() => 1400)
-const canvasHeight = computed(() => {
-  let maxY = 60
-  draftBlocks.value.forEach(b => {
-    const bottom = (b.y ?? 0) + (b.height || b.minHeight || 120)
-    if (bottom > maxY) maxY = bottom
-  })
-  return maxY + 200
-})
-
-// 内容层的 transform 与尺寸（含连线 svg 复用）
+// 内容层的 transform 与尺寸（含连线 svg 复用，超大画布层与笔记一致）
 const cellStyle = computed(() => ({
-  width: canvasWidth.value + 'px',
-  height: canvasHeight.value + 'px',
+  width: '10000px',
+  height: '10000px',
   transform: `translate(${canvasConfig.value.offsetX}px, ${canvasConfig.value.offsetY}px) scale(${canvasConfig.value.zoom})`,
   transformOrigin: '0 0'
 }))
@@ -336,6 +366,63 @@ function zoomOut() {
 }
 function resetView() {
   canvasConfig.value = { zoom: 1, offsetX: 0, offsetY: 0 }
+}
+
+// 滚轮缩放（以鼠标位置为中心，与笔记编辑器一致）
+function onWheel(e) {
+  e.preventDefault()
+  const delta = e.deltaY > 0 ? -0.1 : 0.1
+  const newZoom = Math.max(0.3, Math.min(2, canvasConfig.value.zoom + delta))
+  const rect = canvasRef.value?.getBoundingClientRect()
+  if (!rect) return
+  const mouseX = e.clientX - rect.left
+  const mouseY = e.clientY - rect.top
+  const scaleRatio = newZoom / canvasConfig.value.zoom
+  canvasConfig.value.offsetX = mouseX - (mouseX - canvasConfig.value.offsetX) * scaleRatio
+  canvasConfig.value.offsetY = mouseY - (mouseY - canvasConfig.value.offsetY) * scaleRatio
+  canvasConfig.value.zoom = newZoom
+}
+
+// 画布平移（中键拖拽 / 空格+左键拖拽，与笔记编辑器一致）
+const isPanning = ref(false)
+const spaceHeld = ref(false)
+let panInfo = null
+function onCanvasMouseDown(e) {
+  if (e.target.closest?.('.note-block')) return
+  if (e.button === 1 || (e.button === 0 && spaceHeld.value)) {
+    isPanning.value = true
+    panInfo = {
+      startX: e.clientX,
+      startY: e.clientY,
+      offsetX: canvasConfig.value.offsetX,
+      offsetY: canvasConfig.value.offsetY
+    }
+    document.addEventListener('mousemove', onPanMove)
+    document.addEventListener('mouseup', onPanEnd)
+    e.preventDefault()
+  }
+}
+function onPanMove(e) {
+  if (!panInfo) return
+  canvasConfig.value.offsetX = panInfo.offsetX + (e.clientX - panInfo.startX)
+  canvasConfig.value.offsetY = panInfo.offsetY + (e.clientY - panInfo.startY)
+}
+function onPanEnd() {
+  panInfo = null
+  isPanning.value = false
+  document.removeEventListener('mousemove', onPanMove)
+  document.removeEventListener('mouseup', onPanEnd)
+}
+
+function onSpaceKeyDown(e) {
+  if (e.code === 'Space' && !e.target.closest('input, textarea, [contenteditable]')) {
+    spaceHeld.value = true
+  }
+}
+function onSpaceKeyUp(e) {
+  if (e.code === 'Space') {
+    spaceHeld.value = false
+  }
 }
 
 // ===== 块操作 =====
@@ -432,8 +519,8 @@ function toContentPos(clientX, clientY) {
   const el = canvasRef.value
   if (!el) return { x: clientX, y: clientY }
   const rect = el.getBoundingClientRect()
-  const x = (clientX - rect.left + (el.scrollLeft || 0) - canvasConfig.value.offsetX) / canvasConfig.value.zoom
-  const y = (clientY - rect.top + (el.scrollTop || 0) - canvasConfig.value.offsetY) / canvasConfig.value.zoom
+  const x = (clientX - rect.left - canvasConfig.value.offsetX) / canvasConfig.value.zoom
+  const y = (clientY - rect.top - canvasConfig.value.offsetY) / canvasConfig.value.zoom
   return { x, y }
 }
 function onCanvasMousemove(e) {
@@ -442,6 +529,12 @@ function onCanvasMousemove(e) {
 }
 function onCanvasMouseup() {
   // 在空白画布上松开：取消未完成的临时连线
+  cancelTempConnection()
+}
+function onCanvasMouseLeave() {
+  // 与笔记编辑器一致：mouseleave 交由全局 mouseup 兜底，这里不额外破坏拖拽/连线状态
+}
+function cancelTempConnection() {
   if (connectingFrom.value) {
     connectingFrom.value = null
     connectingPosition.value = null
@@ -1011,25 +1104,45 @@ function goBack() {
   router.push('/templates')
 }
 
+// 全局兜底：鼠标在画布外松开时，正确结束平移/拖拽/临时连线
+function onWindowMouseUp() {
+  onPanEnd()
+  onDragEnd()
+  cancelTempConnection()
+}
+
 onMounted(async () => {
+  window.addEventListener('keydown', onSpaceKeyDown)
+  window.addEventListener('keyup', onSpaceKeyUp)
+  window.addEventListener('mouseup', onWindowMouseUp)
   try { await templateStore.init() } catch {}
   if (isNew.value) {
     name.value = ''
     desc.value = ''
     draftBlocks.value = []
     draftConnections.value = []
-    return
-  }
-  const tpl = templateStore.getTemplateById(tplId.value)
-  if (tpl) {
-    name.value = tpl.name
-    desc.value = tpl.desc || ''
-    draftBlocks.value = JSON.parse(JSON.stringify(tpl.blocks || []))
-    draftConnections.value = JSON.parse(JSON.stringify(tpl.connections || []))
   } else {
-    toastError('模板不存在')
-    router.replace('/templates')
+    const tpl = templateStore.getTemplateById(tplId.value)
+    if (tpl) {
+      name.value = tpl.name
+      desc.value = tpl.desc || ''
+      draftBlocks.value = JSON.parse(JSON.stringify(tpl.blocks || []))
+      draftConnections.value = JSON.parse(JSON.stringify(tpl.connections || []))
+    } else {
+      toastError('模板不存在')
+      router.replace('/templates')
+    }
   }
+  await nextTick()
+  autoSizeTitle()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onSpaceKeyDown)
+  window.removeEventListener('keyup', onSpaceKeyUp)
+  window.removeEventListener('mouseup', onWindowMouseUp)
+  onPanEnd()
+  onDragEnd()
 })
 </script>
 
@@ -1056,45 +1169,29 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: nowrap;
   flex: 1 1 0;
+  justify-content: flex-start;
   min-width: 0;
-}
-.tpl-title-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  flex: 0 1 280px;
+  overflow: hidden;
 }
 .title-input {
   font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
   background: transparent;
-  padding: 5px 10px;
+  padding: 6px 10px;
   border-radius: var(--radius-md);
-  width: 100%;
+  flex: 0 0 auto;
+  min-width: 80px;
+  width: 80px;
+  box-sizing: content-box;
   border: none;
   outline: none;
-  box-sizing: border-box;
   transition: background var(--transition-fast);
 }
 .title-input:hover { background: var(--bg-hover); }
 .title-input:focus { background: var(--bg-tertiary); }
-.desc-input {
-  font-size: 12px;
-  color: var(--text-secondary);
-  background: transparent;
-  padding: 3px 10px;
-  border-radius: var(--radius-sm);
-  width: 100%;
-  border: none;
-  outline: none;
-  box-sizing: border-box;
-  transition: background var(--transition-fast);
-}
-.desc-input:hover { background: var(--bg-hover); }
-.desc-input:focus { background: var(--bg-tertiary); }
 
 .header-center {
   display: flex;
@@ -1114,38 +1211,75 @@ onMounted(async () => {
 .header-right {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
+  gap: 8px;
+  flex: 1 1 0;
+  justify-content: flex-end;
+  min-width: 0;
 }
-.count-hint {
-  font-size: 11px;
-  color: var(--text-tertiary);
-  margin-right: 4px;
+.save-indicator {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.save-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4caf50;
+  transition: background 0.2s;
+}
+.save-indicator.saving .save-dot {
+  background: #ff9800;
+  animation: save-pulse 0.8s ease-in-out infinite;
+}
+@keyframes save-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 
 .tpl-canvas {
   flex: 1;
-  overflow: auto;
   position: relative;
+  overflow: hidden;
+  cursor: default;
   background-color: var(--bg-primary);
+}
+.tpl-canvas.panning {
+  cursor: grabbing;
+}
+.tpl-canvas.space-held {
+  cursor: grab;
+}
+.tpl-canvas.connect-mode {
+  cursor: crosshair;
 }
 .canvas-bg {
   position: absolute;
   top: 0;
   left: 0;
-  width: 1400px;
-  height: 1000px;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
 }
 .canvas-inner {
   position: absolute;
   top: 0;
   left: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+.canvas-inner > * {
+  pointer-events: auto;
 }
 .connections-layer {
   position: absolute;
   top: 0;
   left: 0;
+  width: 10000px;
+  height: 10000px;
   pointer-events: none;
   overflow: visible;
 }

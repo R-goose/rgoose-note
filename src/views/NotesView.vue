@@ -820,8 +820,8 @@ function confirmCreateNote() {
     return
   }
   const note = noteStore.createNote(title, null, newNoteTagIds.value)
-  // 应用模板：向新笔记追加预设块
-  if (selectedTemplate.value && selectedTemplate.value !== 'builtin:blank') {
+  // 应用模板：向新笔记追加预设块（空白模板为空数组，效果等同不选）
+  if (selectedTemplate.value) {
     const tplBlocks = templateStore.getBlocksById(selectedTemplate.value)
     for (const b of tplBlocks) {
       noteStore.addBlock(note.id, b)
