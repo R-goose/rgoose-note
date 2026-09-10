@@ -46,6 +46,7 @@ export const useTemplateStore = defineStore('template', () => {
         desc: b.desc,
         icon: b.icon,
         blocks: buildTemplateBlocks(b.key),
+        connections: [],
         isBuiltin: true,
         createdAt: getTimestamp(),
         updatedAt: getTimestamp()
@@ -58,6 +59,7 @@ export const useTemplateStore = defineStore('template', () => {
           desc: record.desc,
           icon: record.icon,
           blocks: record.blocks,
+          connections: record.connections,
           isBuiltin: 1
         })
       } catch (err) {
@@ -110,6 +112,7 @@ export const useTemplateStore = defineStore('template', () => {
       desc: template.desc || '',
       icon: template.icon || null,
       blocks: template.blocks || [],
+      connections: template.connections || [],
       createdAt: now,
       updatedAt: now
     }
@@ -119,7 +122,8 @@ export const useTemplateStore = defineStore('template', () => {
       name: record.name,
       desc: record.desc,
       icon: record.icon,
-      blocks: record.blocks
+      blocks: record.blocks,
+      connections: record.connections
     }).catch(err => {
       console.error('创建模板失败:', err)
       const idx = templates.value.findIndex(t => t.id === record.id)
@@ -137,12 +141,14 @@ export const useTemplateStore = defineStore('template', () => {
     if (patch.desc != null) tpl.desc = patch.desc
     if (patch.icon != null) tpl.icon = patch.icon
     if (patch.blocks != null) tpl.blocks = deepClone(patch.blocks)
+    if (patch.connections != null) tpl.connections = deepClone(patch.connections)
     tpl.updatedAt = getTimestamp()
     templatesApi.update(id, {
       name: tpl.name,
       desc: tpl.desc,
       icon: tpl.icon,
-      blocks: tpl.blocks
+      blocks: tpl.blocks,
+      connections: tpl.connections
     }).catch(err => {
       console.error('更新模板失败:', err)
       Object.assign(tpl, backup)

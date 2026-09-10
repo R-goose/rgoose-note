@@ -77,6 +77,9 @@ function ensureTemplateColumns(db) {
   if (!cols.includes('isBuiltin')) {
     db.exec(`ALTER TABLE templates ADD COLUMN isBuiltin INTEGER NOT NULL DEFAULT 0`)
   }
+  if (!cols.includes('connections')) {
+    db.exec(`ALTER TABLE templates ADD COLUMN connections TEXT`)
+  }
 }
 
 /** 对已存在的 connections 表补齐 updatedAt 列（旧库兼容） */

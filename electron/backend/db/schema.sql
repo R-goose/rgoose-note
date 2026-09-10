@@ -123,6 +123,7 @@ CREATE TABLE IF NOT EXISTS templates (
   desc       TEXT    NOT NULL DEFAULT '',
   icon       TEXT,
   blocks     TEXT,
+  connections TEXT,
   isBuiltin  INTEGER NOT NULL DEFAULT 0,
   sort       INTEGER,
   createdAt  INTEGER NOT NULL,

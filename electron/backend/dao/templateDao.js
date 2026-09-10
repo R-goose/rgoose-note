@@ -10,6 +10,7 @@ function deserialize(row) {
   return {
     ...row,
     blocks: safeParse(row.blocks, []),
+    connections: safeParse(row.connections, []),
     isBuiltin: !!row.isBuiltin
   }
 }
@@ -37,14 +38,15 @@ module.exports = {
   insert(t) {
     const db = getDb()
     db.prepare(`
-      INSERT INTO templates (id, name, desc, icon, blocks, isBuiltin, sort, createdAt, updatedAt)
-      VALUES (@id, @name, @desc, @icon, @blocks, @isBuiltin, @sort, @createdAt, @updatedAt)
+      INSERT INTO templates (id, name, desc, icon, blocks, connections, isBuiltin, sort, createdAt, updatedAt)
+      VALUES (@id, @name, @desc, @icon, @blocks, @connections, @isBuiltin, @sort, @createdAt, @updatedAt)
     `).run({
       id: t.id,
       name: t.name,
       desc: t.desc || '',
       icon: t.icon || null,
       blocks: safeStringify(t.blocks),
+      connections: safeStringify(t.connections),
       isBuiltin: t.isBuiltin ? 1 : 0,
       sort: t.sort ?? null,
       createdAt: t.createdAt,
@@ -64,6 +66,7 @@ module.exports = {
         desc = @desc,
         icon = @icon,
         blocks = @blocks,
+        connections = @connections,
         isBuiltin = @isBuiltin,
         sort = @sort,
         updatedAt = @updatedAt
@@ -74,6 +77,7 @@ module.exports = {
       desc: merged.desc || '',
       icon: merged.icon || null,
       blocks: safeStringify(merged.blocks),
+      connections: safeStringify(merged.connections),
       isBuiltin: merged.isBuiltin ? 1 : 0,
       sort: merged.sort ?? null,
       updatedAt: merged.updatedAt
