@@ -92,6 +92,7 @@ export const useTemplateStore = defineStore('template', () => {
     }
     templates.value.push(record)
     templatesApi.create({
+      id: record.id,
       name: record.name,
       desc: record.desc,
       icon: record.icon,

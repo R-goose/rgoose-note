@@ -1572,7 +1572,6 @@ async function confirmSaveAsTemplate() {
     await templateStore.create({ name, desc: saveAsTemplate.value.desc.trim(), blocks: kept })
     saveAsTemplate.value.show = false
     toastSuccess('已保存为模板')
-    showToast('已保存为模板', 'success')
   } catch (err) {
     showToast('保存失败：' + (err?.message || '未知错误'), 'error')
   }

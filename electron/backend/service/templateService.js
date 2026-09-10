@@ -3,7 +3,7 @@
  */
 
 const templateDao = require('../dao/templateDao')
-const { now } = require('../common/utils')
+const { now, uuid } = require('../common/utils')
 const { notFound, conflict } = require('../common/errors')
 
 function requireTemplate(id) {
@@ -29,7 +29,7 @@ module.exports = {
   create(t) {
     checkNameUnique(t.name, null)
     const ts = now()
-    return templateDao.insert({ ...t, isBuiltin: 0, createdAt: ts, updatedAt: ts })
+    return templateDao.insert({ ...t, id: t.id || uuid(), isBuiltin: 0, createdAt: ts, updatedAt: ts })
   },
 
   update(id, t) {
