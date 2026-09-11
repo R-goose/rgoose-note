@@ -820,11 +820,18 @@ function confirmCreateNote() {
     return
   }
   const note = noteStore.createNote(title, null, newNoteTagIds.value)
-  // 应用模板：向新笔记追加预设块（空白模板为空数组，效果等同不选）
+  // 应用模板：块、分组和连线使用同一份 ID 映射实例化，确保新笔记与模板画布一致。
   if (selectedTemplate.value) {
-    const tplBlocks = templateStore.getBlocksById(selectedTemplate.value)
+    const tpl = templateStore.getTemplateById(selectedTemplate.value)
+    const { blocks: tplBlocks, connections: tplConnections } = templateStore.instantiateContent(
+      tpl?.blocks || templateStore.getBlocksById(selectedTemplate.value),
+      tpl?.connections || []
+    )
     for (const b of tplBlocks) {
       noteStore.addBlock(note.id, b)
+    }
+    for (const conn of tplConnections) {
+      noteStore.addConnection(note.id, conn.from, conn.to, conn.shape || 'straight', conn)
     }
   }
   showCreateModal.value = false

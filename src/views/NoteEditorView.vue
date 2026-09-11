@@ -1551,7 +1551,7 @@ const highlightBlockId = ref(null)
 const saveAsTemplate = ref({ show: false, name: '', desc: '', count: 0, dropped: 0 })
 
 function openSaveAsTemplate() {
-  const { blocks: kept, dropped } = templateStore.sanitizeBlocks(blocks.value)
+  const { blocks: kept, dropped } = templateStore.sanitizeContent(blocks.value, connections.value)
   saveAsTemplate.value = {
     show: true,
     name: note.value?.title || '',
@@ -1568,8 +1568,13 @@ async function confirmSaveAsTemplate() {
     return
   }
   try {
-    const { blocks: kept } = templateStore.sanitizeBlocks(blocks.value)
-    await templateStore.create({ name, desc: saveAsTemplate.value.desc.trim(), blocks: kept })
+    const { blocks: kept, connections: keptConnections } = templateStore.sanitizeContent(blocks.value, connections.value)
+    await templateStore.create({
+      name,
+      desc: saveAsTemplate.value.desc.trim(),
+      blocks: kept,
+      connections: keptConnections
+    })
     saveAsTemplate.value.show = false
     toastSuccess('已保存为模板')
   } catch (err) {

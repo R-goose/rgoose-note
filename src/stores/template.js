@@ -3,9 +3,8 @@ import { ref, computed } from 'vue'
 import { generateId, getTimestamp, deepClone } from '@/utils'
 import { templatesApi } from '@/api/templates'
 import { BUILTIN_TEMPLATES, buildTemplateBlocks } from '@/templates/builtin'
+import { sanitizeTemplateContent, instantiateTemplateContent } from '@/templates/content'
 
-// 可被保存为模板的自包含结构块类型（杜绝外部引用/媒体依赖）
-const KEEP_BLOCK_TYPES = new Set(['text', 'table', 'code', 'callout', 'formula'])
 // 模板编辑器可创建的块类型
 export const EDITABLE_BLOCK_TYPES = ['text', 'table']
 
@@ -86,20 +85,14 @@ export const useTemplateStore = defineStore('template', () => {
     return []
   }
 
-  /** 过滤出可保存为模型的自包含块，返回 { blocks, dropped } */
-  function sanitizeBlocks(blocks) {
-    const list = Array.isArray(blocks) ? blocks : []
-    const kept = []
-    let dropped = 0
-    for (const b of list) {
-      if (b && KEEP_BLOCK_TYPES.has(b.type)) {
-        const { id, updatedAt, createdAt, ...rest } = b
-        kept.push(rest)
-      } else {
-        dropped++
-      }
-    }
-    return { blocks: kept, dropped }
+  /** 过滤出可保存为模板的自包含内容，并同步保留有效连线。 */
+  function sanitizeContent(blocks, connections = []) {
+    return sanitizeTemplateContent(blocks, connections)
+  }
+
+  /** 为一次套用生成全新的块与连线 ID，避免不同笔记共享数据库主键。 */
+  function instantiateContent(blocks, connections = []) {
+    return instantiateTemplateContent(blocks, connections)
   }
 
   function create(template) {
@@ -179,7 +172,8 @@ export const useTemplateStore = defineStore('template', () => {
     init,
     getTemplateById,
     getBlocksById,
-    sanitizeBlocks,
+    sanitizeContent,
+    instantiateContent,
     create,
     update,
     remove,

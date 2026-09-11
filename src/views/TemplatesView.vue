@@ -99,18 +99,14 @@
         <div class="modal-content preview-modal">
           <h3>{{ previewTpl?.name }}</h3>
           <p class="preview-desc">{{ previewTpl?.desc || '暂无描述' }}</p>
-          <div v-if="previewBlocks.length" class="preview-blocks">
-            <div
-              v-for="b in previewBlocks"
-              :key="b.id"
-              class="preview-block"
-            >
-              <span class="preview-type">{{ typeLabel(b.type) }}</span>
-              <span class="preview-brief">{{ blockBrief(b) }}</span>
-            </div>
-          </div>
+          <TemplateCanvasPreview
+            v-if="previewBlocks.length"
+            :blocks="previewBlocks"
+            :connections="previewConnections"
+          />
           <div v-else class="preview-empty">该模板暂无内容块</div>
           <div class="modal-actions">
+            <button class="btn btn-primary" @click="editPreviewTemplate">编辑模板</button>
             <button class="btn btn-secondary" @click="previewTpl = null">关闭</button>
           </div>
         </div>
@@ -151,7 +147,7 @@ import { useTemplateStore } from '@/stores/template'
 import { useToast } from '@/composables/useToast'
 import BgDecor from '@/components/BgDecor.vue'
 import JellyModal from '@/components/JellyModal.vue'
-import { generateId } from '@/utils'
+import TemplateCanvasPreview from '@/components/TemplateCanvasPreview.vue'
 
 const router = useRouter()
 const templateStore = useTemplateStore()
@@ -168,6 +164,7 @@ const defaultTemplateIcon =
 
 const previewTpl = ref(null)
 const previewBlocks = ref([])
+const previewConnections = ref([])
 const tplToDelete = ref(null)
 
 function startCreate() {
@@ -180,8 +177,18 @@ function editTemplate(tpl) {
 
 function previewTemplate(tpl) {
   previewTpl.value = tpl
-  const blocks = templateStore.getBlocksById(tpl.id)
-  previewBlocks.value = blocks.map(b => ({ ...b, id: b.id || generateId() }))
+  const content = templateStore.instantiateContent(
+    templateStore.getBlocksById(tpl.id),
+    tpl.connections || []
+  )
+  previewBlocks.value = content.blocks
+  previewConnections.value = content.connections
+}
+
+function editPreviewTemplate() {
+  if (!previewTpl.value) return
+  editTemplate(previewTpl.value)
+  previewTpl.value = null
 }
 
 function askDelete(tpl) {
@@ -195,19 +202,6 @@ function confirmDelete() {
   tplToDelete.value = null
 }
 
-function typeLabel(type) {
-  const map = { text: '文本', table: '表格', code: '代码', callout: '提示', formula: '公式' }
-  return map[type] || type || '块'
-}
-
-function blockBrief(b) {
-  if (!b) return ''
-  if (typeof b.content === 'string') {
-    return b.content.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().slice(0, 40) || '（空内容）'
-  }
-  if (b.type === 'table') return '表格数据'
-  return ''
-}
 </script>
 
 <style scoped>
@@ -415,8 +409,7 @@ function blockBrief(b) {
 }
 
 .preview-modal {
-  width: 440px;
-  max-width: 90vw;
+  width: min(820px, 90vw);
   padding: 24px;
 }
 
@@ -433,44 +426,6 @@ function blockBrief(b) {
   margin-bottom: 16px;
 }
 
-.preview-blocks {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 20px;
-  max-height: 320px;
-  overflow-y: auto;
-}
-
-.preview-block {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-sm);
-  background: var(--bg-secondary);
-}
-
-.preview-type {
-  flex-shrink: 0;
-  font-size: 11.5px;
-  padding: 3px 8px;
-  border-radius: 5px;
-  background: var(--primary-soft);
-  color: var(--primary-dark);
-  font-weight: 600;
-}
-
-.preview-brief {
-  font-size: 12.5px;
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
-
 .preview-empty {
   color: var(--text-tertiary);
   font-size: 13px;
@@ -481,6 +436,7 @@ function blockBrief(b) {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+  margin-top: 18px;
 }
 
 .confirm-modal {

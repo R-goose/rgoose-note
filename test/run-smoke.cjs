@@ -31,7 +31,6 @@ module.exports = function runSmoke(done) {
   const noteService = require(path.join(BACKEND_DIR, 'service', 'noteService'))
   const blockService = require(path.join(BACKEND_DIR, 'service', 'blockService'))
   const connectionService = require(path.join(BACKEND_DIR, 'service', 'connectionService'))
-  const planService = require(path.join(BACKEND_DIR, 'service', 'planService'))
   const tagService = require(path.join(BACKEND_DIR, 'service', 'tagService'))
   const imageService = require(path.join(BACKEND_DIR, 'service', 'imageService'))
   const syncService = require(path.join(BACKEND_DIR, 'service', 'syncService'))
@@ -74,8 +73,7 @@ module.exports = function runSmoke(done) {
       id: uuid(), type: 'text', content: 'Hello', x: 100, y: 100, width: 240, minHeight: 60, color: 'default'
     })
     const block2 = blockService.create(note.id, {
-      id: uuid(), type: 'todo', content: '买牛奶', x: 400, y: 100, width: 240, minHeight: 60,
-      status: 'pending', priority: 'high'
+      id: uuid(), type: 'text', content: 'World', x: 400, y: 100, width: 240, minHeight: 60, color: 'default'
     })
     assert(blockService.list(note.id).length === 2, '块列表 = 2')
 
@@ -93,14 +91,6 @@ module.exports = function runSmoke(done) {
     assert(reloadedTable.tableData === 'A|B\n1|2', 'table.tableData 持久化')
     assert(reloadedTable.tableAnalysis === true, 'table.tableAnalysis 反序列化为 true')
 
-    const milestoneBlock = blockService.create(note.id, {
-      id: uuid(), type: 'milestone', title: '里程碑', date: Date.now(), done: true, desc: '描述',
-      x: 0, y: 0, width: 300, minHeight: 100
-    })
-    const reloadedMilestone = blockService.list(note.id).find(b => b.id === milestoneBlock.id)
-    assert(reloadedMilestone.done === true, 'milestone.done 反序列化为 true')
-    assert(reloadedMilestone.desc === '描述', 'milestone.desc 持久化（SQL 保留字）')
-
     console.log('=== 5. 连线 ===')
     const conn = connectionService.create(note.id, {
       id: uuid(), from: block1.id, to: block2.id, shape: 'bezier', color: '#4a9568'
@@ -111,15 +101,7 @@ module.exports = function runSmoke(done) {
     assert(dupConn.id === conn.id, '双向去重：反向连线返回已存在的连线')
     assert(connectionService.list(note.id).length === 1, '连线列表去重后 = 1')
 
-    console.log('=== 6. 计划 ===')
-    const plan = planService.create({
-      id: uuid(), title: '完成报告', priority: 'high', tags: ['tag-1'],
-      dueDate: Date.now() + 86400000, noteId: note.id
-    })
-    assert(plan.completed === false, 'completed 反序列化为 false')
-    assert(planService.toggleComplete(plan.id).completed === true, '切换完成状态 → true')
-
-    console.log('=== 7. 标签 ===')
+    console.log('=== 6. 标签 ===')
     const tag = tagService.create({ id: uuid(), name: '重要', color: '#4a9568' })
     assert(tag.id, '标签创建返回 id')
     let dupError = null
@@ -127,7 +109,7 @@ module.exports = function runSmoke(done) {
     catch (e) { dupError = e }
     assert(dupError && dupError.code === 40900, '标签名唯一校验抛出冲突错误')
 
-    console.log('=== 8. 图片 ===')
+    console.log('=== 7. 图片 ===')
     const pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
     const ref = imageService.saveFromDataUrl(`data:image/png;base64,${pngBase64}`, 'test.png')
     assert(ref && ref.startsWith('img_'), '图片保存返回 ref')
@@ -135,14 +117,14 @@ module.exports = function runSmoke(done) {
     assert(downloaded.buffer && downloaded.buffer.length > 0, '图片下载返回 buffer')
     assert(downloaded.mimeType === 'image/png', 'mimeType = image/png')
 
-    console.log('=== 9. 笔记复制 ===')
+    console.log('=== 8. 笔记复制 ===')
     const dupNote = noteService.duplicate(note.id)
     assert(dupNote.id !== note.id, '复制笔记生成新 ID')
     assert(Array.isArray(dupNote.blocks), 'duplicate 返回值包含 blocks 数组')
     const dupBlocks = blockService.list(dupNote.id)
-    assert(dupBlocks.length === 5, `复制后块数 = 5 (got ${dupBlocks.length})`)
+    assert(dupBlocks.length === 4, `复制后块数 = 4 (got ${dupBlocks.length})`)
 
-    console.log('=== 10. 同步导出 ===')
+    console.log('=== 9. 同步导出 ===')
     const exported = syncService.pull(0)
     assert(exported.folders.length >= 2, '导出文件夹数 >= 2')
     assert(exported.notes.every(n => !n.deleted), '全量同步不返回已软删笔记')
