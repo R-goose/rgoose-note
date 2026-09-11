@@ -560,7 +560,8 @@ const props = defineProps({
   syncVersion: Number,
   linkSelectionMode: Boolean,
   linkSelected: Boolean,
-  groupColor: String
+  groupColor: String,
+  canvasScale: { type: Number, default: 1 }
 })
 
 const resolvedImageUrl = ref('')
@@ -915,11 +916,9 @@ const blockStyle = computed(() => {
   const style = {
     left: `${props.block.x}px`,
     top: `${props.block.y}px`,
-    width: `${props.block.width || 220}px`
+    width: `${props.block.width || 240}px`
   }
   if (props.block.type === 'text') {
-    style.width = 'fit-content'
-    style.maxWidth = `${props.block.width || 240}px`
     style.minWidth = '120px'
   }
   const isAutoSize = props.block.type === 'image' || props.block.type === 'note-link' || props.block.type === 'audio' || props.block.type === 'gallery'
@@ -1794,8 +1793,9 @@ function onResizeStart(e, dir) {
 
 function onResizeMove(e) {
   if (!resizingInfo) return
-  const dx = e.clientX - resizingInfo.startX
-  const dy = e.clientY - resizingInfo.startY
+  const scale = Number.isFinite(props.canvasScale) && props.canvasScale > 0 ? props.canvasScale : 1
+  const dx = (e.clientX - resizingInfo.startX) / scale
+  const dy = (e.clientY - resizingInfo.startY) / scale
   const { dir, startLeft, startTop, startWidth, startHeight } = resizingInfo
   const minW = 120
   const minH = 60
@@ -1886,6 +1886,8 @@ onUnmounted(() => {
 <style scoped>
 .note-block {
   position: absolute;
+  min-width: 120px;
+  box-sizing: border-box;
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -1912,8 +1914,12 @@ onUnmounted(() => {
 
 .block-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   padding: 8px 10px 0;
   opacity: 0;
   transition: opacity var(--transition-fast);
@@ -1928,6 +1934,8 @@ onUnmounted(() => {
 .block-drag-handle {
   color: var(--text-tertiary);
   cursor: move;
+  flex-shrink: 0;
+  margin-top: 5px;
 }
 
 .block-group-badge {
@@ -1941,6 +1949,11 @@ onUnmounted(() => {
 .block-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
   gap: 4px;
 }
 

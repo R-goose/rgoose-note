@@ -149,6 +149,7 @@
           :connect-mode="connectMode"
           :connecting-from="connectingFrom"
           :read-only="false"
+          :canvas-scale="canvasConfig.zoom"
           @select="selectedBlockId = $event"
           @connect-start="startConnection"
           @connect-end="endConnection"
@@ -525,26 +526,33 @@ function onDelete(id) {
     draftBlocks.value.splice(idx, 1)
     if (selectedBlockId.value === id) selectedBlockId.value = null
   }
+  if (blockSizes.value[id]) {
+    const nextSizes = { ...blockSizes.value }
+    delete nextSizes[id]
+    blockSizes.value = nextSizes
+  }
   draftConnections.value = draftConnections.value.filter(c => c.from !== id && c.to !== id)
 }
 
+// 与笔记编辑器保持一致：ResizeObserver 只缓存 DOM 的真实尺寸，不能回写块数据。
+// 否则文本块的内容尺寸会覆盖用户拖拽后的目标尺寸，表现为“拉伸后立刻缩回去”。
+const blockSizes = ref({})
+
 function onResize({ id, width, height }) {
-  const b = draftBlocks.value.find(x => x.id === id)
-  if (b) {
-    b.width = width
-    b.height = height
-    b.minHeight = height
-  }
+  blockSizes.value = { ...blockSizes.value, [id]: { width, height } }
 }
 
 function onResizeBlock({ id, width, height, x, y }) {
   const b = draftBlocks.value.find(bb => bb.id === id)
   if (b) {
-    b.width = width
-    b.height = height
-    b.minHeight = height
-    b.x = x
-    b.y = y
+    const next = {
+      width: snapVal(width),
+      height: snapVal(height),
+      x: snapVal(x),
+      y: snapVal(y)
+    }
+    Object.assign(b, next)
+    blockSizes.value = { ...blockSizes.value, [id]: { width: next.width, height: next.height } }
   }
 }
 
@@ -998,6 +1006,8 @@ function pathFromRoundedPolyline(pts, radius = 14) {
 function getBlockSize(blockId, block) {
   const b = block || draftBlocks.value.find(x => x.id === blockId)
   if (!b) return { width: 240, height: 60 }
+  const measured = blockSizes.value[blockId]
+  if (measured?.width > 0 && measured?.height > 0) return measured
   return { width: b.width || 240, height: b.height || b.minHeight || 60 }
 }
 function getObstaclesBetween(fromId, toId) {

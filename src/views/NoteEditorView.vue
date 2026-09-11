@@ -337,6 +337,7 @@
           :hide-highlight-underline="showFindInNote"
           :link-selection-mode="linkSelectionMode"
           :link-selected="linkSelectionBlockId === block.id"
+          :canvas-scale="canvasConfig.zoom"
           @select="selectBlock"
           @drag-start="onBlockDragStart"
           @drag-move="onBlockDragMove"
