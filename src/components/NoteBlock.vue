@@ -13,7 +13,7 @@
       'connect-mode': connectMode,
       connecting: connectingFrom === block.id,
       'connect-target': connectMode && connectingFrom && connectingFrom !== block.id,
-      [`block-color-${block.color || 'green'}`]: true,
+      [`block-color-${block.color || 'default'}`]: true,
       [`block-border-${block.borderStyle || 'solid'}`]: true,
       locked: !!block.locked
     }"

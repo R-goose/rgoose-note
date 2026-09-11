@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { instantiateTemplateContent, sanitizeTemplateContent } from '../src/templates/content.js'
+import { BUILTIN_TEMPLATES, buildTemplateBlocks } from '../src/templates/builtin.js'
 
 function sequentialIds(prefix) {
   let index = 0
@@ -23,6 +24,8 @@ assert.equal(sanitized.blocks[0].groupId, 'template-2')
 assert.equal(sanitized.blocks[1].groupId, 'template-2')
 assert.equal('createdAt' in sanitized.blocks[0], false)
 assert.equal('updatedAt' in sanitized.blocks[1], false)
+assert.equal(sanitized.blocks[0].color, 'default')
+assert.equal(sanitized.blocks[1].color, 'default')
 assert.deepEqual(sanitized.connections, [{
   id: 'template-4',
   from: 'template-1',
@@ -59,5 +62,13 @@ const legacy = instantiateTemplateContent(
 )
 assert.equal(legacy.blocks.length, 1)
 assert.equal(legacy.connections.length, 0)
+assert.equal(legacy.blocks[0].color, 'default')
+
+for (const template of BUILTIN_TEMPLATES.filter(item => item.key !== 'blank')) {
+  assert.ok(
+    buildTemplateBlocks(template.key).every(block => block.color === 'default'),
+    `${template.key} 内置模板的块应使用中性默认色`
+  )
+}
 
 console.log('template-content: PASS')

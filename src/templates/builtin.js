@@ -67,7 +67,7 @@ export function buildTemplateBlocks(tplKey) {
   // 单列块
   const mk = (data) => {
     const y = cursorY
-    const b = { ...data, x: data.x != null ? data.x : PAD_X, y }
+    const b = { color: 'default', ...data, x: data.x != null ? data.x : PAD_X, y }
     blocks.push(b)
     cursorY = y + estHeight(b) + GAP
     return b
@@ -75,8 +75,8 @@ export function buildTemplateBlocks(tplKey) {
   // 并排两块（同一行）
   const mkRow = (left, right) => {
     const y = cursorY
-    const lb = { ...left, y }
-    const rb = { ...right, y }
+    const lb = { color: 'default', ...left, y }
+    const rb = { color: 'default', ...right, y }
     blocks.push(lb, rb)
     cursorY = y + Math.max(estHeight(lb), estHeight(rb)) + GAP
   }

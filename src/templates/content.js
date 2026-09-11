@@ -27,6 +27,8 @@ export function sanitizeTemplateContent(blocks, connections = [], idFactory = ge
     block.id = templateBlockId
     delete block.createdAt
     delete block.updatedAt
+    // 旧模板可能没有保存背景色；统一补为中性底色，避免回退为绿色。
+    if (!block.color) block.color = 'default'
 
     if (block.groupId) {
       if (!groupIdMap.has(block.groupId)) groupIdMap.set(block.groupId, idFactory())
@@ -69,6 +71,8 @@ export function instantiateTemplateContent(blocks, connections = [], idFactory =
     block.id = noteBlockId
     delete block.createdAt
     delete block.updatedAt
+    // 兼容历史模板：缺省背景色一律使用中性默认色。
+    if (!block.color) block.color = 'default'
 
     if (block.groupId) {
       if (!groupIdMap.has(block.groupId)) groupIdMap.set(block.groupId, idFactory())

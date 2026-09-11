@@ -271,7 +271,7 @@
         <span>背景：</span>
         <button
           v-for="color in blockBgColors" :key="color.value"
-          class="color-btn" :class="{ active: (selectedBlock.color || 'green') === color.value }"
+          class="color-btn" :class="{ active: (selectedBlock.color || 'default') === color.value }"
           :style="{ background: color.swatch }"
           @click="setBlockStyle({ color: color.value })"
         ></button>
