@@ -155,6 +155,27 @@ module.exports = function runSmoke(done) {
     assert(reimported.blocks.length === exportedBlocks, '导入后 blocks 数量恢复')
     assert(reimported.connections.length === exportedConns, '导入后 connections 数量恢复')
 
+    console.log('=== 10d. 指定目录导入后重启持久化 ===')
+    const importedFolderId = uuid()
+    const importedNoteId = uuid()
+    const importTs = Date.now()
+    syncService.importAll({
+      folders: [{
+        id: importedFolderId, name: '导入目录', parentId: folder.id, tags: [], isSystem: false,
+        createdAt: importTs, updatedAt: importTs, deleted: false
+      }],
+      notes: [{
+        id: importedNoteId, title: '导入笔记', folderId: importedFolderId, tags: [],
+        canvasConfig: null, pinned: false, createdAt: importTs, updatedAt: importTs, deleted: false
+      }],
+      tags: [], blocks: [], connections: []
+    })
+    closeDb()
+    getDb(tmpDir)
+    const afterRestart = syncService.pull(0)
+    assert(afterRestart.folders.some(f => f.id === importedFolderId && f.parentId === folder.id), '重启后导入目录仍位于指定文件夹')
+    assert(afterRestart.notes.some(n => n.id === importedNoteId && n.folderId === importedFolderId), '重启后导入笔记仍存在且目录正确')
+
     console.log('=== 11. 级联删除 ===')
     folderService.delete(folder.id)
     const deletedFolder = folderDao.getById(folder.id)

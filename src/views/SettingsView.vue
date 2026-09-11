@@ -530,7 +530,7 @@
           <div id="set-about-version" class="setting-item">
             <div class="setting-info">
               <div class="setting-name brand-name">R-Goose Note</div>
-              <div class="setting-desc">版本 2.4.30</div>
+              <div class="setting-desc">版本 2.4.31</div>
             </div>
           </div>
           <div id="set-about-platform" class="setting-item">
@@ -566,6 +566,9 @@
             <div>
             <h3>确认导入数据</h3>
             <p>导入的数据会与当前数据合并，重复内容会被保留。</p>
+            <p v-if="pendingImportSummary.deletedNotes || pendingImportSummary.deletedFolders" class="import-deleted-hint">
+              此备份含 {{ pendingImportSummary.deletedNotes }} 篇已删除笔记、{{ pendingImportSummary.deletedFolders }} 个已删除文件夹；默认不会恢复它们。
+            </p>
           </div>
         </div>
 
@@ -597,6 +600,11 @@
           <div v-if="importTargetMode === 'new'" class="import-folder-select">
             <input v-model="importNewFolderName" class="import-folder-input" placeholder="输入新文件夹名称" />
           </div>
+
+          <label v-if="pendingImportSummary.deletedNotes || pendingImportSummary.deletedFolders" class="import-target-radio import-restore-deleted">
+            <input v-model="importIncludeDeleted" type="checkbox" />
+            <span>同时恢复回收站中的内容</span>
+          </label>
         </div>
 
         <div class="confirm-actions">
@@ -686,10 +694,12 @@ import { computed, ref, onMounted, nextTick, onUnmounted } from 'vue'
 import { useNoteStore } from '@/stores/note'
 import { useTagStore } from '@/stores/tag'
 import { useShortcutStore, eventToCombo, ACTION_META } from '@/stores/shortcut'
-import { exportAsJSON, importFromJSON, mergeData, loadFromStore, saveToStore } from '@/utils/storage'
+import { exportAsJSON, importFromJSON, mergeData } from '@/utils/storage'
 import { isAppFormatData, buildNoteFromArbitraryJSON } from '@/utils/jsonAdapter'
 import { collectImageRefsFromData, buildImageBundle, restoreImageBundle, remapImageRefsInData } from '@/utils/imageStore'
-import { formatDate, formatBytes } from '@/utils'
+import { formatDate, formatBytes, generateId, getTimestamp } from '@/utils'
+import { prepareImportData, summarizeImportData, nestNoteChildren } from '@/utils/importData'
+import { syncApi } from '@/api/sync'
 import { useToast } from '@/composables/useToast'
 import BgDecor from '@/components/BgDecor.vue'
 import CustomSelect from '@/components/CustomSelect.vue'
@@ -704,6 +714,7 @@ const showImportConfirm = ref(false)
 const importTargetMode = ref('merge') // 'merge' | 'folder' | 'new'
 const importTargetFolderId = ref(null)
 const importNewFolderName = ref('')
+const importIncludeDeleted = ref(false)
 const importFolderOptions = computed(() => [
   { label: '— 请选择文件夹 —', value: '__none__' },
   ...noteStore.folders.filter(f => !f.deleted).map(f => ({ label: f.name, value: f.id }))
@@ -1269,6 +1280,7 @@ onUnmounted(() => {
 onMounted(() => { document.addEventListener('mousedown', handleDropdownOutsideClick) })
 onUnmounted(() => { document.removeEventListener('mousedown', handleDropdownOutsideClick) })
 const pendingImportData = ref(null)
+const pendingImportSummary = computed(() => summarizeImportData(pendingImportData.value))
 
 const lastSyncTimeStr = computed(() => {
   const lastSync = noteStore.lastSyncTime || 0
@@ -1582,6 +1594,7 @@ async function handleImport() {
       importTargetMode.value = 'merge'
       importTargetFolderId.value = '__none__'
       importNewFolderName.value = ''
+      importIncludeDeleted.value = false
       showImportConfirm.value = true
     } else {
       toastError('导入失败：文件格式无效')
@@ -1590,17 +1603,6 @@ async function handleImport() {
     if (err?.message === '未选择文件') return
     toastError('导入失败：' + (err?.message || '未知错误'))
   }
-}
-
-async function placeOrphanNotesIntoRoot(importedNoteIds) {
-  if (!importedNoteIds || !importedNoteIds.length) return 0
-  const folderIds = new Set(noteStore.folders.filter(f => !f.deleted).map(f => f.id))
-  const orphans = noteStore.notes.filter(n => importedNoteIds.has(n.id) && (!n.folderId || !folderIds.has(n.folderId)))
-  if (!orphans.length) return 0
-  const rootFolder = await noteStore.ensureSystemRootFolder()
-  if (!rootFolder) return 0
-  orphans.forEach(n => noteStore.moveNoteToFolder(n.id, rootFolder.id))
-  return orphans.length
 }
 
 async function confirmImport() {
@@ -1617,7 +1619,15 @@ async function confirmImport() {
   }
 
   try {
-    const importData = pendingImportData.value
+    const preparedImport = prepareImportData(pendingImportData.value, {
+      targetMode: importTargetMode.value,
+      targetFolderId: importTargetFolderId.value,
+      newFolderName: importNewFolderName.value,
+      includeDeleted: importIncludeDeleted.value,
+      idFactory: generateId,
+      timestamp: getTimestamp()
+    })
+    const importData = preparedImport.data
     let refMap = {}
 
     if (importData.images && typeof importData.images === 'object') {
@@ -1634,50 +1644,48 @@ async function confirmImport() {
       folders: noteStore.folders,
       tags: tagStore.tags
     }
-    const beforeNoteIds = new Set(noteStore.notes.map(n => n.id))
     const mergedData = mergeData(currentData, importData)
-
-    if (mergedData.folders) noteStore.replaceAllFolders(mergedData.folders)
-    noteStore.replaceAll(mergedData.notes || [])
-    tagStore.replaceAll(mergedData.tags || [])
-
-    const importedNoteIds = new Set(noteStore.notes.filter(n => !beforeNoteIds.has(n.id)).map(n => n.id))
-
-    let toastMsg = '数据导入完成'
-    let orphanCount = 0
-
-    if (importTargetMode.value === 'merge') {
-      orphanCount = await placeOrphanNotesIntoRoot(importedNoteIds)
-      toastMsg = orphanCount > 0 ? `数据导入完成，${orphanCount} 篇无父级的笔记已放入「根目录」文件夹` : '数据导入完成'
-    } else if (importTargetMode.value === 'folder') {
-      const importedNotes = noteStore.notes.filter(n => importedNoteIds.has(n.id))
-      importedNotes.forEach(n => noteStore.moveNoteToFolder(n.id, importTargetFolderId.value))
-      const folderName = noteStore.folders.find(f => f.id === importTargetFolderId.value)?.name || ''
-      toastMsg = `数据导入完成，${importedNotes.length} 篇笔记已导入到「${folderName}」`
-    } else if (importTargetMode.value === 'new') {
-      const newFolder = noteStore.createFolder(importNewFolderName.value.trim())
-      const importedNotes = noteStore.notes.filter(n => importedNoteIds.has(n.id))
-      importedNotes.forEach(n => noteStore.moveNoteToFolder(n.id, newFolder.id))
-      toastMsg = `数据导入完成，${importedNotes.length} 篇笔记已放入新文件夹「${newFolder.name}」`
-    }
-
-    // 展平 blocks/connections（嵌套在 notes 中），传给后端做 LWW 合并
+    // 展平 blocks/connections（嵌套在 notes 中），在更新前一次性写入后端。
     const flatBlocks = []
     const flatConnections = []
-    for (const n of noteStore.notes) {
+    for (const n of mergedData.notes || []) {
       if (n.blocks) flatBlocks.push(...n.blocks)
       if (n.connections) flatConnections.push(...n.connections)
     }
 
-    // v2.0: 通过后端 API 导入合并后的数据（即使失败，前端内存中已合并成功，后续自动保存）
-    try {
-      await syncApi.importAll({
-        ...mergedData,
-        blocks: flatBlocks,
-        connections: flatConnections
-      })
-    } catch (e) {
-      console.warn('syncApi.importAll 失败，但前端数据已合并，后续自动保存会补齐:', e)
+    await syncApi.importAll({
+      ...mergedData,
+      blocks: flatBlocks,
+      connections: flatConnections
+    })
+
+    // 写入成功后立即回读，避免只在内存中显示“导入成功”。
+    const persisted = await syncApi.pull(0)
+    const visibleImportedNotes = importData.notes.filter(note => !note.deleted)
+    const visibleImportedFolders = importData.folders.filter(folder => !folder.deleted)
+    const persistedNotes = new Map((persisted.notes || []).map(note => [note.id, note]))
+    const persistedFolders = new Map((persisted.folders || []).map(folder => [folder.id, folder]))
+    const failedNotes = visibleImportedNotes.filter(note => {
+      const saved = persistedNotes.get(note.id)
+      return !saved || saved.deleted || saved.folderId !== note.folderId
+    }).length
+    const failedFolders = visibleImportedFolders.filter(folder => {
+      const saved = persistedFolders.get(folder.id)
+      return !saved || saved.deleted || saved.parentId !== folder.parentId
+    }).length
+    if (failedNotes || failedFolders) {
+      throw new Error(`导入校验失败：${failedNotes} 篇笔记、${failedFolders} 个文件夹未按目标位置保存`)
+    }
+
+    const persistedUiData = nestNoteChildren(persisted)
+    await noteStore.replaceAllFolders(persistedUiData.folders || [])
+    await noteStore.replaceAll(persistedUiData.notes || [])
+    tagStore.replaceAll(persistedUiData.tags || [])
+
+    let toastMsg = `数据导入完成（${visibleImportedNotes.length} 篇笔记，${visibleImportedFolders.length} 个文件夹）`
+    if (preparedImport.targetFolderId) {
+      const folderName = preparedImport.createdFolder?.name || noteStore.folders.find(folder => folder.id === preparedImport.targetFolderId)?.name || ''
+      toastMsg += `，目录结构已放入「${folderName}」`
     }
 
     showImportConfirm.value = false
@@ -1691,6 +1699,7 @@ async function confirmImport() {
 function cancelImport() {
   showImportConfirm.value = false
   pendingImportData.value = null
+  importIncludeDeleted.value = false
 }
 
 const recordingId = ref(null)
@@ -2667,6 +2676,20 @@ function resetAllShortcuts() {
 .import-target-radio input[type="radio"] {
   accent-color: var(--primary-color, #3b82f6);
   cursor: pointer;
+}
+.import-restore-deleted {
+  margin-top: 12px;
+  color: var(--text-secondary);
+}
+.import-restore-deleted input[type="checkbox"] {
+  accent-color: var(--primary-color, #3b82f6);
+  cursor: pointer;
+}
+.import-deleted-hint {
+  margin-top: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
 }
 .import-folder-select {
   margin-top: 12px;
