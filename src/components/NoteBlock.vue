@@ -322,51 +322,68 @@
         <div class="table-toolbar">
           <span class="table-count" v-if="tableRows.length > 1">{{ tableRows.length - 1 }} 行 × {{ (tableRows[0] || []).length }} 列</span>
           <div class="table-actions">
-            <button v-if="!readOnly" class="change-media-btn" @click.stop="addTableRow">+ 行</button>
-            <button v-if="!readOnly" class="change-media-btn" @click.stop="addTableCol">+ 列</button>
-            <button v-if="!readOnly && tableRows.length > 2" class="change-media-btn danger" @click.stop="delTableRow">− 行</button>
-            <button v-if="!readOnly && (tableRows[0]||[]).length > 1" class="change-media-btn danger" @click.stop="delTableCol">− 列</button>
-            <button class="change-media-btn" :class="{ active: block.tableAnalysis }" @click.stop="emit('update', block.id, { tableAnalysis: !block.tableAnalysis })">分析</button>
+            <button v-if="tableCanEdit" class="change-media-btn" @click.stop="addTableRow">末尾 +行</button>
+            <button v-if="tableCanEdit" class="change-media-btn" @click.stop="addTableCol">末尾 +列</button>
+            <button v-if="tableCanEdit" class="change-media-btn" :class="{ active: block.tableAnalysis }" @click.stop="emit('update', block.id, { tableAnalysis: !block.tableAnalysis })">分析</button>
           </div>
         </div>
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th
-                v-for="(cell, ci) in (tableRows[0] || [])"
-                :key="ci"
-                :contenteditable="!readOnly && !block.locked"
-                spellcheck="false"
-                @blur="onCellEdit(0, ci, $event)"
-                @keydown.enter.prevent="$event.target.blur()"
-                @mousedown.stop
-                @wheel.stop
-              >{{ cell }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(row, ri) in tableRows.slice(1)" :key="ri">
-              <td
-                v-for="(cell, ci) in row"
-                :key="ci"
-                :class="getCellClass(ri + 1, ci, cell)"
-                :contenteditable="!readOnly && !block.locked"
-                spellcheck="false"
-                @blur="onCellEdit(ri + 1, ci, $event)"
-                @keydown.enter.prevent="$event.target.blur()"
-                @mousedown.stop
-                @wheel.stop
-              >{{ cell }}</td>
-            </tr>
-          </tbody>
-          <tfoot v-if="block.tableAnalysis && tableSums">
-            <tr>
-              <td v-for="(sum, ci) in tableSums" :key="ci" class="table-sum">
-                {{ sum }}
-              </td>
-            </tr>
-          </tfoot>
-        </table>
+        <div v-if="tableCanEdit && selected && tableSelection" class="table-cell-tools" @mousedown.stop>
+          <span class="table-cell-position">{{ tableSelectionLabel }}</span>
+          <span class="table-tool-group-label">行</span>
+          <button :disabled="tableSelection.row === 0" title="在当前行上方插入" @click.stop="insertRowRelative('before')">↑+</button>
+          <button title="在当前行下方插入" @click.stop="insertRowRelative('after')">↓+</button>
+          <button class="danger" :disabled="!canDeleteSelectedRow" title="删除当前行" @click.stop="deleteSelectedRow">删除</button>
+          <span class="table-tool-divider"></span>
+          <span class="table-tool-group-label">列</span>
+          <button title="在当前列左侧插入" @click.stop="insertColumnRelative('before')">←+</button>
+          <button title="在当前列右侧插入" @click.stop="insertColumnRelative('after')">+→</button>
+          <button class="danger" :disabled="!canDeleteSelectedColumn" title="删除当前列" @click.stop="deleteSelectedColumn">删除</button>
+        </div>
+        <div class="table-scroll" @wheel.stop>
+          <table class="data-table" :style="tableLayoutStyle">
+            <thead>
+              <tr>
+                <th
+                  v-for="(cell, ci) in (tableRows[0] || [])"
+                  :key="ci"
+                  :class="{ 'table-cell-selected': isTableCellSelected(0, ci) }"
+                  :contenteditable="tableCanEdit"
+                  spellcheck="false"
+                  @focus="selectTableCell(0, ci)"
+                  @click="selectTableCell(0, ci)"
+                  @blur="onCellEdit(0, ci, $event)"
+                  @keydown.enter.prevent="$event.target.blur()"
+                  @mousedown.stop
+                  @wheel.stop
+                >{{ cell }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(row, ri) in tableRows.slice(1)" :key="ri">
+                <td
+                  v-for="(cell, ci) in row"
+                  :key="ci"
+                  :class="[getCellClass(ri + 1, ci, cell), { 'table-cell-selected': isTableCellSelected(ri + 1, ci) }]"
+                  :contenteditable="tableCanEdit"
+                  spellcheck="false"
+                  @focus="selectTableCell(ri + 1, ci)"
+                  @click="selectTableCell(ri + 1, ci)"
+                  @blur="onCellEdit(ri + 1, ci, $event)"
+                  @keydown.enter.prevent="$event.target.blur()"
+                  @mousedown.stop
+                  @wheel.stop
+                >{{ cell }}</td>
+              </tr>
+            </tbody>
+            <tfoot v-if="block.tableAnalysis && tableSums">
+              <tr>
+                <td v-for="(sum, ci) in tableSums" :key="ci" class="table-sum">
+                  {{ sum }}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       </div>
 
       <div
@@ -534,6 +551,7 @@ import { useNoteStore } from '@/stores/note'
 import { useShortcutStore } from '@/stores/shortcut'
 import { resolveImageUrl, isImageRef } from '@/utils/imageStore'
 import { markdownToHtml, convertInlineMd, isLikelyMarkdown, escapeHtml, splitTableCells } from '@/utils/markdown'
+import { deleteTableColumn, deleteTableRow, insertTableColumn, insertTableRow, parseTableData, updateTableCell } from '@/utils/tableData'
 
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
@@ -701,17 +719,29 @@ const formulaEditing = ref(false)
 // ===== 数值表格块 =====
 const tableEditing = ref(false)
 const tableRawText = ref('')
-const tableRows = computed(() => {
-  const raw = props.block?.tableData || '列1|列2|列3\n10|20|30\n15|25|35'
-  return raw.split('\n').filter(r => r.trim()).map(r => r.split(/\||\t/).map(c => c.trim()))
+const tableRows = computed(() => parseTableData(props.block?.tableData))
+const tableSelection = ref(null)
+const tableCanEdit = computed(() => !props.readOnly && !props.block?.locked)
+const tableSelectionLabel = computed(() => {
+  if (!tableSelection.value) return ''
+  const rowLabel = tableSelection.value.row === 0 ? '表头' : `第 ${tableSelection.value.row} 行`
+  return `${rowLabel} · 第 ${tableSelection.value.col + 1} 列`
 })
+const canDeleteSelectedRow = computed(() => !!tableSelection.value && tableSelection.value.row > 0 && tableRows.value.length > 2)
+const canDeleteSelectedColumn = computed(() => !!tableSelection.value && tableRows.value[0].length > 1)
+const tableLayoutStyle = computed(() => ({ minWidth: `${Math.max(240, tableRows.value[0].length * 92)}px` }))
+
+function selectTableCell(row, col) {
+  if (!tableCanEdit.value) return
+  tableSelection.value = { row, col }
+}
+function isTableCellSelected(row, col) {
+  return tableSelection.value?.row === row && tableSelection.value?.col === col
+}
 function onCellEdit(rowIdx, colIdx, e) {
   const newVal = e.target.innerText.trim()
-  const rows = tableRows.value.map(r => [...r])
-  if (!rows[rowIdx]) return
-  if (newVal === (rows[rowIdx][colIdx] || '')) return
-  rows[rowIdx][colIdx] = newVal
-  emit('update', props.block.id, { tableData: rows.map(r => r.join('|')).join('\n') })
+  if (newVal === (tableRows.value[rowIdx]?.[colIdx] || '')) return
+  emit('update', props.block.id, { tableData: updateTableCell(props.block.tableData, rowIdx, colIdx, newVal) })
 }
 const numericColumns = computed(() => {
   if (tableRows.value.length < 2) return new Set()
@@ -765,30 +795,41 @@ function getCellClass(ri, ci, cell) {
 function startTableEdit() {}
 function onTableRawInput() {}
 function addTableRow() {
-  const cols = (tableRows.value[0] || []).length || 3
-  const newRow = Array(cols).fill('0').join('|')
-  emit('update', props.block.id, { tableData: (props.block.tableData || '') + '\n' + newRow })
+  const row = tableRows.value.length
+  emit('update', props.block.id, { tableData: insertTableRow(props.block.tableData, row) })
+  tableSelection.value = { row, col: 0 }
 }
 function addTableCol() {
-  const rows = (props.block.tableData || '').split('\n').filter(r => r.trim())
-  const newRows = rows.map(r => {
-    const cells = r.split(/\||\t/)
-    cells.push('0')
-    return cells.join('|')
-  })
-  emit('update', props.block.id, { tableData: newRows.join('\n') })
+  const col = tableRows.value[0].length
+  emit('update', props.block.id, { tableData: insertTableColumn(props.block.tableData, col) })
+  tableSelection.value = { row: 0, col }
 }
-function delTableRow() {
-  const rows = (props.block.tableData || '').split('\n').filter(r => r.trim())
-  if (rows.length <= 2) return
-  rows.pop()
-  emit('update', props.block.id, { tableData: rows.join('\n') })
+function insertRowRelative(direction) {
+  if (!tableSelection.value) return
+  const selectedRow = tableSelection.value.row
+  const row = direction === 'before' && selectedRow > 0 ? selectedRow : selectedRow + 1
+  emit('update', props.block.id, { tableData: insertTableRow(props.block.tableData, row) })
+  tableSelection.value = { row, col: tableSelection.value.col }
 }
-function delTableCol() {
-  const rows = tableRows.value
-  if ((rows[0] || []).length <= 1) return
-  const newRows = rows.map(r => r.slice(0, -1))
-  emit('update', props.block.id, { tableData: newRows.map(r => r.join('|')).join('\n') })
+function insertColumnRelative(direction) {
+  if (!tableSelection.value) return
+  const col = tableSelection.value.col + (direction === 'after' ? 1 : 0)
+  emit('update', props.block.id, { tableData: insertTableColumn(props.block.tableData, col) })
+  tableSelection.value = { row: tableSelection.value.row, col }
+}
+function deleteSelectedRow() {
+  if (!canDeleteSelectedRow.value) return
+  const row = tableSelection.value.row
+  const nextRow = Math.max(1, Math.min(row, tableRows.value.length - 2))
+  emit('update', props.block.id, { tableData: deleteTableRow(props.block.tableData, row) })
+  tableSelection.value = { row: nextRow, col: tableSelection.value.col }
+}
+function deleteSelectedColumn() {
+  if (!canDeleteSelectedColumn.value) return
+  const col = tableSelection.value.col
+  const nextCol = Math.max(0, Math.min(col, tableRows.value[0].length - 2))
+  emit('update', props.block.id, { tableData: deleteTableColumn(props.block.tableData, col) })
+  tableSelection.value = { row: tableSelection.value.row, col: nextCol }
 }
 const formulaText = ref('')
 const formulaTextareaRef = ref(null)
@@ -2733,7 +2774,7 @@ onUnmounted(() => {
 }
 .table-toolbar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
 }
 .table-count {
@@ -2745,11 +2786,14 @@ onUnmounted(() => {
   border-collapse: collapse;
   font-size: 13px;
   width: 100%;
+  table-layout: fixed;
 }
 .data-table th, .data-table td {
   border: 1px solid var(--border-color);
   padding: 4px 8px;
   text-align: center;
+  min-width: 92px;
+  overflow-wrap: anywhere;
 }
 .data-table th {
   background: var(--bg-tertiary);
@@ -2764,7 +2808,59 @@ onUnmounted(() => {
 .table-actions {
   display: flex;
   gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
+.table-scroll {
+  width: 100%;
+  min-width: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.data-table th.table-cell-selected,
+.data-table td.table-cell-selected {
+  background: var(--primary-soft);
+  box-shadow: inset 0 0 0 2px var(--primary-color);
+}
+.table-cell-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 5px 6px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+}
+.table-cell-position {
+  margin-right: 3px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.table-tool-group-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.table-cell-tools button {
+  min-width: 28px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 11px;
+}
+.table-cell-tools button:hover:not(:disabled) {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+.table-cell-tools button.danger:hover:not(:disabled) { color: #e53935; border-color: #e53935; }
+.table-cell-tools button:disabled { opacity: .4; cursor: not-allowed; }
+.table-tool-divider { width: 1px; height: 16px; margin: 0 2px; background: var(--border-color); }
 .change-media-btn.danger {
   color: #e53935;
 }

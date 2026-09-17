@@ -1,7 +1,7 @@
 {
   "name": "r-goose-note",
   "private": true,
-  "version": "2.4.31",
+  "version": "2.4.32",
   "description": "R-Goose Note - 画布式笔记应用",
   "author": "R-Goose",
   "type": "module",
@@ -13,6 +13,7 @@
     "test:client-routes": "node test/client-route-map.test.mjs",
     "test:templates": "node test/template-content.test.mjs",
     "test:import-data": "node test/import-data.test.mjs",
+    "test:table-data": "node test/table-data.test.mjs",
     "postinstall": "electron-builder install-app-deps",
     "test:smoke": "node_modules\\electron\\dist\\electron.exe --no-sandbox . --test-smoke",
     "kill:app": "powershell -Command \"$root=(Get-Location).Path; Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'R-Goose Note.exe' -or ($_.Name -eq 'electron.exe' -and ($_.ExecutablePath -like ($root+'\\release\\win-unpacked\\*') -or $_.ExecutablePath -like ($root+'\\release-build*\\win-unpacked\\*') -or $_.CommandLine -like ('*'+$root+'*'))) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }\"",
