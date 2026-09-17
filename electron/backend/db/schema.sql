@@ -68,6 +68,8 @@ CREATE TABLE IF NOT EXISTS blocks (
   -- table
   tableData     TEXT,
   tableAnalysis INTEGER,
+  tableColumnWidths TEXT,
+  tableRowHeights   TEXT,
   -- progress
   label         TEXT,
   value         INTEGER,

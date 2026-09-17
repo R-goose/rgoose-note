@@ -1166,6 +1166,7 @@ import NoteBlock from '@/components/NoteBlock.vue'
 import MediaPicker from '@/components/MediaPicker.vue'
 import { markdownToHtml, isLikelyMarkdown } from '@/utils/markdown'
 import { deepClone } from '@/utils'
+import { pushOverlappingBlocks } from '@/utils/blockLayout'
 import CustomSelect from '@/components/CustomSelect.vue'
 import interact, { rect } from 'interactjs'
 import { useToast } from '@/composables/useToast'
@@ -1397,14 +1398,25 @@ function onBlockResize({ id, width, height }) {
   blockSizes.value = { ...blockSizes.value, [id]: { width, height } }
 }
 
-function onBlockResizeBlock({ id, width, height, x, y }) {
-  blockSizes.value = { ...blockSizes.value, [id]: { width, height } }
-  noteStore.updateBlock(note.value.id, id, {
+function onBlockResizeBlock({ id, dir, width, height, x, y }) {
+  const next = {
     width: snapVal(width),
     height: snapVal(height),
     x: snapVal(x),
     y: snapVal(y)
+  }
+  blockSizes.value = { ...blockSizes.value, [id]: { width: next.width, height: next.height } }
+  noteStore.updateBlock(note.value.id, id, next)
+
+  const layout = blocks.value.map(block => {
+    const size = block.id === id ? next : getBlockSize(block.id, block)
+    return { id: block.id, x: block.x, y: block.y, width: size.width, height: size.height }
   })
+  const pushed = pushOverlappingBlocks(layout, id, next, dir)
+  for (const [pushedId, position] of Object.entries(pushed)) {
+    noteStore.updateBlock(note.value.id, pushedId, position)
+  }
+  if (Object.keys(pushed).length) nextTick(() => { connectionTick.value++ })
 }
 
 function onBlockResizeStart() {

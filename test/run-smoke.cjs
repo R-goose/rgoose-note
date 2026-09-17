@@ -85,11 +85,15 @@ module.exports = function runSmoke(done) {
     assert(reloadedCallout.calloutType === 'warning', 'callout.calloutType 持久化')
 
     const tableBlock = blockService.create(note.id, {
-      id: uuid(), type: 'table', tableData: 'A|B\n1|2', tableAnalysis: true, x: 0, y: 0, width: 280, minHeight: 60
+      id: uuid(), type: 'table', tableData: 'A|B\n1|2', tableAnalysis: true,
+      tableColumnWidths: [120, 84], tableRowHeights: [36, 48],
+      x: 0, y: 0, width: 280, minHeight: 60
     })
     const reloadedTable = blockService.list(note.id).find(b => b.id === tableBlock.id)
     assert(reloadedTable.tableData === 'A|B\n1|2', 'table.tableData 持久化')
     assert(reloadedTable.tableAnalysis === true, 'table.tableAnalysis 反序列化为 true')
+    assert(JSON.stringify(reloadedTable.tableColumnWidths) === '[120,84]', 'table.tableColumnWidths 持久化')
+    assert(JSON.stringify(reloadedTable.tableRowHeights) === '[36,48]', 'table.tableRowHeights 持久化')
 
     console.log('=== 5. 连线 ===')
     const conn = connectionService.create(note.id, {

@@ -16,6 +16,12 @@ function deserialize(row) {
   if (obj.linkedTextRange != null) {
     obj.linkedTextRange = safeParse(obj.linkedTextRange, null)
   }
+  if (obj.tableColumnWidths != null) {
+    obj.tableColumnWidths = safeParse(obj.tableColumnWidths, [])
+  }
+  if (obj.tableRowHeights != null) {
+    obj.tableRowHeights = safeParse(obj.tableRowHeights, [])
+  }
   // 布尔类型字段
   if (obj.done != null) obj.done = !!obj.done
   if (obj.tableAnalysis != null) obj.tableAnalysis = !!obj.tableAnalysis
@@ -49,6 +55,8 @@ function buildParams(block) {
     formula: block.formula ?? null,
     tableData: block.tableData ?? null,
     tableAnalysis: block.tableAnalysis == null ? null : (block.tableAnalysis ? 1 : 0),
+    tableColumnWidths: block.tableColumnWidths != null ? safeStringify(block.tableColumnWidths) : null,
+    tableRowHeights: block.tableRowHeights != null ? safeStringify(block.tableRowHeights) : null,
     label: block.label ?? null,
     value: block.value ?? null,
     mode: block.mode ?? null,
@@ -68,7 +76,7 @@ const INSERT_SQL = `
     id, noteId, type, content, x, y, width, minHeight, color,
     title, status, priority, dueDate,
     imageUrl, mediaUrl, mediaName, images, galleryLayout,
-    code, codeLang, calloutType, formula, tableData, tableAnalysis,
+    code, codeLang, calloutType, formula, tableData, tableAnalysis, tableColumnWidths, tableRowHeights,
     label, value, mode, "date", done, "desc",
     linkedNoteId, linkedBlockId, linkedTextRange,
     createdAt, updatedAt
@@ -76,7 +84,7 @@ const INSERT_SQL = `
     @id, @noteId, @type, @content, @x, @y, @width, @minHeight, @color,
     @title, @status, @priority, @dueDate,
     @imageUrl, @mediaUrl, @mediaName, @images, @galleryLayout,
-    @code, @codeLang, @calloutType, @formula, @tableData, @tableAnalysis,
+    @code, @codeLang, @calloutType, @formula, @tableData, @tableAnalysis, @tableColumnWidths, @tableRowHeights,
     @label, @value, @mode, @date, @done, @desc,
     @linkedNoteId, @linkedBlockId, @linkedTextRange,
     @createdAt, @updatedAt
@@ -107,6 +115,8 @@ const UPDATE_SQL = `
     formula = @formula,
     tableData = @tableData,
     tableAnalysis = @tableAnalysis,
+    tableColumnWidths = @tableColumnWidths,
+    tableRowHeights = @tableRowHeights,
     label = @label,
     value = @value,
     mode = @mode,

@@ -324,6 +324,7 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useToast } from '@/composables/useToast'
 import { generateId } from '@/utils'
+import { pushOverlappingBlocks } from '@/utils/blockLayout'
 import { useTemplateStore } from '@/stores/template'
 import NoteBlock from '@/components/NoteBlock.vue'
 
@@ -542,7 +543,7 @@ function onResize({ id, width, height }) {
   blockSizes.value = { ...blockSizes.value, [id]: { width, height } }
 }
 
-function onResizeBlock({ id, width, height, x, y }) {
+function onResizeBlock({ id, dir, width, height, x, y }) {
   const b = draftBlocks.value.find(bb => bb.id === id)
   if (b) {
     const next = {
@@ -553,6 +554,16 @@ function onResizeBlock({ id, width, height, x, y }) {
     }
     Object.assign(b, next)
     blockSizes.value = { ...blockSizes.value, [id]: { width: next.width, height: next.height } }
+
+    const layout = draftBlocks.value.map(block => {
+      const size = block.id === id ? next : getBlockSize(block.id, block)
+      return { id: block.id, x: block.x, y: block.y, width: size.width, height: size.height }
+    })
+    const pushed = pushOverlappingBlocks(layout, id, next, dir)
+    for (const [pushedId, position] of Object.entries(pushed)) {
+      const pushedBlock = draftBlocks.value.find(block => block.id === pushedId)
+      if (pushedBlock) Object.assign(pushedBlock, position)
+    }
   }
 }
 

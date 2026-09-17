@@ -6,7 +6,7 @@
 const fs = require('fs')
 const path = require('path')
 
-const CURRENT_VER = 5
+const CURRENT_VER = 6
 
 /**
  * 对已存在的 blocks 表补齐缺失列（v1 → v2）
@@ -21,6 +21,8 @@ function ensureBlockColumns(db) {
     { name: 'formula',         type: 'TEXT' },
     { name: 'tableData',       type: 'TEXT' },
     { name: 'tableAnalysis',   type: 'INTEGER' },
+    { name: 'tableColumnWidths', type: 'TEXT' },
+    { name: 'tableRowHeights',   type: 'TEXT' },
     { name: 'label',           type: 'TEXT' },
     { name: 'value',           type: 'INTEGER' },
     { name: 'mode',            type: 'TEXT' },

@@ -361,8 +361,11 @@
         </div>
         <div class="table-scroll" @wheel.stop>
           <table class="data-table" :style="tableLayoutStyle">
+            <colgroup>
+              <col v-for="(width, ci) in tableColumnWidths" :key="ci" :style="{ width: `${width}px` }" />
+            </colgroup>
             <thead>
-              <tr>
+              <tr :style="{ height: `${tableRowHeights[0]}px` }">
                 <th
                   v-for="(cell, ci) in (tableRows[0] || [])"
                   :key="ci"
@@ -373,13 +376,13 @@
                   @click="selectTableCell(0, ci)"
                   @blur="onCellEdit(0, ci, $event)"
                   @keydown.enter.prevent="$event.target.blur()"
-                  @mousedown.stop
+                  @mousedown.stop="onNumericTableCellMouseDown($event, 0, ci)"
                   @wheel.stop
                 >{{ cell }}</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(row, ri) in tableRows.slice(1)" :key="ri">
+              <tr v-for="(row, ri) in tableRows.slice(1)" :key="ri" :style="{ height: `${tableRowHeights[ri + 1]}px` }">
                 <td
                   v-for="(cell, ci) in row"
                   :key="ci"
@@ -390,7 +393,7 @@
                   @click="selectTableCell(ri + 1, ci)"
                   @blur="onCellEdit(ri + 1, ci, $event)"
                   @keydown.enter.prevent="$event.target.blur()"
-                  @mousedown.stop
+                  @mousedown.stop="onNumericTableCellMouseDown($event, ri + 1, ci)"
                   @wheel.stop
                 >{{ cell }}</td>
               </tr>
@@ -475,7 +478,7 @@
           @keyup="saveSelection"
           @focus="saveSelection"
           @wheel.stop
-          @mousedown.stop
+          @mousedown.stop="onEditorMouseDown"
         ></div>
       </div>
 
@@ -497,7 +500,7 @@
         @keyup="saveSelection"
         @focus="saveSelection"
         @wheel.stop
-        @mousedown.stop
+        @mousedown.stop="onEditorMouseDown"
       ></div>
     </div>
 
@@ -571,7 +574,7 @@ import { useNoteStore } from '@/stores/note'
 import { useShortcutStore } from '@/stores/shortcut'
 import { resolveImageUrl, isImageRef } from '@/utils/imageStore'
 import { markdownToHtml, convertInlineMd, isLikelyMarkdown, escapeHtml, splitTableCells } from '@/utils/markdown'
-import { deleteTableColumn, deleteTableRow, getNextTableHeader, insertTableColumn, insertTableRow, parseTableData, updateTableCell } from '@/utils/tableData'
+import { deleteTableColumn, deleteTableRow, deleteTableSize, getNextTableHeader, insertTableColumn, insertTableRow, insertTableSize, normalizeTableSizes, parseTableData, updateTableCell } from '@/utils/tableData'
 
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
@@ -742,6 +745,22 @@ const tableRawText = ref('')
 const tableRows = computed(() => parseTableData(props.block?.tableData))
 const tableSelection = ref(null)
 const tableCanEdit = computed(() => !props.readOnly && !props.block?.locked)
+const TABLE_DEFAULT_COLUMN_WIDTH = 92
+const TABLE_MIN_COLUMN_WIDTH = 60
+const TABLE_DEFAULT_ROW_HEIGHT = 32
+const TABLE_MIN_ROW_HEIGHT = 28
+const tableColumnWidths = computed(() => normalizeTableSizes(
+  props.block?.tableColumnWidths,
+  tableRows.value[0].length,
+  TABLE_DEFAULT_COLUMN_WIDTH,
+  TABLE_MIN_COLUMN_WIDTH
+))
+const tableRowHeights = computed(() => normalizeTableSizes(
+  props.block?.tableRowHeights,
+  tableRows.value.length,
+  TABLE_DEFAULT_ROW_HEIGHT,
+  TABLE_MIN_ROW_HEIGHT
+))
 const tableSelectionLabel = computed(() => {
   if (!tableSelection.value) return ''
   const rowLabel = tableSelection.value.row === 0 ? '表头' : `第 ${tableSelection.value.row} 行`
@@ -749,7 +768,7 @@ const tableSelectionLabel = computed(() => {
 })
 const canDeleteSelectedRow = computed(() => !!tableSelection.value && tableSelection.value.row > 0 && tableRows.value.length > 2)
 const canDeleteSelectedColumn = computed(() => !!tableSelection.value && tableRows.value[0].length > 1)
-const tableLayoutStyle = computed(() => ({ minWidth: `${Math.max(240, tableRows.value[0].length * 92)}px` }))
+const tableLayoutStyle = computed(() => ({ width: `${tableColumnWidths.value.reduce((sum, width) => sum + width, 0)}px` }))
 
 function selectTableCell(row, col) {
   if (!tableCanEdit.value) return
@@ -762,6 +781,63 @@ function onCellEdit(rowIdx, colIdx, e) {
   const newVal = e.target.innerText.trim()
   if (newVal === (tableRows.value[rowIdx]?.[colIdx] || '')) return
   emit('update', props.block.id, { tableData: updateTableCell(props.block.tableData, rowIdx, colIdx, newVal) })
+}
+
+let tableCellResizeInfo = null
+
+function onNumericTableCellMouseDown(e, row, col) {
+  selectTableCell(row, col)
+  if (!tableCanEdit.value) return
+  const rect = e.currentTarget.getBoundingClientRect()
+  const edge = 8
+  const resizeColumn = rect.right - e.clientX <= edge
+  const resizeRow = rect.bottom - e.clientY <= edge
+  if (!resizeColumn && !resizeRow) return
+
+  e.preventDefault()
+  emit('save-history')
+  tableCellResizeInfo = {
+    row,
+    col,
+    resizeColumn,
+    resizeRow,
+    startX: e.clientX,
+    startY: e.clientY,
+    widths: [...tableColumnWidths.value],
+    heights: [...tableRowHeights.value]
+  }
+  document.addEventListener('mousemove', onNumericTableCellResizeMove)
+  document.addEventListener('mouseup', onNumericTableCellResizeEnd)
+}
+
+function onNumericTableCellResizeMove(e) {
+  if (!tableCellResizeInfo) return
+  const scale = Number.isFinite(props.canvasScale) && props.canvasScale > 0 ? props.canvasScale : 1
+  const updates = {}
+  if (tableCellResizeInfo.resizeColumn) {
+    const widths = [...tableCellResizeInfo.widths]
+    widths[tableCellResizeInfo.col] = Math.max(
+      TABLE_MIN_COLUMN_WIDTH,
+      Math.round(tableCellResizeInfo.widths[tableCellResizeInfo.col] + (e.clientX - tableCellResizeInfo.startX) / scale)
+    )
+    updates.tableColumnWidths = widths
+  }
+  if (tableCellResizeInfo.resizeRow) {
+    const heights = [...tableCellResizeInfo.heights]
+    heights[tableCellResizeInfo.row] = Math.max(
+      TABLE_MIN_ROW_HEIGHT,
+      Math.round(tableCellResizeInfo.heights[tableCellResizeInfo.row] + (e.clientY - tableCellResizeInfo.startY) / scale)
+    )
+    updates.tableRowHeights = heights
+  }
+  emit('update', props.block.id, updates)
+}
+
+function onNumericTableCellResizeEnd() {
+  tableCellResizeInfo = null
+  document.removeEventListener('mousemove', onNumericTableCellResizeMove)
+  document.removeEventListener('mouseup', onNumericTableCellResizeEnd)
+  nextTick(reportResize)
 }
 const numericColumns = computed(() => {
   if (tableRows.value.length < 2) return new Set()
@@ -816,39 +892,57 @@ function startTableEdit() {}
 function onTableRawInput() {}
 function addTableRow() {
   const row = tableRows.value.length
-  emit('update', props.block.id, { tableData: insertTableRow(props.block.tableData, row) })
+  emit('update', props.block.id, {
+    tableData: insertTableRow(props.block.tableData, row),
+    tableRowHeights: insertTableSize(props.block.tableRowHeights, row, tableRows.value.length, TABLE_DEFAULT_ROW_HEIGHT, TABLE_MIN_ROW_HEIGHT)
+  })
   tableSelection.value = { row, col: 0 }
 }
 function addTableCol() {
   const col = tableRows.value[0].length
-  emit('update', props.block.id, { tableData: insertTableColumn(props.block.tableData, col) })
+  emit('update', props.block.id, {
+    tableData: insertTableColumn(props.block.tableData, col),
+    tableColumnWidths: insertTableSize(props.block.tableColumnWidths, col, tableRows.value[0].length, TABLE_DEFAULT_COLUMN_WIDTH, TABLE_MIN_COLUMN_WIDTH)
+  })
   tableSelection.value = { row: 0, col }
 }
 function insertRowRelative(direction) {
   if (!tableSelection.value) return
   const selectedRow = tableSelection.value.row
   const row = direction === 'before' && selectedRow > 0 ? selectedRow : selectedRow + 1
-  emit('update', props.block.id, { tableData: insertTableRow(props.block.tableData, row) })
+  emit('update', props.block.id, {
+    tableData: insertTableRow(props.block.tableData, row),
+    tableRowHeights: insertTableSize(props.block.tableRowHeights, row, tableRows.value.length, TABLE_DEFAULT_ROW_HEIGHT, TABLE_MIN_ROW_HEIGHT)
+  })
   tableSelection.value = { row, col: tableSelection.value.col }
 }
 function insertColumnRelative(direction) {
   if (!tableSelection.value) return
   const col = tableSelection.value.col + (direction === 'after' ? 1 : 0)
-  emit('update', props.block.id, { tableData: insertTableColumn(props.block.tableData, col) })
+  emit('update', props.block.id, {
+    tableData: insertTableColumn(props.block.tableData, col),
+    tableColumnWidths: insertTableSize(props.block.tableColumnWidths, col, tableRows.value[0].length, TABLE_DEFAULT_COLUMN_WIDTH, TABLE_MIN_COLUMN_WIDTH)
+  })
   tableSelection.value = { row: tableSelection.value.row, col }
 }
 function deleteSelectedRow() {
   if (!canDeleteSelectedRow.value) return
   const row = tableSelection.value.row
   const nextRow = Math.max(1, Math.min(row, tableRows.value.length - 2))
-  emit('update', props.block.id, { tableData: deleteTableRow(props.block.tableData, row) })
+  emit('update', props.block.id, {
+    tableData: deleteTableRow(props.block.tableData, row),
+    tableRowHeights: deleteTableSize(props.block.tableRowHeights, row, tableRows.value.length, TABLE_DEFAULT_ROW_HEIGHT, TABLE_MIN_ROW_HEIGHT)
+  })
   tableSelection.value = { row: nextRow, col: tableSelection.value.col }
 }
 function deleteSelectedColumn() {
   if (!canDeleteSelectedColumn.value) return
   const col = tableSelection.value.col
   const nextCol = Math.max(0, Math.min(col, tableRows.value[0].length - 2))
-  emit('update', props.block.id, { tableData: deleteTableColumn(props.block.tableData, col) })
+  emit('update', props.block.id, {
+    tableData: deleteTableColumn(props.block.tableData, col),
+    tableColumnWidths: deleteTableSize(props.block.tableColumnWidths, col, tableRows.value[0].length, TABLE_DEFAULT_COLUMN_WIDTH, TABLE_MIN_COLUMN_WIDTH)
+  })
   tableSelection.value = { row: tableSelection.value.row, col: nextCol }
 }
 const formulaText = ref('')
@@ -933,6 +1027,8 @@ const emit = defineEmits([
   'open-note',
   'resize',
   'resize-block',
+  'resize-start',
+  'resize-end',
   'save-selection',
   'save-history',
   'blur',
@@ -1189,6 +1285,84 @@ function autolinkDom(root) {
   })
 }
 
+let inlineTableCellResizeInfo = null
+
+function onEditorMouseDown(e) {
+  if (!inlineTableCanEdit.value) return
+  const cell = e.target?.closest?.('th, td')
+  const table = cell?.closest?.('table')
+  if (!cell || !table || !editorRef.value?.contains(table)) return
+
+  selectInlineTableCell(table, cell)
+  const rows = inlineTableRows(table)
+  const row = rows.indexOf(cell.parentElement)
+  const col = Array.from(cell.parentElement.cells).indexOf(cell)
+  const rect = cell.getBoundingClientRect()
+  const edge = 8
+  const resizeColumn = rect.right - e.clientX <= edge
+  const resizeRow = rect.bottom - e.clientY <= edge
+  if (!resizeColumn && !resizeRow) return
+
+  e.preventDefault()
+  emit('save-history')
+  const scale = Number.isFinite(props.canvasScale) && props.canvasScale > 0 ? props.canvasScale : 1
+  inlineTableCellResizeInfo = {
+    table,
+    row,
+    col,
+    resizeColumn,
+    resizeRow,
+    startX: e.clientX,
+    startY: e.clientY,
+    startWidth: rect.width / scale,
+    startHeight: rect.height / scale
+  }
+  document.addEventListener('mousemove', onInlineTableCellResizeMove)
+  document.addEventListener('mouseup', onInlineTableCellResizeEnd)
+}
+
+function onInlineTableCellResizeMove(e) {
+  if (!inlineTableCellResizeInfo) return
+  const info = inlineTableCellResizeInfo
+  const scale = Number.isFinite(props.canvasScale) && props.canvasScale > 0 ? props.canvasScale : 1
+  const rows = inlineTableRows(info.table)
+
+  if (info.resizeColumn) {
+    const width = Math.max(TABLE_MIN_COLUMN_WIDTH, Math.round(info.startWidth + (e.clientX - info.startX) / scale))
+    rows.forEach(row => {
+      const cell = row.cells[info.col]
+      if (!cell) return
+      cell.style.width = `${width}px`
+      cell.style.minWidth = `${width}px`
+    })
+    const tableWidth = Array.from(rows[0]?.cells || []).reduce((sum, cell) => {
+      const styled = parseFloat(cell.style.width)
+      return sum + (Number.isFinite(styled) ? styled : cell.getBoundingClientRect().width / scale)
+    }, 0)
+    info.table.style.width = `${Math.round(tableWidth)}px`
+    info.table.style.minWidth = `${Math.round(tableWidth)}px`
+  }
+
+  if (info.resizeRow) {
+    const height = Math.max(TABLE_MIN_ROW_HEIGHT, Math.round(info.startHeight + (e.clientY - info.startY) / scale))
+    const row = rows[info.row]
+    if (row) {
+      row.style.height = `${height}px`
+      Array.from(row.cells).forEach(cell => { cell.style.height = `${height}px` })
+    }
+  }
+}
+
+function onInlineTableCellResizeEnd() {
+  if (inlineTableCellResizeInfo) {
+    emit('update', props.block.id, { content: serializeEditorContent() })
+    nextTick(reportResize)
+  }
+  inlineTableCellResizeInfo = null
+  document.removeEventListener('mousemove', onInlineTableCellResizeMove)
+  document.removeEventListener('mouseup', onInlineTableCellResizeEnd)
+}
+
 function onEditorClick(e) {
   const target = e.target
   if (!target || !target.closest) return
@@ -1282,6 +1456,17 @@ function commitInlineTableChange(table, row, col) {
   nextTick(reportResize)
 }
 
+function syncInlineTableWidth(table) {
+  const firstRow = inlineTableRows(table)[0]
+  if (!firstRow) return
+  const width = Array.from(firstRow.cells).reduce((sum, cell) => {
+    const styledWidth = parseFloat(cell.style.width)
+    return sum + (Number.isFinite(styledWidth) ? styledWidth : TABLE_DEFAULT_COLUMN_WIDTH)
+  }, 0)
+  table.style.width = `${Math.round(width)}px`
+  table.style.minWidth = `${Math.round(width)}px`
+}
+
 function createInlineTableCell(tagName, text = '') {
   const cell = document.createElement(tagName)
   if (text) cell.textContent = text
@@ -1332,6 +1517,7 @@ function insertInlineTableColumn(direction) {
     const cell = createInlineTableCell(rowIndex === 0 ? 'th' : 'td', rowIndex === 0 ? header : '')
     row.insertBefore(cell, row.cells[index] || null)
   })
+  syncInlineTableWidth(table)
   commitInlineTableChange(table, selection.row, index)
 }
 
@@ -1343,6 +1529,7 @@ function deleteInlineTableColumn() {
   inlineTableRows(table).forEach(tableRow => {
     if (tableRow.cells[col]) tableRow.deleteCell(col)
   })
+  syncInlineTableWidth(table)
   commitInlineTableChange(table, row, nextCol)
 }
 
@@ -2037,6 +2224,7 @@ function onResizeMove(e) {
 
   emit('resize-block', {
     id: props.block.id,
+    dir,
     width: newWidth,
     height: newHeight,
     x: newX,
@@ -2046,6 +2234,7 @@ function onResizeMove(e) {
 
 function onResizeEnd() {
   if (!resizingInfo) return
+  emit('resize-end', { id: props.block.id, dir: resizingInfo.dir })
   resizingInfo = null
   document.removeEventListener('mousemove', onResizeMove)
   document.removeEventListener('mouseup', onResizeEnd)
@@ -2084,6 +2273,12 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('click', closeInsertMenu, true)
   document.removeEventListener('selectionchange', onSelectionChange)
+  document.removeEventListener('mousemove', onNumericTableCellResizeMove)
+  document.removeEventListener('mouseup', onNumericTableCellResizeEnd)
+  document.removeEventListener('mousemove', onInlineTableCellResizeMove)
+  document.removeEventListener('mouseup', onInlineTableCellResizeEnd)
+  document.removeEventListener('mousemove', onResizeMove)
+  document.removeEventListener('mouseup', onResizeEnd)
   if (themeAttrObserver) {
     themeAttrObserver.disconnect()
     themeAttrObserver = null
@@ -2467,6 +2662,7 @@ onUnmounted(() => {
 
 .text-editor :deep(th),
 .text-editor :deep(td) {
+  position: relative;
   border: 1px solid var(--border-color);
   width: 92px;
   min-width: 92px;
@@ -2486,6 +2682,36 @@ onUnmounted(() => {
 .text-editor :deep(td.inline-table-cell-selected) {
   background: var(--primary-soft);
   box-shadow: inset 0 0 0 2px var(--primary-color);
+}
+
+.text-editor :deep(th.inline-table-cell-selected::after),
+.text-editor :deep(td.inline-table-cell-selected::after),
+.data-table th.table-cell-selected::after,
+.data-table td.table-cell-selected::after {
+  content: '';
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  background: linear-gradient(to right, transparent 3px, var(--primary-color) 3px, var(--primary-color) 5px, transparent 5px);
+}
+
+.text-editor :deep(th.inline-table-cell-selected::before),
+.text-editor :deep(td.inline-table-cell-selected::before),
+.data-table th.table-cell-selected::before,
+.data-table td.table-cell-selected::before {
+  content: '';
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  bottom: -4px;
+  width: 100%;
+  height: 8px;
+  cursor: row-resize;
+  background: linear-gradient(to bottom, transparent 3px, var(--primary-color) 3px, var(--primary-color) 5px, transparent 5px);
 }
 
 .inline-table-tools {
@@ -2978,6 +3204,7 @@ onUnmounted(() => {
   table-layout: fixed;
 }
 .data-table th, .data-table td {
+  position: relative;
   border: 1px solid var(--border-color);
   padding: 4px 8px;
   text-align: center;

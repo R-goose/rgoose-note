@@ -21,6 +21,26 @@ export function serializeTableData(rows) {
   return rows.map(row => row.join('|')).join('\n')
 }
 
+export function normalizeTableSizes(value, count, defaultValue, minValue) {
+  const source = Array.isArray(value) ? value : []
+  return Array.from({ length: Math.max(0, count) }, (_, index) => {
+    const size = Number(source[index])
+    return Number.isFinite(size) ? Math.max(minValue, Math.round(size)) : defaultValue
+  })
+}
+
+export function insertTableSize(value, index, count, defaultValue, minValue) {
+  const sizes = normalizeTableSizes(value, count, defaultValue, minValue)
+  sizes.splice(Math.max(0, Math.min(index, sizes.length)), 0, defaultValue)
+  return sizes
+}
+
+export function deleteTableSize(value, index, count, defaultValue, minValue) {
+  const sizes = normalizeTableSizes(value, count, defaultValue, minValue)
+  if (sizes.length > 1 && index >= 0 && index < sizes.length) sizes.splice(index, 1)
+  return sizes
+}
+
 export function updateTableCell(raw, rowIndex, columnIndex, value) {
   const rows = parseTableData(raw)
   if (!rows[rowIndex] || columnIndex < 0 || columnIndex >= rows[rowIndex].length) return serializeTableData(rows)
