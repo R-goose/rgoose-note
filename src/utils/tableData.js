@@ -46,13 +46,18 @@ export function insertTableColumn(raw, columnIndex) {
   const rows = parseTableData(raw)
   const currentCount = rows[0].length
   const index = Math.min(Math.max(0, Number(columnIndex) || 0), currentCount)
-  const existingHeaders = new Set(rows[0])
-  let headerNumber = currentCount + 1
-  while (existingHeaders.has(`列${headerNumber}`)) headerNumber += 1
+  const header = getNextTableHeader(rows[0])
   rows.forEach((row, rowIndex) => {
-    row.splice(index, 0, rowIndex === 0 ? `列${headerNumber}` : '')
+    row.splice(index, 0, rowIndex === 0 ? header : '')
   })
   return serializeTableData(rows)
+}
+
+export function getNextTableHeader(headers = []) {
+  const existingHeaders = new Set(headers)
+  let headerNumber = headers.length + 1
+  while (existingHeaders.has(`列${headerNumber}`)) headerNumber += 1
+  return `列${headerNumber}`
 }
 
 export function deleteTableColumn(raw, columnIndex) {

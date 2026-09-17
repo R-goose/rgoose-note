@@ -142,6 +142,26 @@
     </div>
 
     <div class="block-content">
+      <div
+        v-if="inlineTableCanEdit && selected && inlineTableSelection"
+        class="table-cell-tools inline-table-tools"
+        @mousedown.prevent.stop
+      >
+        <span class="table-cell-position">{{ inlineTableSelectionLabel }}</span>
+        <button title="在表格末尾添加一行" @click.stop="insertInlineTableRow('end')">末尾 +行</button>
+        <button title="在表格末尾添加一列" @click.stop="insertInlineTableColumn('end')">末尾 +列</button>
+        <span class="table-tool-divider"></span>
+        <span class="table-tool-group-label">行</span>
+        <button :disabled="inlineTableSelection.row === 0" title="在当前行上方插入" @click.stop="insertInlineTableRow('before')">↑+</button>
+        <button title="在当前行下方插入" @click.stop="insertInlineTableRow('after')">↓+</button>
+        <button class="danger" :disabled="!canDeleteInlineTableRow" title="删除当前行" @click.stop="deleteInlineTableRow">删除</button>
+        <span class="table-tool-divider"></span>
+        <span class="table-tool-group-label">列</span>
+        <button title="在当前列左侧插入" @click.stop="insertInlineTableColumn('before')">←+</button>
+        <button title="在当前列右侧插入" @click.stop="insertInlineTableColumn('after')">+→</button>
+        <button class="danger" :disabled="!canDeleteInlineTableColumn" title="删除当前列" @click.stop="deleteInlineTableColumn">删除</button>
+      </div>
+
       <div v-if="block.type === 'image' && block.imageUrl" class="image-container" :class="{ overflow: imageOverflow }" @dblclick.stop="!readOnly && $emit('add-image', block.id)" @wheel.stop>
         <img :src="resolvedImageUrl" alt="" draggable="false" @click.stop="$emit('preview-image', { urls: [resolvedImageUrl], index: 0 })" @load="onImageLoad" />
         <button v-if="!readOnly" class="change-image-btn" @click.stop="$emit('add-image', block.id)">更换图片</button>
@@ -551,7 +571,7 @@ import { useNoteStore } from '@/stores/note'
 import { useShortcutStore } from '@/stores/shortcut'
 import { resolveImageUrl, isImageRef } from '@/utils/imageStore'
 import { markdownToHtml, convertInlineMd, isLikelyMarkdown, escapeHtml, splitTableCells } from '@/utils/markdown'
-import { deleteTableColumn, deleteTableRow, insertTableColumn, insertTableRow, parseTableData, updateTableCell } from '@/utils/tableData'
+import { deleteTableColumn, deleteTableRow, getNextTableHeader, insertTableColumn, insertTableRow, parseTableData, updateTableCell } from '@/utils/tableData'
 
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
@@ -923,6 +943,8 @@ const emit = defineEmits([
 const noteStore = useNoteStore()
 const blockRef = ref(null)
 const editorRef = ref(null)
+const inlineTableSelection = ref(null)
+let inlineTableElement = null
 const showLinkModal = ref(false)
 const showInsertMenu = ref(false)
 const showTablePicker = ref(false)
@@ -985,14 +1007,33 @@ const editorStyle = computed(() => ({
   color: props.block.textColor || 'var(--text-primary)'
 }))
 
+const inlineTableCanEdit = computed(() => !props.readOnly && !props.linkSelectionMode && !props.block?.locked)
+const inlineTableSelectionLabel = computed(() => {
+  if (!inlineTableSelection.value) return ''
+  const { row, col, rows, cols } = inlineTableSelection.value
+  const rowLabel = row === 0 ? '表头' : `第 ${row} 行`
+  return `${Math.max(0, rows - 1)} 行 × ${cols} 列 · ${rowLabel} · 第 ${col + 1} 列`
+})
+const canDeleteInlineTableRow = computed(() => (
+  !!inlineTableSelection.value && inlineTableSelection.value.row > 0 && inlineTableSelection.value.rows > 2
+))
+const canDeleteInlineTableColumn = computed(() => (
+  !!inlineTableSelection.value && inlineTableSelection.value.cols > 1
+))
+
 watch(
   () => props.block.content,
   value => {
     if (editorRef.value && document.activeElement !== editorRef.value) {
+      clearInlineTableSelection()
       editorRef.value.innerHTML = applyDisplayThemeColors(value, isDarkThemeNow())
     }
   }
 )
+
+watch(inlineTableCanEdit, canEdit => {
+  if (!canEdit) clearInlineTableSelection()
+})
 
 watch(
   () => props.syncVersion,
@@ -1152,25 +1193,157 @@ function onEditorClick(e) {
   const target = e.target
   if (!target || !target.closest) return
   const a = target.closest('a')
-  if (!a) return
-  const href = a.getAttribute('href') || ''
-  if (!/^https?:\/\//i.test(href)) return
-  e.preventDefault()
-  e.stopPropagation()
-  window.open(href, '_blank', 'noopener,noreferrer')
+  if (a) {
+    const href = a.getAttribute('href') || ''
+    if (/^https?:\/\//i.test(href)) {
+      e.preventDefault()
+      e.stopPropagation()
+      window.open(href, '_blank', 'noopener,noreferrer')
+      return
+    }
+  }
+
+  const cell = target.closest('th, td')
+  const table = cell?.closest('table')
+  if (cell && table && editorRef.value?.contains(table)) {
+    selectInlineTableCell(table, cell)
+    return
+  }
+  clearInlineTableSelection()
 }
 
 function onInput(e) {
-  emit('update', props.block.id, { content: e.target.innerHTML })
+  emit('update', props.block.id, { content: serializeEditorContent(e.target) })
   saveSelection()
 }
 
 function onBlur() {
   if (editorRef.value) {
     autolinkDom(editorRef.value)
-    emit('update', props.block.id, { content: editorRef.value.innerHTML })
+    const content = serializeEditorContent()
+    clearInlineTableSelection()
+    emit('update', props.block.id, { content })
     emit('blur', props.block.id)
   }
+}
+
+function serializeEditorContent(root = editorRef.value) {
+  if (!root) return ''
+  const clone = root.cloneNode(true)
+  clone.querySelectorAll('.inline-table-cell-selected').forEach(cell => {
+    cell.classList.remove('inline-table-cell-selected')
+    if (!cell.className) cell.removeAttribute('class')
+  })
+  return clone.innerHTML
+}
+
+function inlineTableRows(table = inlineTableElement) {
+  return table ? Array.from(table.rows || []) : []
+}
+
+function inlineTableColumnCount(rows = inlineTableRows()) {
+  return Math.max(0, ...rows.map(row => row.cells.length))
+}
+
+function clearInlineTableSelection() {
+  editorRef.value?.querySelectorAll('.inline-table-cell-selected').forEach(cell => {
+    cell.classList.remove('inline-table-cell-selected')
+  })
+  inlineTableElement = null
+  inlineTableSelection.value = null
+}
+
+function selectInlineTableCell(table, cell) {
+  const rows = inlineTableRows(table)
+  const row = rows.indexOf(cell.parentElement)
+  const col = row >= 0 ? Array.from(rows[row].cells).indexOf(cell) : -1
+  if (row < 0 || col < 0) return
+
+  editorRef.value?.querySelectorAll('.inline-table-cell-selected').forEach(item => {
+    item.classList.remove('inline-table-cell-selected')
+  })
+  inlineTableElement = table
+  inlineTableSelection.value = { row, col, rows: rows.length, cols: inlineTableColumnCount(rows) }
+  cell.classList.add('inline-table-cell-selected')
+}
+
+function selectInlineTablePosition(table, row, col) {
+  const rows = inlineTableRows(table)
+  if (!rows.length) return clearInlineTableSelection()
+  const safeRow = Math.max(0, Math.min(row, rows.length - 1))
+  const cells = Array.from(rows[safeRow].cells)
+  if (!cells.length) return clearInlineTableSelection()
+  selectInlineTableCell(table, cells[Math.max(0, Math.min(col, cells.length - 1))])
+}
+
+function commitInlineTableChange(table, row, col) {
+  selectInlineTablePosition(table, row, col)
+  emit('update', props.block.id, { content: serializeEditorContent() })
+  nextTick(reportResize)
+}
+
+function createInlineTableCell(tagName, text = '') {
+  const cell = document.createElement(tagName)
+  if (text) cell.textContent = text
+  else cell.appendChild(document.createElement('br'))
+  return cell
+}
+
+function insertInlineTableRow(direction) {
+  if (!inlineTableCanEdit.value || !inlineTableSelection.value || !inlineTableElement) return
+  const table = inlineTableElement
+  const selection = inlineTableSelection.value
+  const rows = inlineTableRows(table)
+  const cols = inlineTableColumnCount(rows)
+  if (!rows.length || !cols) return
+
+  let index = rows.length
+  if (direction === 'before') index = Math.max(1, selection.row)
+  if (direction === 'after') index = Math.max(1, selection.row + 1)
+  const row = table.insertRow(Math.min(index, rows.length))
+  for (let col = 0; col < cols; col += 1) row.appendChild(createInlineTableCell('td'))
+  commitInlineTableChange(table, Math.min(index, rows.length), Math.min(selection.col, cols - 1))
+}
+
+function deleteInlineTableRow() {
+  if (!canDeleteInlineTableRow.value || !inlineTableElement) return
+  const table = inlineTableElement
+  const { row, col, rows } = inlineTableSelection.value
+  const nextRow = Math.max(1, Math.min(row, rows - 2))
+  table.deleteRow(row)
+  commitInlineTableChange(table, nextRow, col)
+}
+
+function insertInlineTableColumn(direction) {
+  if (!inlineTableCanEdit.value || !inlineTableSelection.value || !inlineTableElement) return
+  const table = inlineTableElement
+  const rows = inlineTableRows(table)
+  const currentCols = inlineTableColumnCount(rows)
+  if (!rows.length || !currentCols) return
+
+  const selection = inlineTableSelection.value
+  let index = currentCols
+  if (direction === 'before') index = selection.col
+  if (direction === 'after') index = selection.col + 1
+  index = Math.max(0, Math.min(index, currentCols))
+  const header = getNextTableHeader(Array.from(rows[0].cells).map(cell => cell.textContent.trim()))
+
+  rows.forEach((row, rowIndex) => {
+    const cell = createInlineTableCell(rowIndex === 0 ? 'th' : 'td', rowIndex === 0 ? header : '')
+    row.insertBefore(cell, row.cells[index] || null)
+  })
+  commitInlineTableChange(table, selection.row, index)
+}
+
+function deleteInlineTableColumn() {
+  if (!canDeleteInlineTableColumn.value || !inlineTableElement) return
+  const table = inlineTableElement
+  const { row, col, cols } = inlineTableSelection.value
+  const nextCol = Math.max(0, Math.min(col, cols - 2))
+  inlineTableRows(table).forEach(tableRow => {
+    if (tableRow.cells[col]) tableRow.deleteCell(col)
+  })
+  commitInlineTableChange(table, row, nextCol)
 }
 
 function saveSelection() {
@@ -1751,10 +1924,12 @@ function insertTable(rows = 3, cols = 3) {
   showInsertMenu.value = false
   showTablePicker.value = false
   focusEditorAtEnd()
+  const safeRows = Math.max(2, rows)
+  const safeCols = Math.max(1, cols)
   let html = '<table>'
-  for (let r = 0; r < rows; r++) {
+  for (let r = 0; r < safeRows; r++) {
     html += '<tr>'
-    for (let c = 0; c < cols; c++) {
+    for (let c = 0; c < safeCols; c++) {
       const cellText = r === 0 ? `列${c + 1}` : ''
       html += r === 0
         ? `<th>${cellText}</th>`
@@ -2282,25 +2457,39 @@ onUnmounted(() => {
 }
 
 .text-editor :deep(table) {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
   margin: 8px 0;
   font-size: 13px;
+  table-layout: fixed;
 }
 
 .text-editor :deep(th),
 .text-editor :deep(td) {
   border: 1px solid var(--border-color);
-  padding: 6px 10px;
-  text-align: left;
-  min-width: 40px;
+  width: 92px;
+  min-width: 92px;
+  padding: 4px 8px;
+  text-align: center;
   min-height: 28px;
   height: 28px;
+  overflow-wrap: anywhere;
 }
 
 .text-editor :deep(th) {
   background: var(--bg-tertiary);
   font-weight: 600;
+}
+
+.text-editor :deep(th.inline-table-cell-selected),
+.text-editor :deep(td.inline-table-cell-selected) {
+  background: var(--primary-soft);
+  box-shadow: inset 0 0 0 2px var(--primary-color);
+}
+
+.inline-table-tools {
+  margin-bottom: 6px;
 }
 
 .text-editor :deep(pre) {
