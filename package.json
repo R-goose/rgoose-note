@@ -1,7 +1,7 @@
 {
   "name": "r-goose-note",
   "private": true,
-  "version": "2.4.34",
+  "version": "2.4.35",
   "description": "R-Goose Note - 画布式笔记应用",
   "author": "R-Goose",
   "type": "module",
@@ -81,7 +81,7 @@
     },
     "mac": {
       "target": "dmg",
-      "icon": "build/icon.ico",
+      "icon": "build/icon.png",
       "category": "public.app-category.productivity"
     },
     "linux": {
