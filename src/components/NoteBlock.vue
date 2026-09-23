@@ -349,15 +349,22 @@
         </div>
         <div v-if="tableCanEdit && selected && tableSelection" class="table-cell-tools" @mousedown.stop>
           <span class="table-cell-position">{{ tableSelectionLabel }}</span>
-          <span class="table-tool-group-label">行</span>
-          <button :disabled="tableSelection.row === 0" title="在当前行上方插入" @click.stop="insertRowRelative('before')">↑+</button>
-          <button title="在当前行下方插入" @click.stop="insertRowRelative('after')">↓+</button>
-          <button class="danger" :disabled="!canDeleteSelectedRow" title="删除当前行" @click.stop="deleteSelectedRow">删除</button>
-          <span class="table-tool-divider"></span>
-          <span class="table-tool-group-label">列</span>
-          <button title="在当前列左侧插入" @click.stop="insertColumnRelative('before')">←+</button>
-          <button title="在当前列右侧插入" @click.stop="insertColumnRelative('after')">+→</button>
-          <button class="danger" :disabled="!canDeleteSelectedColumn" title="删除当前列" @click.stop="deleteSelectedColumn">删除</button>
+          <div class="table-tool-group">
+            <span class="table-tool-group-label">行</span>
+            <div class="table-tool-buttons">
+              <button :disabled="tableSelection.row === 0" title="在当前行上方插入" aria-label="在当前行上方插入" @click.stop="insertRowRelative('before')">上插</button>
+              <button title="在当前行下方插入" aria-label="在当前行下方插入" @click.stop="insertRowRelative('after')">下插</button>
+              <button class="danger" :disabled="!canDeleteSelectedRow" title="删除当前行" aria-label="删除当前行" @click.stop="deleteSelectedRow">删行</button>
+            </div>
+          </div>
+          <div class="table-tool-group">
+            <span class="table-tool-group-label">列</span>
+            <div class="table-tool-buttons">
+              <button title="在当前列左侧插入" aria-label="在当前列左侧插入" @click.stop="insertColumnRelative('before')">左插</button>
+              <button title="在当前列右侧插入" aria-label="在当前列右侧插入" @click.stop="insertColumnRelative('after')">右插</button>
+              <button class="danger" :disabled="!canDeleteSelectedColumn" title="删除当前列" aria-label="删除当前列" @click.stop="deleteSelectedColumn">删列</button>
+            </div>
+          </div>
         </div>
         <div class="table-scroll" @wheel.stop>
           <table class="data-table" :style="tableLayoutStyle">
@@ -373,9 +380,10 @@
                   :contenteditable="tableCanEdit"
                   spellcheck="false"
                   @focus="selectTableCell(0, ci)"
-                  @click="selectTableCell(0, ci)"
+                  @click="onNumericTableCellClick($event, 0, ci)"
                   @blur="onCellEdit(0, ci, $event)"
                   @keydown.enter.prevent="$event.target.blur()"
+                  @keydown="onNumericTableCellKeyDown($event, 0, ci)"
                   @mousedown.stop="onNumericTableCellMouseDown($event, 0, ci)"
                   @wheel.stop
                 >{{ cell }}</th>
@@ -390,9 +398,10 @@
                   :contenteditable="tableCanEdit"
                   spellcheck="false"
                   @focus="selectTableCell(ri + 1, ci)"
-                  @click="selectTableCell(ri + 1, ci)"
+                  @click="onNumericTableCellClick($event, ri + 1, ci)"
                   @blur="onCellEdit(ri + 1, ci, $event)"
                   @keydown.enter.prevent="$event.target.blur()"
+                  @keydown="onNumericTableCellKeyDown($event, ri + 1, ci)"
                   @mousedown.stop="onNumericTableCellMouseDown($event, ri + 1, ci)"
                   @wheel.stop
                 >{{ cell }}</td>
@@ -774,6 +783,57 @@ function selectTableCell(row, col) {
   if (!tableCanEdit.value) return
   tableSelection.value = { row, col }
 }
+
+// 表格单元格的点击不应继续冒泡到块容器：块已在框选中时，
+// 冒泡会把多选错误地收敛为单选。未选中时仍保留原有的单选行为。
+function onNumericTableCellClick(e, row, col) {
+  selectTableCell(row, col)
+  e.stopPropagation()
+  if (!props.selected) emit('select', props.block.id, e)
+}
+
+const tableArrowOffsets = {
+  ArrowUp: [-1, 0],
+  ArrowDown: [1, 0],
+  ArrowLeft: [0, -1],
+  ArrowRight: [0, 1]
+}
+
+function getTableArrowTarget(rows, row, col, key) {
+  const offset = tableArrowOffsets[key]
+  if (!offset) return null
+  const nextRow = Math.max(0, Math.min(row + offset[0], rows.length - 1))
+  const nextCells = Array.from(rows[nextRow]?.cells || [])
+  if (!nextCells.length) return null
+  const nextCol = Math.max(0, Math.min(col + offset[1], nextCells.length - 1))
+  return { row: nextRow, col: nextCol, cell: nextCells[nextCol] }
+}
+
+function placeCaretInTableCell(cell, key) {
+  if (!cell) return
+  const range = document.createRange()
+  range.selectNodeContents(cell)
+  range.collapse(key === 'ArrowUp' || key === 'ArrowLeft')
+  const selection = window.getSelection()
+  selection?.removeAllRanges()
+  selection?.addRange(range)
+}
+
+// 方向键属于表格导航，不让窗口级画布快捷键把整个块移动走。
+function onNumericTableCellKeyDown(e, row, col) {
+  if (!tableCanEdit.value || e.ctrlKey || e.metaKey || e.altKey) return
+  const rows = Array.from(blockRef.value?.querySelectorAll('.data-table tr') || [])
+  const target = getTableArrowTarget(rows, row, col, e.key)
+  if (!target) return
+  e.preventDefault()
+  e.stopPropagation()
+  selectTableCell(target.row, target.col)
+  nextTick(() => {
+    target.cell.focus()
+    placeCaretInTableCell(target.cell, e.key)
+  })
+}
+
 function isTableCellSelected(row, col) {
   return tableSelection.value?.row === row && tableSelection.value?.col === col
 }
@@ -1381,6 +1441,9 @@ function onEditorClick(e) {
   const table = cell?.closest('table')
   if (cell && table && editorRef.value?.contains(table)) {
     selectInlineTableCell(table, cell)
+    // 与数值表格一致：保留已有框选，但首次点击仍选中所在块。
+    e.stopPropagation()
+    if (!props.selected) emit('select', props.block.id, e)
     return
   }
   clearInlineTableSelection()
@@ -1771,6 +1834,8 @@ function blockParentReplace(oldNode, beforeFrag, afterNode) {
 }
 
 function onEditorKeyDown(e) {
+  if (navigateInlineTableCell(e)) return
+
   if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey && !e.altKey) {
     e.preventDefault()
     document.execCommand('insertHTML', false, '&nbsp;&nbsp;')
@@ -1794,6 +1859,26 @@ function onEditorKeyDown(e) {
       return
     }
   }
+}
+
+function navigateInlineTableCell(e) {
+  if (!inlineTableCanEdit.value || e.ctrlKey || e.metaKey || e.altKey) return false
+  const cell = e.target?.closest?.('th, td')
+  const table = cell?.closest?.('table')
+  if (!cell || !table || !editorRef.value?.contains(table)) return false
+  const rows = inlineTableRows(table)
+  const row = rows.indexOf(cell.parentElement)
+  const col = row >= 0 ? Array.from(rows[row].cells).indexOf(cell) : -1
+  const target = getTableArrowTarget(rows, row, col, e.key)
+  if (!target) return false
+  e.preventDefault()
+  e.stopPropagation()
+  selectInlineTableCell(table, target.cell)
+  nextTick(() => {
+    editorRef.value?.focus()
+    placeCaretInTableCell(target.cell, e.key)
+  })
+  return true
 }
 
 function focusEditorAtEnd() {
@@ -3189,13 +3274,17 @@ onUnmounted(() => {
 }
 .table-toolbar {
   display: flex;
-  align-items: flex-start;
-  gap: 6px;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
 }
 .table-count {
   flex: 1;
-  font-size: 12px;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 600;
   color: var(--text-secondary);
+  letter-spacing: .01em;
 }
 .data-table {
   border-collapse: collapse;
@@ -3223,9 +3312,26 @@ onUnmounted(() => {
 }
 .table-actions {
   display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  padding: 2px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--bg-tertiary);
   justify-content: flex-end;
+  flex-shrink: 0;
+}
+.table-toolbar .change-media-btn {
+  min-height: 26px;
+  padding: 2px 7px;
+  border-color: transparent;
+  background: transparent;
+  font-size: 11px;
+}
+.table-toolbar .change-media-btn:hover,
+.table-toolbar .change-media-btn.active {
+  border-color: var(--primary-color);
+  background: var(--primary-soft);
 }
 .table-scroll {
   width: 100%;
@@ -3241,42 +3347,84 @@ onUnmounted(() => {
 .table-cell-tools {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 5px 6px;
+  gap: 8px;
+  max-width: 100%;
+  padding: 7px 8px;
   border: 1px solid var(--border-light);
-  border-radius: var(--radius-sm);
-  background: var(--bg-tertiary);
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-sm);
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
 }
 .table-cell-position {
-  margin-right: 3px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--primary-soft);
+  color: var(--primary-color);
   font-size: 11px;
-  color: var(--text-secondary);
+  font-weight: 700;
   white-space: nowrap;
+  flex-shrink: 0;
+}
+.table-tool-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border-light);
+  flex-shrink: 0;
 }
 .table-tool-group-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 2px;
   font-size: 11px;
   font-weight: 600;
   color: var(--text-secondary);
 }
-.table-cell-tools button {
-  min-width: 28px;
-  height: 24px;
-  padding: 0 6px;
+.table-tool-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
   border: 1px solid var(--border-light);
-  border-radius: var(--radius-sm);
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
+  border-radius: 7px;
+  background: var(--bg-tertiary);
+}
+.table-cell-tools button {
+  min-width: 34px;
+  min-height: 26px;
+  padding: 2px 7px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-primary);
   cursor: pointer;
   font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background .15s, border-color .15s, color .15s;
 }
 .table-cell-tools button:hover:not(:disabled) {
+  background: var(--primary-soft);
   border-color: var(--primary-color);
   color: var(--primary-color);
 }
-.table-cell-tools button.danger:hover:not(:disabled) { color: #e53935; border-color: #e53935; }
-.table-cell-tools button:disabled { opacity: .4; cursor: not-allowed; }
+.table-cell-tools button.danger { color: #c45353; }
+.table-cell-tools button.danger:hover:not(:disabled) { background: rgba(196, 83, 83, .1); border-color: #c45353; color: #b33d3d; }
+.table-cell-tools button:disabled { opacity: .38; cursor: not-allowed; }
 .table-tool-divider { width: 1px; height: 16px; margin: 0 2px; background: var(--border-color); }
+@media (max-width: 680px) {
+  .table-cell-tools { gap: 6px; }
+  .table-tool-group { gap: 3px; padding-left: 6px; }
+  .table-cell-tools button { min-width: 32px; padding-inline: 6px; }
+}
 .change-media-btn.danger {
   color: #e53935;
 }
