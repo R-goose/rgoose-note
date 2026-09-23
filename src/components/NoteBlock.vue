@@ -148,18 +148,29 @@
         @mousedown.prevent.stop
       >
         <span class="table-cell-position">{{ inlineTableSelectionLabel }}</span>
-        <button title="在表格末尾添加一行" @click.stop="insertInlineTableRow('end')">末尾 +行</button>
-        <button title="在表格末尾添加一列" @click.stop="insertInlineTableColumn('end')">末尾 +列</button>
-        <span class="table-tool-divider"></span>
-        <span class="table-tool-group-label">行</span>
-        <button :disabled="inlineTableSelection.row === 0" title="在当前行上方插入" @click.stop="insertInlineTableRow('before')">↑+</button>
-        <button title="在当前行下方插入" @click.stop="insertInlineTableRow('after')">↓+</button>
-        <button class="danger" :disabled="!canDeleteInlineTableRow" title="删除当前行" @click.stop="deleteInlineTableRow">删除</button>
-        <span class="table-tool-divider"></span>
-        <span class="table-tool-group-label">列</span>
-        <button title="在当前列左侧插入" @click.stop="insertInlineTableColumn('before')">←+</button>
-        <button title="在当前列右侧插入" @click.stop="insertInlineTableColumn('after')">+→</button>
-        <button class="danger" :disabled="!canDeleteInlineTableColumn" title="删除当前列" @click.stop="deleteInlineTableColumn">删除</button>
+        <div class="table-tool-group">
+          <span class="table-tool-group-label">添加</span>
+          <div class="table-tool-buttons">
+            <button title="在表格末尾添加一行" aria-label="在表格末尾添加一行" @click.stop="insertInlineTableRow('end')">加行</button>
+            <button title="在表格末尾添加一列" aria-label="在表格末尾添加一列" @click.stop="insertInlineTableColumn('end')">加列</button>
+          </div>
+        </div>
+        <div class="table-tool-group">
+          <span class="table-tool-group-label">行</span>
+          <div class="table-tool-buttons">
+            <button :disabled="inlineTableSelection.row === 0" title="在当前行上方插入" aria-label="在当前行上方插入" @click.stop="insertInlineTableRow('before')">上插</button>
+            <button title="在当前行下方插入" aria-label="在当前行下方插入" @click.stop="insertInlineTableRow('after')">下插</button>
+            <button class="danger" :disabled="!canDeleteInlineTableRow" title="删除当前行" aria-label="删除当前行" @click.stop="deleteInlineTableRow">删行</button>
+          </div>
+        </div>
+        <div class="table-tool-group">
+          <span class="table-tool-group-label">列</span>
+          <div class="table-tool-buttons">
+            <button title="在当前列左侧插入" aria-label="在当前列左侧插入" @click.stop="insertInlineTableColumn('before')">左插</button>
+            <button title="在当前列右侧插入" aria-label="在当前列右侧插入" @click.stop="insertInlineTableColumn('after')">右插</button>
+            <button class="danger" :disabled="!canDeleteInlineTableColumn" title="删除当前列" aria-label="删除当前列" @click.stop="deleteInlineTableColumn">删列</button>
+          </div>
+        </div>
       </div>
 
       <div v-if="block.type === 'image' && block.imageUrl" class="image-container" :class="{ overflow: imageOverflow }" @dblclick.stop="!readOnly && $emit('add-image', block.id)" @wheel.stop>
@@ -1863,7 +1874,11 @@ function onEditorKeyDown(e) {
 
 function navigateInlineTableCell(e) {
   if (!inlineTableCanEdit.value || e.ctrlKey || e.metaKey || e.altKey) return false
-  const cell = e.target?.closest?.('th, td')
+  // contenteditable 的 keydown 目标始终是外层编辑器，单元格需从光标范围取得。
+  const selection = window.getSelection()
+  const focusNode = selection?.focusNode || selection?.anchorNode
+  const focusElement = focusNode?.nodeType === Node.ELEMENT_NODE ? focusNode : focusNode?.parentElement
+  const cell = e.target?.closest?.('th, td') || focusElement?.closest?.('th, td')
   const table = cell?.closest?.('table')
   if (!cell || !table || !editorRef.value?.contains(table)) return false
   const rows = inlineTableRows(table)
