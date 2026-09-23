@@ -1,13 +1,10 @@
 import { chromium } from 'playwright-core'
 import { existsSync } from 'fs'
 
-const paths = [
-  'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-  'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-  'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-  'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe'
-]
-const exepath = paths.find(p => existsSync(p))
+import { getBrowserPath } from './browser-path.mjs'
+
+
+const exepath = getBrowserPath()
 console.log('Browser:', exepath)
 
 const browser = await chromium.launch({ headless: true, executablePath: exepath })

@@ -530,13 +530,13 @@
           <div id="set-about-version" class="setting-item">
             <div class="setting-info">
               <div class="setting-name brand-name">R-Goose Note</div>
-              <div class="setting-desc">版本 2.4.35</div>
+              <div class="setting-desc">版本 2.4.36</div>
             </div>
           </div>
           <div id="set-about-platform" class="setting-item">
             <div class="setting-info">
               <div class="setting-name">平台支持</div>
-              <div class="setting-desc">Web / Windows</div>
+              <div class="setting-desc">Web / Windows / macOS</div>
             </div>
           </div>
             <div id="set-about-license" class="setting-item">

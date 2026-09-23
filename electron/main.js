@@ -1,8 +1,8 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, protocol, Tray, Menu, safeStorage } = require('electron')
 const path = require('path')
 const fs = require('fs')
-const { execSync } = require('child_process')
 const backend = require('./backend')
+const { zipFolder, unzipTo } = require('./zip')
 const imageService = require('./backend/service/imageService')
 
 let mainWindow
@@ -51,12 +51,16 @@ function getCustomDataDir() {
 }
 
 function getAppIconPath() {
-  const iconCandidates = [
-    path.join(__dirname, '../build/icon.ico'),
-    path.join(process.resourcesPath || '', 'build/icon.ico'),
-    path.join(__dirname, 'icon.ico')
+  // macOS 用 icns，Windows/Linux 用 ico，均加入 build 目录扫描
+  const primary = process.platform === 'darwin' ? 'icon.icns' : 'icon.ico'
+  const candidates = [
+    path.join(__dirname, '../build', primary),
+    path.join(process.resourcesPath || '', 'build', primary),
+    path.join(__dirname, primary),
+    // 兜底：退回旧版图标
+    path.join(__dirname, '../build/icon.png')
   ]
-  return iconCandidates.find(p => { try { return fs.existsSync(p) } catch { return false } }) || null
+  return candidates.find(p => { try { return fs.existsSync(p) } catch { return false } }) || null
 }
 
 function createTray() {
@@ -110,11 +114,10 @@ function createWindow() {
   const wasMaximized = config.isMaximized !== false
 
   const iconCandidates = [
-    path.join(__dirname, '../build/icon.ico'),
-    path.join(process.resourcesPath || '', 'build/icon.ico'),
-    path.join(__dirname, 'icon.ico')
-  ]
-  const appIcon = iconCandidates.find(p => { try { return fs.existsSync(p) } catch { return false } }) || undefined
+    getAppIconPath(),
+    path.join(__dirname, '../build/icon.png')
+  ].filter(Boolean)
+  const appIcon = iconCandidates.find(p => fs.existsSync(p)) || undefined
 
   const windowOptions = {
     minWidth: 800,
@@ -417,14 +420,9 @@ ipcMain.handle('export-data', async (_event, data) => {
     }
   }
 
-  // 打包 zip
+  // 打包 zip（跨平台实现：Windows/macOS/Linux 一致）
   try {
-    const psStaging = stagingDir.replace(/'/g, "''")
-    const psZip = result.filePath.replace(/'/g, "''")
-    execSync(
-      `powershell -NoProfile -NonInteractive -Command "Compress-Archive -Path '${psStaging}\\*' -DestinationPath '${psZip}' -Force"`,
-      { windowsHide: true, timeout: 180000 }
-    )
+    zipFolder(stagingDir, result.filePath)
   } catch (e) {
     console.error('zip export failed:', e)
     fs.rmSync(stagingDir, { recursive: true, force: true })
@@ -484,15 +482,8 @@ ipcMain.handle('import-data', async () => {
   fs.mkdirSync(stagingDir, { recursive: true })
 
   try {
-    // 解压 zip
-    if (process.platform === 'win32') {
-      const psZip = srcZip.replace(/'/g, "''")
-      const psDir = stagingDir.replace(/'/g, "''")
-      execSync(
-        `powershell -NoProfile -NonInteractive -Command "Expand-Archive -LiteralPath '${psZip}' -DestinationPath '${psDir}' -Force"`,
-        { windowsHide: true, timeout: 180000 }
-      )
-    }
+    // 解压 zip（跨平台实现，含路径穿越校验）
+    unzipTo(srcZip, stagingDir)
 
     // 递归查找 data.json（兼容嵌套目录结构）
     function findFile(dir, name) {
@@ -1093,34 +1084,13 @@ ipcMain.handle('create-backup', async () => {
       fs.cpSync(srcImages, path.join(stagingDir, 'images'), { recursive: true })
     }
 
-    let zipped = false
-    if (process.platform === 'win32') {
-      try {
-        // 打包 stagingDir 下的内容（rgoose.db + images）到 zip 根，不包含 staging 目录本身
-        const psStaging = stagingDir.replace(/'/g, "''")
-        const psZip = zipPath.replace(/'/g, "''")
-        execSync(
-          `powershell -NoProfile -NonInteractive -Command "Compress-Archive -Path '${psStaging}\\*' -DestinationPath '${psZip}' -Force"`,
-          { windowsHide: true, timeout: 180000 }
-        )
-        zipped = fs.existsSync(zipPath)
-      } catch (e) {
-        console.error('zip via powershell failed:', e)
-      }
-    }
+    // 打包 stagingDir 下的内容（rgoose.db + images）到 zip 根，不包含 staging 目录本身
+    // 跨平台一致，始终生成 ZIP，保证 UI 承诺的备份格式
+    zipFolder(stagingDir, zipPath)
 
     fs.rmSync(stagingDir, { recursive: true, force: true })
 
-    let finalPath
-    if (zipped) {
-      finalPath = zipPath
-    } else {
-      const backupDir = path.join(userData, `backup_${ts}`)
-      fs.mkdirSync(backupDir, { recursive: true })
-      fs.copyFileSync(srcData, path.join(backupDir, 'rgoose.db'))
-      if (fs.existsSync(srcImages)) fs.cpSync(srcImages, path.join(backupDir, 'images'), { recursive: true })
-      finalPath = backupDir
-    }
+    const finalPath = zipPath
 
     const backups = fs.readdirSync(userData)
       .filter(n => n.startsWith('backup_'))

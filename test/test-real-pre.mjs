@@ -1,10 +1,12 @@
 import { chromium } from 'playwright-core'
 import { existsSync } from 'fs'
 
-const EDGE = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
+import { getBrowserPath } from './browser-path.mjs'
+
+
 const URL = 'http://localhost:5173/'
 
-const browser = await chromium.launch({ headless: false, executablePath: existsSync(EDGE) ? EDGE : undefined, args: ['--disable-web-security'] })
+const browser = await chromium.launch({ headless: false, executablePath: getBrowserPath(), args: ['--disable-web-security'] })
 const context = await browser.newContext({ permissions: ['clipboard-read', 'clipboard-write'] })
 const page = await context.newPage()
 await page.goto(URL, { waitUntil: 'networkidle' })

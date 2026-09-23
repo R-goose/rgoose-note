@@ -1,8 +1,10 @@
 import { chromium } from 'playwright-core'
 import { existsSync } from 'fs'
 
-const paths = ['C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe','C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe']
-const browser = await chromium.launch({ headless: false, executablePath: paths.find(p => existsSync(p)) })
+import { getBrowserPath } from './browser-path.mjs'
+
+
+const browser = await chromium.launch({ headless: false, executablePath: getBrowserPath() })
 const page = await browser.newPage()
 
 // 清空 localStorage 确保干净状态

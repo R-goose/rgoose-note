@@ -1,10 +1,12 @@
 import { chromium } from 'playwright-core'
 import { existsSync } from 'fs'
 
-const EDGE = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
+import { getBrowserPath } from './browser-path.mjs'
+
+
 const URL = 'http://localhost:5173/'
 
-const browser = await chromium.launch({ headless: true, executablePath: existsSync(EDGE) ? EDGE : undefined })
+const browser = await chromium.launch({ headless: true, executablePath: getBrowserPath() })
 const page = await browser.newPage()
 await page.goto(URL, { waitUntil: 'networkidle' })
 await page.waitForTimeout(2500)

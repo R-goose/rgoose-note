@@ -1,7 +1,7 @@
 {
   "name": "r-goose-note",
   "private": true,
-  "version": "2.4.35",
+  "version": "2.4.36",
   "description": "R-Goose Note - 画布式笔记应用",
   "author": "R-Goose",
   "type": "module",
@@ -16,24 +16,25 @@
     "test:table-data": "node test/table-data.test.mjs",
     "test:block-layout": "node test/block-layout.test.mjs",
     "postinstall": "electron-builder install-app-deps",
-    "test:smoke": "node_modules\\electron\\dist\\electron.exe --no-sandbox . --test-smoke",
-    "kill:app": "powershell -Command \"$root=(Get-Location).Path; Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'R-Goose Note.exe' -or ($_.Name -eq 'electron.exe' -and ($_.ExecutablePath -like ($root+'\\release\\win-unpacked\\*') -or $_.ExecutablePath -like ($root+'\\release-build*\\win-unpacked\\*') -or $_.CommandLine -like ('*'+$root+'*'))) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }\"",
-    "clean:release": "powershell -Command \"Get-ChildItem 'release-build*' -Directory -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue; if (Test-Path 'release\\builder-effective-config.yaml') { Remove-Item 'release\\builder-effective-config.yaml' -Force -ErrorAction SilentlyContinue }\"",
-    "electron:dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && set VITE_DEV_SERVER_URL=http://localhost:5173&& electron .\"",
-    "electron:build": "npm run kill:app && npm run clean:release && vite build && powershell -Command \"$out='release-build-' + (Get-Date -Format 'yyyyMMdd-HHmmss'); node node_modules/electron-builder/cli.js --projectDir . --config.directories.output=$out\"",
-    "electron:build:mirror": "npm run kill:app && npm run clean:release && vite build && powershell -Command \"$env:ELECTRON_MIRROR='https://npmmirror.com/mirrors/electron/'; $env:ELECTRON_BUILDER_BINARIES_MIRROR='https://npmmirror.com/mirrors/electron-builder-binaries/'; Remove-Item Env:ELECTRON_BUILDER_BINARIES_CUSTOM_DIR -ErrorAction SilentlyContinue; $out='release-build-' + (Get-Date -Format 'yyyyMMdd-HHmmss'); node node_modules/electron-builder/cli.js --projectDir . --config.directories.output=$out\""
+    "test:smoke": "electron --no-sandbox . --test-smoke",
+    "kill:app": "node scripts/kill-app.mjs",
+    "clean:release": "node scripts/clean-release.mjs",
+    "electron:dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
+    "electron:build": "npm run kill:app && npm run clean:release && vite build && node scripts/build-electron.mjs",
+    "electron:build:mirror": "npm run kill:app && npm run clean:release && vite build && node scripts/build-electron.mjs --mirror"
   },
   "dependencies": {
+    "adm-zip": "^0.5.18",
     "better-sqlite3": "11.5.0",
     "express": "^5.2.1",
     "multer": "^2.2.0",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
-    "@rollup/rollup-win32-x64-msvc": "^4.62.2",
     "@vitejs/plugin-vue": "^5.0.0",
     "@vueuse/core": "^14.3.0",
     "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
     "dayjs": "^1.11.10",
     "electron": "^33.0.0",
     "electron-builder": "^24.9.1",
@@ -62,6 +63,8 @@
       "electron/**/*.sql",
       "electron/**/package.json",
       "build/icon.ico",
+      "build/icon.icns",
+      "build/icon.png",
       "build/favicon.svg",
       "node_modules/better-sqlite3/**",
       "node_modules/bindings/**",
@@ -81,7 +84,7 @@
     },
     "mac": {
       "target": "dmg",
-      "icon": "build/icon.png",
+      "icon": "build/icon.icns",
       "category": "public.app-category.productivity"
     },
     "linux": {
