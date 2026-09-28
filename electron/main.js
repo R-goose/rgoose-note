@@ -917,19 +917,27 @@ ipcMain.handle('list-images', async () => {
   }
 })
 
-function getDirSize(dir) {
-  if (!fs.existsSync(dir)) return 0
-  const stat = fs.statSync(dir)
+async function getDirSize(dir) {
+  let stat
+  try {
+    stat = await fs.promises.lstat(dir)
+  } catch (e) {
+    if (e?.code === 'ENOENT') return 0
+    throw e
+  }
+  if (stat.isSymbolicLink()) return 0
   if (stat.isFile()) return stat.size
+  if (!stat.isDirectory()) return 0
+
+  const entries = await fs.promises.readdir(dir, { withFileTypes: true })
   let total = 0
-  const entries = fs.readdirSync(dir, { withFileTypes: true })
-  for (const entry of entries) {
-    const full = path.join(dir, entry.name)
-    if (entry.isDirectory()) {
-      total += getDirSize(full)
-    } else {
-      total += fs.statSync(full).size
-    }
+  // 分批异步统计，避免大量同步 stat/readdir 阻塞 Electron 主进程和窗口事件循环。
+  for (let index = 0; index < entries.length; index += 32) {
+    const sizes = await Promise.all(entries.slice(index, index + 32).map(entry => {
+      if (entry.isSymbolicLink()) return 0
+      return getDirSize(path.join(dir, entry.name))
+    }))
+    total += sizes.reduce((sum, size) => sum + size, 0)
   }
   return total
 }
@@ -968,41 +976,22 @@ ipcMain.handle('get-storage-size', async () => {
     }
 
     try {
-      result.imagesDirSize = getDirSize(imagesDir)
+      result.imagesDirSize = await getDirSize(imagesDir)
     } catch (e) {
       console.error('measure images dir failed:', e)
     }
 
     try {
-      const backups = fs.readdirSync(userData)
-        .filter(n => n.startsWith('backup_'))
-        .map(n => {
+      const backupNames = (await fs.promises.readdir(userData)).filter(n => n.startsWith('backup_'))
+      const backups = await Promise.all(backupNames.map(async n => {
           const full = path.join(userData, n)
-          return { name: n, size: getDirSize(full), mtime: fs.statSync(full).mtimeMs }
-        })
+          const stat = await fs.promises.stat(full)
+          return { name: n, size: await getDirSize(full), mtime: stat.mtimeMs }
+        }))
       result.backupSize = backups.reduce((s, b) => s + b.size, 0)
       result.backupCount = backups.length
     } catch (e) {
       console.error('measure backups failed:', e)
-    }
-
-    try {
-      if (app.isPackaged) {
-        result.appSize = getDirSize(app.getAppPath())
-      } else {
-        const appPath = app.getAppPath()
-        let appTotal = 0
-        const appCodeDirs = ['dist', 'electron', 'build']
-        for (const d of appCodeDirs) {
-          try {
-            const p = path.join(appPath, d)
-            if (fs.existsSync(p)) appTotal += getDirSize(p)
-          } catch (_) {}
-        }
-        result.appSize = appTotal
-      }
-    } catch (e) {
-      console.error('measure app size failed:', e)
     }
 
     result.dataDirSize = result.dataFileSize + result.imagesDirSize
@@ -1111,14 +1100,13 @@ ipcMain.handle('list-backups', async () => {
   try {
     const userData = app.getPath('userData')
     if (!fs.existsSync(userData)) return []
-    return fs.readdirSync(userData)
-      .filter(n => n.startsWith('backup_'))
-      .map(n => {
+    const names = (await fs.promises.readdir(userData)).filter(n => n.startsWith('backup_'))
+    const backups = await Promise.all(names.map(async n => {
         const full = path.join(userData, n)
-        const stat = fs.statSync(full)
-        return { name: n, size: getDirSize(full), mtime: stat.mtimeMs }
-      })
-      .sort((a, b) => b.mtime - a.mtime)
+        const stat = await fs.promises.stat(full)
+        return { name: n, size: await getDirSize(full), mtime: stat.mtimeMs }
+      }))
+    return backups.sort((a, b) => b.mtime - a.mtime)
   } catch (e) {
     return []
   }

@@ -5354,6 +5354,7 @@ function deleteSelectedConnection() {
 
 <style scoped>
 .note-editor-view {
+  position: relative;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -5372,6 +5373,9 @@ function deleteSelectedConnection() {
 .note-editor-view.export-mode .link-selection-bar,
 .note-editor-view.export-mode .multi-select-toolbar,
 .note-editor-view.export-mode .connection-toolbar {
+  display: none !important;
+}
+.note-editor-view.export-mode :deep(.note-table-tools) {
   display: none !important;
 }
 .note-editor-view.export-mode .canvas-container {

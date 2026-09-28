@@ -23,6 +23,8 @@
       <div class="app-body">
         <Sidebar :collapsed="sidebarCollapsed" @toggle-collapse="toggleSidebar" />
         <div class="main-content" :class="{ expanded: !sidebarCollapsed }">
+          <!-- 先创建稳定挂载点，供路由页面里的表格工具栏 Teleport 使用。 -->
+          <div id="note-table-toolbar-host" class="note-table-toolbar-host"></div>
           <router-view v-slot="{ Component }">
             <transition name="fade" mode="out-in">
               <component :is="Component" />
@@ -270,6 +272,17 @@ onUnmounted(() => {
   overflow: hidden;
   position: relative;
   min-width: 0;
+}
+
+.note-table-toolbar-host {
+  position: absolute;
+  inset: 0;
+  z-index: 10002;
+  pointer-events: none;
+}
+
+.note-table-toolbar-host:empty {
+  display: none;
 }
 
 .fade-enter-active,

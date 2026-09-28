@@ -72,7 +72,25 @@ const router = createRouter({
   routes
 })
 
+// 开发服务重新优化依赖、或应用更新后旧页面仍引用上一版 chunk 时，
+// 动态路由可能加载失败。自动带着目标路由硬刷新一次，避免点击后停留在原页。
+const ROUTE_CHUNK_RELOAD_KEY = 'rgoose-route-chunk-reload'
+router.onError((error, to) => {
+  const message = String(error?.message || error || '')
+  if (!/Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk\s+\S+\s+failed|Outdated Optimize Dep/i.test(message)) return
+
+  const target = to?.fullPath || window.location.hash.replace(/^#/, '') || '/dashboard'
+  if (sessionStorage.getItem(ROUTE_CHUNK_RELOAD_KEY) === target) return
+
+  sessionStorage.setItem(ROUTE_CHUNK_RELOAD_KEY, target)
+  window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}#${target}`)
+  window.location.reload()
+})
+
 router.afterEach((to) => {
+  if (sessionStorage.getItem(ROUTE_CHUNK_RELOAD_KEY) === to.fullPath) {
+    sessionStorage.removeItem(ROUTE_CHUNK_RELOAD_KEY)
+  }
   document.title = to.meta.title ? `${to.meta.title} - R-Goose Note` : 'R-Goose Note'
 })
 

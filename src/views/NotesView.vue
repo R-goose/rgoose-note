@@ -71,42 +71,18 @@
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </span>
         </div>
-        <div v-if="filteredFolders.length > 0" class="folder-grid-section">
+        <div v-if="rootFolders.length > 0" class="folder-grid-section">
           <h2 class="grid-section-title">全部文件夹</h2>
-          <div class="folder-card-grid">
-            <article
-              v-for="folder in filteredFolders"
-              :key="folder.id"
-              class="folder-card"
-              :style="folderStyle(folder.id)"
-              @click="enterFolder(folder.id)"
-              @contextmenu.prevent.stop="onFolderContextMenu($event, folder)"
-            >
-              <svg class="folder-card-wave" viewBox="0 0 200 60" preserveAspectRatio="none" aria-hidden="true">
-                <path d="M0,40 C40,20 80,55 120,35 C160,15 180,45 200,30 L200,60 L0,60 Z" fill="currentColor"/>
-              </svg>
-              <div class="folder-card-inner">
-                <div class="folder-card-icon" :class="{ 'folder-card-icon-child': folder.parentId }">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-                  </svg>
-                </div>
-                <div class="folder-card-content">
-                  <span v-if="getParentFolderName(folder)" class="folder-card-parent" :title="`位于：${getParentFolderName(folder)}`">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-                    </svg>
-                    <span class="folder-card-parent-name">{{ getParentFolderName(folder) }}</span>
-                  </span>
-                  <h3 class="folder-card-name">{{ folder.name }}</h3>
-                  <p class="folder-card-meta">
-                    <span class="folder-card-count">{{ countNotesInFolder(folder.id) }}</span> 篇笔记
-                  </p>
-                </div>
-                <span class="folder-card-dot"></span>
-              </div>
-            </article>
-          </div>
+          <FolderCascade
+            :folders="rootFolders"
+            :get-children="getChildFoldersOf"
+            :get-items="getFolderNotes"
+            :count-text="folderCountText"
+            empty-text="这个文件夹里还没有笔记"
+            @open-folder="folder => enterFolder(folder.id)"
+            @open-item="item => openNote(item.id)"
+            @folder-context="onFolderContextMenu"
+          />
         </div>
         <div v-if="filteredNotes.length > 0" class="all-notes-section">
           <h2 class="grid-section-title">全部笔记 <span class="section-count">{{ filteredNotes.length }}</span></h2>
@@ -602,6 +578,7 @@ import { formatDate as formatDateUtil } from '@/utils'
 import { resolveImageUrl, isImageRef } from '@/utils/imageStore'
 import BgDecor from '@/components/BgDecor.vue'
 import CustomSelect from '@/components/CustomSelect.vue'
+import FolderCascade from '@/components/FolderCascade.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -664,42 +641,25 @@ function enterFolder(folderId) {
   noteStore.setCurrentFolder(noteStore.currentFolderId === folderId ? null : folderId)
 }
 
-function countNotesInFolder(folderId) {
-  return noteStore.getFolderNoteCount(folderId)
+/** 面板顶层展示所有根级目录，包括系统「根目录」；子级通过 hover 逐层飞出。 */
+const rootFolders = computed(() => filteredFolders.value.filter(f => !f.parentId))
+
+function getChildFoldersOf(folderId) {
+  return noteStore.getChildFolders(folderId)
 }
 
-/** 根据笔记数量计算气泡尺寸和不规则圆角 */
-function folderStyle(folderId) {
-  const count = countNotesInFolder(folderId)
-  const t = Math.min(1, Math.log2(count + 1) / 5) // 0~1，32篇到上限
-
-  // 气泡尺寸：宽高协调，笔记越多越大
-  const base = 120 + t * 90                              // 120~210px 基准边长
-  // hash 决定每个文件夹的宽高比偏移，让气泡有胖有瘦
-  const hash = String(folderId || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0)
-  const wRatio = 1 + ((hash % 5) - 2) * 0.06             // 0.88~1.08
-  const hRatio = 1 + ((hash >> 4) % 5 - 2) * 0.06        // 0.88~1.08
-  const width = Math.round(base * wRatio)
-  const height = Math.round(base * hRatio)
-
-  // 被风吹的不规则圆角：高百分比(40~60%)，四角不同
-  const wind = (seed) => 42 + ((hash >> seed) % 7) * 3   // 42~60
-  const r1 = wind(0), r2 = wind(2), r3 = wind(5), r4 = wind(8)
-  // 垂直半径也各不同，增强不规则感
-  const rv1 = wind(1), rv2 = wind(3), rv3 = wind(6), rv4 = wind(9)
-
-  return {
-    '--fw': `${width}px`,
-    '--fh': `${height}px`,
-    '--fr': `${r1}% ${r2}% ${r3}% ${r4}% / ${rv1}% ${rv2}% ${rv3}% ${rv4}%`,
-    '--folder-t': t.toFixed(2)
-  }
+/** 叶子文件夹里直接挂着的笔记，按置顶 + 更新时间排 */
+function getFolderNotes(folderId) {
+  // 根目录的直属笔记包含 folderId 为 null 的未归类笔记
+  const isRoot = folderId === SYSTEM_ROOT_FOLDER_ID
+  return noteStore.notes
+    .filter(n => !n.deleted && (isRoot ? (n.folderId == null || n.folderId === folderId) : n.folderId === folderId))
+    .sort((a, b) => ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || ((b.updatedAt || 0) - (a.updatedAt || 0)))
+    .map(n => ({ id: n.id, title: n.title || '无标题', meta: formatDate(n.updatedAt) }))
 }
 
-function getParentFolderName(folder) {
-  if (!folder || !folder.parentId) return ''
-  const parent = noteStore.folders.find(f => f.id === folder.parentId && !f.deleted)
-  return parent?.name || ''
+function folderCountText(folder) {
+  return `${noteStore.getFolderNoteCount(folder.id)} 篇笔记`
 }
 
 /** 列表排序方式：updatedAt / createdAt / title（本地持久化） */
@@ -1320,151 +1280,6 @@ onUnmounted(() => {
   font-size: 12px;
   color: var(--text-tertiary);
   font-weight: 500;
-}
-
-.folder-card-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-}
-
-.folder-card {
-  position: relative;
-  overflow: hidden;
-  padding: 18px;
-  background: var(--bg-secondary);
-  border: 1px solid color-mix(in srgb, var(--primary-color) calc(var(--folder-t, 0) * 8%), var(--border-light));
-  cursor: pointer;
-  transition: all var(--transition-normal);
-  /* 气泡尺寸和不规则圆角由 CSS 变量驱动 */
-  width: var(--fw, 140px);
-  height: var(--fh, 140px);
-  border-radius: var(--fr, 45% 50% 42% 48% / 48% 42% 50% 44%);
-}
-
-.folder-card-wave {
-  position: absolute;
-  right: -10px;
-  bottom: -10px;
-  /* 笔记越多装饰越大：130px → 200px */
-  width: calc(130px + var(--folder-t, 0) * 70px);
-  height: calc(50px + var(--folder-t, 0) * 30px);
-  color: var(--primary-color);
-  /* 笔记越多装饰越深：0.08 → 0.22 */
-  opacity: calc(0.08 + var(--folder-t, 0) * 0.14);
-  transition: opacity var(--transition-normal), transform var(--transition-normal);
-  pointer-events: none;
-}
-
-.folder-card-inner {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  height: 100%;
-  text-align: center;
-}
-
-.folder-card-icon {
-  flex-shrink: 0;
-  /* 笔记越多图标越大：40px → 52px */
-  width: calc(40px + var(--folder-t, 0) * 12px);
-  height: calc(40px + var(--folder-t, 0) * 12px);
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--primary-soft), var(--primary-softer));
-  color: var(--primary-color);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-color) calc(18% + var(--folder-t, 0) * 15%), transparent);
-  transition: all var(--transition-normal);
-}
-
-.folder-card-content {
-  flex: 1;
-  min-width: 0;
-}
-
-.folder-card-name {
-  font-size: 14.5px;
-  font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.folder-card-parent {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  max-width: 100%;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-tertiary);
-  margin-bottom: 3px;
-  white-space: nowrap;
-  overflow: hidden;
-}
-
-.folder-card-parent svg {
-  flex-shrink: 0;
-  opacity: 0.75;
-}
-
-.folder-card-parent-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.folder-card-icon-child {
-  background: linear-gradient(135deg, var(--secondary-soft, var(--primary-soft)), var(--bg-tertiary));
-}
-
-.folder-card-meta {
-  margin-top: 2px;
-  font-size: 12px;
-  color: var(--text-tertiary);
-}
-
-.folder-card-count {
-  color: var(--primary-dark);
-  font-weight: 600;
-  /* 笔记越多数字越大：inherit → 16px */
-  font-size: calc(1em + var(--folder-t, 0) * 0.25rem);
-}
-
-.folder-card-dot {
-  flex-shrink: 0;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--border-color);
-  transition: all var(--transition-normal);
-}
-
-.folder-card:hover {
-  border-color: color-mix(in srgb, var(--primary-color) 35%, var(--border-color));
-  box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--primary-color) 35%, rgba(0, 0, 0, 0.1));
-  transform: translateY(-2px);
-}
-
-.folder-card:hover .folder-card-wave {
-  opacity: 0.16;
-  transform: translate(-4px, -4px) scale(1.08);
-}
-
-.folder-card:hover .folder-card-icon {
-  background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
-  color: #fff;
-  box-shadow: 0 4px 10px -2px color-mix(in srgb, var(--primary-color) 50%, transparent);
-}
-
-.folder-card:hover .folder-card-dot {
-  background: var(--primary-color);
-  transform: scale(1.3);
 }
 
 .notes-grid {

@@ -9,7 +9,7 @@
       'hide-highlight-underline': hideHighlightUnderline,
       'link-selection-mode': linkSelectionMode,
       'link-selected': linkSelected,
-      'menu-open': showInsertMenu || showStyleMenu,
+      'menu-open': showInsertMenu,
       'connect-mode': connectMode,
       connecting: connectingFrom === block.id,
       'connect-target': connectMode && connectingFrom && connectingFrom !== block.id,
@@ -142,9 +142,10 @@
     </div>
 
     <div class="block-content">
+      <Teleport to="#note-table-toolbar-host">
       <div
-        v-if="inlineTableCanEdit && selected && inlineTableSelection"
-        class="table-cell-tools inline-table-tools"
+        v-if="inlineTableCanEdit && selected && inlineTableEditing && inlineTableSelection"
+        class="table-cell-tools inline-table-tools note-table-tools"
         @mousedown.prevent.stop
       >
         <span class="table-cell-position">{{ inlineTableSelectionLabel }}</span>
@@ -160,7 +161,7 @@
           <div class="table-tool-buttons">
             <button :disabled="inlineTableSelection.row === 0" title="在当前行上方插入" aria-label="在当前行上方插入" @click.stop="insertInlineTableRow('before')">上插</button>
             <button title="在当前行下方插入" aria-label="在当前行下方插入" @click.stop="insertInlineTableRow('after')">下插</button>
-            <button class="danger" :disabled="!canDeleteInlineTableRow" title="删除当前行" aria-label="删除当前行" @click.stop="deleteInlineTableRow">删行</button>
+            <button class="danger" :disabled="!canDeleteInlineTableRow" title="删除当前行" aria-label="删除当前行" @click.stop="requestDeleteInlineTableRow">删行</button>
           </div>
         </div>
         <div class="table-tool-group">
@@ -168,10 +169,11 @@
           <div class="table-tool-buttons">
             <button title="在当前列左侧插入" aria-label="在当前列左侧插入" @click.stop="insertInlineTableColumn('before')">左插</button>
             <button title="在当前列右侧插入" aria-label="在当前列右侧插入" @click.stop="insertInlineTableColumn('after')">右插</button>
-            <button class="danger" :disabled="!canDeleteInlineTableColumn" title="删除当前列" aria-label="删除当前列" @click.stop="deleteInlineTableColumn">删列</button>
+            <button class="danger" :disabled="!canDeleteInlineTableColumn" title="删除当前列" aria-label="删除当前列" @click.stop="requestDeleteInlineTableColumn">删列</button>
           </div>
         </div>
       </div>
+      </Teleport>
 
       <div v-if="block.type === 'image' && block.imageUrl" class="image-container" :class="{ overflow: imageOverflow }" @dblclick.stop="!readOnly && $emit('add-image', block.id)" @wheel.stop>
         <img :src="resolvedImageUrl" alt="" draggable="false" @click.stop="$emit('preview-image', { urls: [resolvedImageUrl], index: 0 })" @load="onImageLoad" />
@@ -358,14 +360,15 @@
             <button v-if="tableCanEdit" class="change-media-btn" :class="{ active: block.tableAnalysis }" @click.stop="emit('update', block.id, { tableAnalysis: !block.tableAnalysis })">分析</button>
           </div>
         </div>
-        <div v-if="tableCanEdit && selected && tableSelection" class="table-cell-tools" @mousedown.stop>
+        <Teleport to="#note-table-toolbar-host">
+        <div v-if="tableCanEdit && selected && tableCellEditing && tableSelection" class="table-cell-tools note-table-tools" @mousedown.stop>
           <span class="table-cell-position">{{ tableSelectionLabel }}</span>
           <div class="table-tool-group">
             <span class="table-tool-group-label">行</span>
             <div class="table-tool-buttons">
               <button :disabled="tableSelection.row === 0" title="在当前行上方插入" aria-label="在当前行上方插入" @click.stop="insertRowRelative('before')">上插</button>
               <button title="在当前行下方插入" aria-label="在当前行下方插入" @click.stop="insertRowRelative('after')">下插</button>
-              <button class="danger" :disabled="!canDeleteSelectedRow" title="删除当前行" aria-label="删除当前行" @click.stop="deleteSelectedRow">删行</button>
+              <button class="danger" :disabled="!canDeleteSelectedRow" title="删除当前行" aria-label="删除当前行" @click.stop="requestDeleteSelectedRow">删行</button>
             </div>
           </div>
           <div class="table-tool-group">
@@ -373,10 +376,11 @@
             <div class="table-tool-buttons">
               <button title="在当前列左侧插入" aria-label="在当前列左侧插入" @click.stop="insertColumnRelative('before')">左插</button>
               <button title="在当前列右侧插入" aria-label="在当前列右侧插入" @click.stop="insertColumnRelative('after')">右插</button>
-              <button class="danger" :disabled="!canDeleteSelectedColumn" title="删除当前列" aria-label="删除当前列" @click.stop="deleteSelectedColumn">删列</button>
+              <button class="danger" :disabled="!canDeleteSelectedColumn" title="删除当前列" aria-label="删除当前列" @click.stop="requestDeleteSelectedColumn">删列</button>
             </div>
           </div>
         </div>
+        </Teleport>
         <div class="table-scroll" @wheel.stop>
           <table class="data-table" :style="tableLayoutStyle">
             <colgroup>
@@ -387,11 +391,11 @@
                 <th
                   v-for="(cell, ci) in (tableRows[0] || [])"
                   :key="ci"
-                  :class="{ 'table-cell-selected': isTableCellSelected(0, ci) }"
-                  :contenteditable="tableCanEdit"
+                  :class="{ 'table-cell-selected': tableCellEditing && isTableCellSelected(0, ci) }"
+                  :contenteditable="tableCanEdit && tableCellEditing"
                   spellcheck="false"
-                  @focus="selectTableCell(0, ci)"
                   @click="onNumericTableCellClick($event, 0, ci)"
+                  @dblclick.stop="startNumericTableCellEditing($event, 0, ci)"
                   @blur="onCellEdit(0, ci, $event)"
                   @keydown.enter.prevent="$event.target.blur()"
                   @keydown="onNumericTableCellKeyDown($event, 0, ci)"
@@ -405,11 +409,11 @@
                 <td
                   v-for="(cell, ci) in row"
                   :key="ci"
-                  :class="[getCellClass(ri + 1, ci, cell), { 'table-cell-selected': isTableCellSelected(ri + 1, ci) }]"
-                  :contenteditable="tableCanEdit"
+                  :class="[getCellClass(ri + 1, ci, cell), { 'table-cell-selected': tableCellEditing && isTableCellSelected(ri + 1, ci) }]"
+                  :contenteditable="tableCanEdit && tableCellEditing"
                   spellcheck="false"
-                  @focus="selectTableCell(ri + 1, ci)"
                   @click="onNumericTableCellClick($event, ri + 1, ci)"
+                  @dblclick.stop="startNumericTableCellEditing($event, ri + 1, ci)"
                   @blur="onCellEdit(ri + 1, ci, $event)"
                   @keydown.enter.prevent="$event.target.blur()"
                   @keydown="onNumericTableCellKeyDown($event, ri + 1, ci)"
@@ -491,6 +495,7 @@
           :data-placeholder="block.content ? '' : '输入内容...'"
           @input="onInput"
           @click="onEditorClick"
+          @dblclick="onEditorDoubleClick"
           @blur="onBlur"
           @paste="onPaste"
           @keydown="onEditorKeyDown"
@@ -513,6 +518,7 @@
         :data-placeholder="block.content ? '' : '点击输入内容...'"
         @input="onInput"
         @click="onEditorClick"
+        @dblclick="onEditorDoubleClick"
         @blur="onBlur"
         @paste="onPaste"
         @keydown="onEditorKeyDown"
@@ -582,6 +588,29 @@
         <div style="display: flex; gap: 10px; justify-content: flex-end;">
           <button class="btn btn-secondary" @click="closeLinkModal">取消</button>
           <button class="btn btn-primary" @click="insertLink">插入</button>
+        </div>
+      </div>
+    </JellyModal>
+  </Teleport>
+
+  <Teleport to="body">
+    <JellyModal :show="!!pendingTableDelete" @close="pendingTableDelete = null">
+      <div class="modal-content confirm-modal">
+        <div class="confirm-header">
+          <div class="confirm-icon warning">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
+          <div>
+            <h3>确认删除{{ pendingTableDelete?.label }}</h3>
+            <p>该{{ pendingTableDelete?.label }}包含内容，删除后无法恢复。确定继续吗？</p>
+          </div>
+        </div>
+        <div class="confirm-actions">
+          <button type="button" class="btn btn-secondary" @click="pendingTableDelete = null">取消</button>
+          <button type="button" class="btn btn-primary" @click="confirmTableDelete">确认删除</button>
         </div>
       </div>
     </JellyModal>
@@ -761,9 +790,11 @@ const formulaEditing = ref(false)
 
 // ===== 数值表格块 =====
 const tableEditing = ref(false)
+const tableCellEditing = ref(false)
 const tableRawText = ref('')
 const tableRows = computed(() => parseTableData(props.block?.tableData))
 const tableSelection = ref(null)
+const pendingTableDelete = ref(null)
 const tableCanEdit = computed(() => !props.readOnly && !props.block?.locked)
 const TABLE_DEFAULT_COLUMN_WIDTH = 92
 const TABLE_MIN_COLUMN_WIDTH = 60
@@ -798,9 +829,24 @@ function selectTableCell(row, col) {
 // 表格单元格的点击不应继续冒泡到块容器：块已在框选中时，
 // 冒泡会把多选错误地收敛为单选。未选中时仍保留原有的单选行为。
 function onNumericTableCellClick(e, row, col) {
-  selectTableCell(row, col)
+  if (!tableCellEditing.value) tableSelection.value = null
   e.stopPropagation()
-  if (!props.selected) emit('select', props.block.id, e)
+  emit('select', props.block.id, e)
+}
+
+function startNumericTableCellEditing(e, row, col) {
+  if (!tableCanEdit.value) return
+  activateNumericTableCell(e.currentTarget, row, col)
+}
+
+function activateNumericTableCell(cell, row, col) {
+  if (!cell || !tableCanEdit.value) return
+  tableCellEditing.value = true
+  selectTableCell(row, col)
+  nextTick(() => {
+    cell.focus()
+    placeCaretInTableCell(cell, 'ArrowRight')
+  })
 }
 
 const tableArrowOffsets = {
@@ -832,7 +878,7 @@ function placeCaretInTableCell(cell, key) {
 
 // 方向键属于表格导航，不让窗口级画布快捷键把整个块移动走。
 function onNumericTableCellKeyDown(e, row, col) {
-  if (!tableCanEdit.value || e.ctrlKey || e.metaKey || e.altKey) return
+  if (!tableCanEdit.value || !tableCellEditing.value || e.ctrlKey || e.metaKey || e.altKey) return
   const rows = Array.from(blockRef.value?.querySelectorAll('.data-table tr') || [])
   const target = getTableArrowTarget(rows, row, col, e.key)
   if (!target) return
@@ -857,14 +903,24 @@ function onCellEdit(rowIdx, colIdx, e) {
 let tableCellResizeInfo = null
 
 function onNumericTableCellMouseDown(e, row, col) {
-  selectTableCell(row, col)
   if (!tableCanEdit.value) return
   const rect = e.currentTarget.getBoundingClientRect()
   const edge = 8
   const resizeColumn = rect.right - e.clientX <= edge
   const resizeRow = rect.bottom - e.clientY <= edge
-  if (!resizeColumn && !resizeRow) return
+  if (!resizeColumn && !resizeRow) {
+    if (e.detail >= 2) {
+      activateNumericTableCell(e.currentTarget, row, col)
+      return
+    }
+    tableCellEditing.value = false
+    tableSelection.value = null
+    e.preventDefault()
+    if (blockRef.value?.contains(document.activeElement)) document.activeElement.blur?.()
+    return
+  }
 
+  selectTableCell(row, col)
   e.preventDefault()
   emit('save-history')
   tableCellResizeInfo = {
@@ -1016,6 +1072,54 @@ function deleteSelectedColumn() {
   })
   tableSelection.value = { row: tableSelection.value.row, col: nextCol }
 }
+
+function tableCellsContainContent(cells) {
+  return Array.from(cells || []).some(cell => {
+    if (typeof cell === 'string' || typeof cell === 'number') return String(cell).trim().length > 0
+    if (!cell) return false
+    if (cell.querySelector?.('img, video, audio, iframe, svg, input')) return true
+    return String(cell.textContent || '').replace(/\u00a0/g, ' ').trim().length > 0
+  })
+}
+
+function requestDeleteSelectedRow() {
+  if (!canDeleteSelectedRow.value || !tableSelection.value) return
+  const row = tableRows.value[tableSelection.value.row] || []
+  if (tableCellsContainContent(row)) pendingTableDelete.value = { type: 'numeric-row', label: '行' }
+  else deleteSelectedRow()
+}
+
+function requestDeleteSelectedColumn() {
+  if (!canDeleteSelectedColumn.value || !tableSelection.value) return
+  const col = tableSelection.value.col
+  if (tableCellsContainContent(tableRows.value.map(row => row[col] ?? ''))) {
+    pendingTableDelete.value = { type: 'numeric-column', label: '列' }
+  } else deleteSelectedColumn()
+}
+
+function requestDeleteInlineTableRow() {
+  if (!canDeleteInlineTableRow.value || !inlineTableElement || !inlineTableSelection.value) return
+  const row = inlineTableRows(inlineTableElement)[inlineTableSelection.value.row]
+  if (tableCellsContainContent(row?.cells)) pendingTableDelete.value = { type: 'inline-row', label: '行' }
+  else deleteInlineTableRow()
+}
+
+function requestDeleteInlineTableColumn() {
+  if (!canDeleteInlineTableColumn.value || !inlineTableElement || !inlineTableSelection.value) return
+  const col = inlineTableSelection.value.col
+  const containsContent = inlineTableRows(inlineTableElement).some(row => tableCellsContainContent([row.cells[col]]))
+  if (containsContent) pendingTableDelete.value = { type: 'inline-column', label: '列' }
+  else deleteInlineTableColumn()
+}
+
+function confirmTableDelete() {
+  const type = pendingTableDelete.value?.type
+  pendingTableDelete.value = null
+  if (type === 'numeric-row') deleteSelectedRow()
+  else if (type === 'numeric-column') deleteSelectedColumn()
+  else if (type === 'inline-row') deleteInlineTableRow()
+  else if (type === 'inline-column') deleteInlineTableColumn()
+}
 const formulaText = ref('')
 const formulaTextareaRef = ref(null)
 const renderedFormula = computed(() => {
@@ -1102,6 +1206,7 @@ const emit = defineEmits([
   'resize-end',
   'save-selection',
   'save-history',
+  'toggle-lock',
   'blur',
   'link-select-block',
   'link-select-text'
@@ -1111,6 +1216,7 @@ const noteStore = useNoteStore()
 const blockRef = ref(null)
 const editorRef = ref(null)
 const inlineTableSelection = ref(null)
+const inlineTableEditing = ref(false)
 let inlineTableElement = null
 const showLinkModal = ref(false)
 const showInsertMenu = ref(false)
@@ -1364,7 +1470,6 @@ function onEditorMouseDown(e) {
   const table = cell?.closest?.('table')
   if (!cell || !table || !editorRef.value?.contains(table)) return
 
-  selectInlineTableCell(table, cell)
   const rows = inlineTableRows(table)
   const row = rows.indexOf(cell.parentElement)
   const col = Array.from(cell.parentElement.cells).indexOf(cell)
@@ -1372,8 +1477,23 @@ function onEditorMouseDown(e) {
   const edge = 8
   const resizeColumn = rect.right - e.clientX <= edge
   const resizeRow = rect.bottom - e.clientY <= edge
-  if (!resizeColumn && !resizeRow) return
+  if (!resizeColumn && !resizeRow) {
+    // 内嵌表格采用两阶段选择：第一次点击选中文本块；文本块已选中后，
+    // 下一次点击单元格即可进入编辑态，不要求两次点击达到原生双击速度。
+    if (props.selected || e.detail >= 2) {
+      activateInlineTableCell(table, cell)
+      return
+    }
+    inlineTableEditing.value = false
+    clearInlineTableSelection()
+    e.preventDefault()
+    if (editorRef.value?.contains(document.activeElement) || document.activeElement === editorRef.value) {
+      document.activeElement.blur?.()
+    }
+    return
+  }
 
+  selectInlineTableCell(table, cell)
   e.preventDefault()
   emit('save-history')
   const scale = Number.isFinite(props.canvasScale) && props.canvasScale > 0 ? props.canvasScale : 1
@@ -1451,13 +1571,30 @@ function onEditorClick(e) {
   const cell = target.closest('th, td')
   const table = cell?.closest('table')
   if (cell && table && editorRef.value?.contains(table)) {
-    selectInlineTableCell(table, cell)
-    // 与数值表格一致：保留已有框选，但首次点击仍选中所在块。
+    if (!inlineTableEditing.value) clearInlineTableSelection()
     e.stopPropagation()
-    if (!props.selected) emit('select', props.block.id, e)
+    emit('select', props.block.id, e)
     return
   }
   clearInlineTableSelection()
+}
+
+function onEditorDoubleClick(e) {
+  if (!inlineTableCanEdit.value) return
+  const cell = e.target?.closest?.('th, td')
+  const table = cell?.closest?.('table')
+  if (!cell || !table || !editorRef.value?.contains(table)) return
+  activateInlineTableCell(table, cell)
+}
+
+function activateInlineTableCell(table, cell) {
+  if (!inlineTableCanEdit.value || !table || !cell) return
+  inlineTableEditing.value = true
+  selectInlineTableCell(table, cell)
+  nextTick(() => {
+    editorRef.value?.focus()
+    placeCaretInTableCell(cell, 'ArrowRight')
+  })
 }
 
 function onInput(e) {
@@ -1873,7 +2010,7 @@ function onEditorKeyDown(e) {
 }
 
 function navigateInlineTableCell(e) {
-  if (!inlineTableCanEdit.value || e.ctrlKey || e.metaKey || e.altKey) return false
+  if (!inlineTableCanEdit.value || !inlineTableEditing.value || e.ctrlKey || e.metaKey || e.altKey) return false
   // contenteditable 的 keydown 目标始终是外层编辑器，单元格需从光标范围取得。
   const selection = window.getSelection()
   const focusNode = selection?.focusNode || selection?.anchorNode
@@ -2815,7 +2952,18 @@ onUnmounted(() => {
 }
 
 .inline-table-tools {
-  margin-bottom: 6px;
+  margin-bottom: 0;
+}
+
+.note-table-tools {
+  position: absolute;
+  z-index: 101;
+  left: 50%;
+  bottom: 100px;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 32px);
+  pointer-events: auto;
 }
 
 .text-editor :deep(pre) {

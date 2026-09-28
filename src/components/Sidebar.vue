@@ -131,7 +131,7 @@
               <div v-if="folderNameError" class="folder-error-tip">文件夹名称已存在</div>
             </div>
             <span v-else class="folder-name">{{ item.folder.name }}</span>
-            <div v-if="!editingFolder || editingFolder !== item.folder.id" v-show="folderTagList(item.folder).length" class="folder-tags">
+            <div v-if="editingFolderId !== item.folder.id" v-show="folderTagList(item.folder).length" class="folder-tags">
               <span
                 v-for="t in folderTagList(item.folder)"
                 :key="t.id"

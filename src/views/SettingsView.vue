@@ -530,7 +530,7 @@
           <div id="set-about-version" class="setting-item">
             <div class="setting-info">
               <div class="setting-name brand-name">R-Goose Note</div>
-              <div class="setting-desc">版本 2.4.36</div>
+              <div class="setting-desc">版本 2.4.41</div>
             </div>
           </div>
           <div id="set-about-platform" class="setting-item">
@@ -1348,11 +1348,14 @@ onMounted(async () => {
     storageType.value = 'web'
     storageLocation.value = '浏览器本地存储 (localStorage) · key: rgoose_note_data'
   }
-  await loadStorageSize()
-  await loadBackups()
-  if (window.electronAPI?.getCloseToTray) {
-    try { closeToTray.value = await window.electronAPI.getCloseToTray() } catch {}
-  }
+  const closeToTrayTask = window.electronAPI?.getCloseToTray
+    ? window.electronAPI.getCloseToTray().then(value => { closeToTray.value = value }).catch(() => {})
+    : Promise.resolve()
+  await Promise.allSettled([
+    loadStorageSize(),
+    loadBackups(),
+    closeToTrayTask
+  ])
 })
 
 const usageTotal = computed(() => {
