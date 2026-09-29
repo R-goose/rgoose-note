@@ -56,6 +56,7 @@
               '--spark-y': `${spark.y}px`,
               '--spark-end-x': `${spark.endX}px`,
               '--spark-end-y': `${spark.endY}px`,
+              '--spark-rotate': `${spark.rotate}deg`,
               '--spark-size': `${spark.size}px`,
               '--spark-delay': `${spark.delay}ms`,
               '--spark-hue': spark.hue
@@ -197,6 +198,8 @@ function onGlobalClickFirework(e) {
       y: Math.round(Math.sin(angle) * distance),
       endX: Math.round(Math.cos(angle) * distance * 1.15),
       endY: Math.round(Math.sin(angle) * distance * 1.15),
+      // 水滴的尖角原始朝右上；转到每颗火花各自向外的方向。
+      rotate: Math.round(angle * 180 / Math.PI + 45),
       size: 3 + ((id + index) % 3),
       delay: index % 2 ? 18 : 0,
       hue: (hue + index * 12) % 360
@@ -428,50 +431,39 @@ onUnmounted(() => {
 }
 
 .click-firework-ring {
-  width: 8px;
-  height: 8px;
-  border: 1.5px solid hsl(var(--firework-hue) 88% 62% / 0.88);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  animation: click-firework-ring 600ms cubic-bezier(.15, .75, .25, 1) forwards;
+  display: none;
 }
 
 .click-firework-core {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
+  width: 7px;
+  height: 9px;
+  border-radius: 78% 15% 78% 78%;
   background: hsl(var(--firework-hue) 92% 66%);
   box-shadow: 0 0 10px hsl(var(--firework-hue) 92% 66% / 0.85);
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%) rotate(45deg);
   animation: click-firework-core 460ms ease-out forwards;
 }
 
 .click-firework-spark {
-  width: var(--spark-size);
-  height: var(--spark-size);
-  border-radius: 999px;
+  width: calc(var(--spark-size) + 1px);
+  height: calc(var(--spark-size) + 4px);
+  border-radius: 78% 14% 78% 78%;
   background: hsl(var(--spark-hue) 92% 64%);
   box-shadow: 0 0 7px hsl(var(--spark-hue) 92% 64% / 0.75);
-  transform: translate(-50%, -50%) scale(0.4);
+  transform: translate(-50%, -50%) rotate(var(--spark-rotate)) scale(0.4);
   animation: click-firework-spark 600ms cubic-bezier(.15, .75, .25, 1) var(--spark-delay) forwards;
 }
 
-@keyframes click-firework-ring {
-  0% { opacity: .95; transform: translate(-50%, -50%) scale(.45); }
-  75% { opacity: .28; }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(5.5); }
-}
-
 @keyframes click-firework-core {
-  0% { opacity: 1; transform: translate(-50%, -50%) scale(.6); }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.8); }
+  0% { opacity: 1; transform: translate(-50%, -50%) rotate(45deg) scale(.6); }
+  100% { opacity: 0; transform: translate(-50%, -50%) rotate(45deg) scale(1.8); }
 }
 
 @keyframes click-firework-spark {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(.35); }
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(var(--spark-rotate)) scale(.35); }
   14% { opacity: 1; }
-  76% { opacity: .8; transform: translate(calc(var(--spark-x) - 50%), calc(var(--spark-y) - 50%)) scale(1); }
-  100% { opacity: 0; transform: translate(calc(var(--spark-end-x) - 50%), calc(var(--spark-end-y) - 50%)) scale(.35); }
+  76% { opacity: .8; transform: translate(calc(var(--spark-x) - 50%), calc(var(--spark-y) - 50%)) rotate(var(--spark-rotate)) scale(1); }
+  100% { opacity: 0; transform: translate(calc(var(--spark-end-x) - 50%), calc(var(--spark-end-y) - 50%)) rotate(var(--spark-rotate)) scale(.35); }
 }
 
 @media (prefers-reduced-motion: reduce) {
