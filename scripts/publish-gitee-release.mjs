@@ -38,27 +38,55 @@ async function findOrCreateLatestRelease() {
   const releases = await request('/releases?per_page=100')
   const existing = releases.find(release => release.tag_name === RELEASE_TAG)
   if (existing) return existing
-  return request('/releases', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      tag_name: RELEASE_TAG,
-      target_commitish: env.GITEE_TARGET_BRANCH || 'master',
-      name: 'Latest',
-      body: 'R-Goose Note 最新稳定版更新文件。'
+  try {
+    return await request('/releases', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        tag_name: RELEASE_TAG,
+        target_commitish: env.GITEE_TARGET_BRANCH || 'master',
+        name: 'Latest',
+        body: 'R-Goose Note 最新稳定版更新文件。'
+      })
     })
-  })
+  } catch (error) {
+    // macOS 与 Windows 构建会并行发布；另一端可能已在这期间创建 latest。
+    const retryReleases = await request('/releases?per_page=100')
+    const concurrentRelease = retryReleases.find(release => release.tag_name === RELEASE_TAG)
+    if (concurrentRelease) return concurrentRelease
+    throw error
+  }
 }
 
-function isUpdateArtifact(name) {
-  return /^(latest.*\.ya?ml|.*\.(exe|dmg|zip|AppImage)(\.blockmap)?)$/i.test(name)
+const PLATFORM_ARTIFACTS = {
+  darwin: {
+    label: 'macOS',
+    manifest: /^latest-mac\.ya?ml$/i,
+    matches: name => /^latest-mac\.ya?ml$/i.test(name) || /\.dmg(?:\.blockmap)?$/i.test(name) || /-mac\.zip(?:\.blockmap)?$/i.test(name)
+  },
+  win32: {
+    label: 'Windows',
+    manifest: /^latest\.ya?ml$/i,
+    matches: name => /^latest\.ya?ml$/i.test(name) || /\.exe(?:\.blockmap)?$/i.test(name)
+  },
+  linux: {
+    label: 'Linux',
+    manifest: /^latest-linux\.ya?ml$/i,
+    matches: name => /^latest-linux\.ya?ml$/i.test(name) || /\.AppImage(?:\.blockmap)?$/i.test(name)
+  }
 }
 
-async function collectArtifacts(dir) {
+function getPlatformArtifacts() {
+  const artifacts = PLATFORM_ARTIFACTS[process.platform]
+  if (!artifacts) throw new Error(`暂不支持在 ${process.platform} 上发布更新包。`)
+  return artifacts
+}
+
+async function collectArtifacts(dir, artifacts) {
   const names = await readdir(dir)
-  const files = names.filter(isUpdateArtifact)
-  if (!files.some(name => /^latest.*\.ya?ml$/i.test(name))) {
-    throw new Error('未找到 latest.yml、latest-mac.yml 或 latest-linux.yml；请确认目录来自 electron-builder。')
+  const files = names.filter(artifacts.matches)
+  if (!files.some(artifacts.manifest)) {
+    throw new Error(`未找到 ${artifacts.label} 的更新清单；请确认目录来自 electron-builder。`)
   }
   return files.map(name => resolve(dir, name))
 }
@@ -72,13 +100,18 @@ async function uploadAttachment(releaseId, filePath) {
 }
 
 try {
-  const files = await collectArtifacts(resolve(artifactDir))
+  const artifacts = getPlatformArtifacts()
+  const files = await collectArtifacts(resolve(artifactDir), artifacts)
   const release = await findOrCreateLatestRelease()
   for (const attachment of release.attach_files || []) {
-    await request(`/releases/${release.id}/attach_files/${attachment.id}`, { method: 'DELETE' })
+    const attachmentName = attachment.name || attachment.filename || ''
+    if (artifacts.matches(attachmentName)) {
+      await request(`/releases/${release.id}/attach_files/${attachment.id}`, { method: 'DELETE' })
+      console.log(`已替换旧 ${artifacts.label} 产物：${attachmentName}`)
+    }
   }
   for (const filePath of files) await uploadAttachment(release.id, filePath)
-  console.log(`发布完成：https://gitee.com/${OWNER}/${REPO}/releases/tag/${RELEASE_TAG}`)
+  console.log(`${artifacts.label} 发布完成：https://gitee.com/${OWNER}/${REPO}/releases/tag/${RELEASE_TAG}`)
 } catch (error) {
   console.error(error?.message || error)
   exit(1)
