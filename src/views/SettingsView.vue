@@ -530,7 +530,7 @@
           <div id="set-about-version" class="setting-item">
             <div class="setting-info">
               <div class="setting-name brand-name">R-Goose Note</div>
-              <div class="setting-desc">版本 2.4.41</div>
+              <div class="setting-desc">版本 {{ APP_VERSION }}</div>
             </div>
           </div>
           <div id="set-about-platform" class="setting-item">
@@ -701,6 +701,7 @@ import { formatDate, formatBytes, generateId, getTimestamp } from '@/utils'
 import { prepareImportData, summarizeImportData, nestNoteChildren } from '@/utils/importData'
 import { syncApi } from '@/api/sync'
 import { useToast } from '@/composables/useToast'
+import { APP_VERSION } from '@/config/appVersion'
 import BgDecor from '@/components/BgDecor.vue'
 import CustomSelect from '@/components/CustomSelect.vue'
 

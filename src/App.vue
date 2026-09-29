@@ -35,6 +35,34 @@
       <ToastContainer />
       <CommandPalette :show="showCmdPalette" @close="showCmdPalette = false" />
       <AIFloatingButton />
+      <div class="key-echo-layer" aria-hidden="true">
+        <span v-for="keyEcho in keyEchoes" :key="keyEcho.id" class="key-echo-chip">{{ keyEcho.label }}</span>
+      </div>
+      <div class="click-firework-layer" aria-hidden="true">
+        <span
+          v-for="burst in clickFireworks"
+          :key="burst.id"
+          class="click-firework"
+          :style="{ left: `${burst.x}px`, top: `${burst.y}px`, '--firework-hue': burst.hue }"
+        >
+          <i class="click-firework-ring"></i>
+          <i class="click-firework-core"></i>
+          <i
+            v-for="spark in burst.sparks"
+            :key="spark.id"
+            class="click-firework-spark"
+            :style="{
+              '--spark-x': `${spark.x}px`,
+              '--spark-y': `${spark.y}px`,
+              '--spark-end-x': `${spark.endX}px`,
+              '--spark-end-y': `${spark.endY}px`,
+              '--spark-size': `${spark.size}px`,
+              '--spark-delay': `${spark.delay}ms`,
+              '--spark-hue': spark.hue
+            }"
+          ></i>
+        </span>
+      </div>
     </template>
     <!-- export 模式：只渲染路由视图（画布），无 chrome -->
     <router-view v-if="isExportMode" />
@@ -55,6 +83,12 @@ import { useToast } from '@/composables/useToast'
 const sidebarCollapsed = ref(false)
 const isMaximized = ref(false)
 const showCmdPalette = ref(false)
+const clickFireworks = ref([])
+const keyEchoes = ref([])
+let clickFireworkId = 0
+let keyEchoId = 0
+const fireworkTimers = new Set()
+const keyEchoTimers = new Set()
 
 // 全局接口 loading：监听 client.js 派发的请求计数事件
 // 150ms 防抖：快请求不闪烁
@@ -102,6 +136,80 @@ function onGlobalKeydown(e) {
   }
 }
 
+const keyboardKeyLabels = {
+  ' ': '空格',
+  ArrowUp: '↑',
+  ArrowDown: '↓',
+  ArrowLeft: '←',
+  ArrowRight: '→',
+  Escape: 'Esc',
+  Backspace: '⌫',
+  Delete: '⌦',
+  Enter: '↵',
+  Tab: '⇥',
+  CapsLock: 'Caps Lock',
+  Meta: '⌘',
+  Control: 'Ctrl',
+  Alt: '⌥',
+  Shift: '⇧'
+}
+
+function isPasswordField(target) {
+  const input = target?.closest?.('input')
+  return input?.type?.toLowerCase() === 'password'
+}
+
+function formatKeyEcho(e) {
+  const key = keyboardKeyLabels[e.key] || (e.key.length === 1 ? e.key.toUpperCase() : e.key)
+  if (!key || key === 'Unidentified' || key === 'Process' || key === 'Dead') return ''
+  const modifiers = []
+  if (e.metaKey && e.key !== 'Meta') modifiers.push('⌘')
+  if (e.ctrlKey && e.key !== 'Control') modifiers.push('Ctrl')
+  if (e.altKey && e.key !== 'Alt') modifiers.push('⌥')
+  if (e.shiftKey && e.key !== 'Shift' && e.key.length > 1) modifiers.push('⇧')
+  return [...modifiers, key].join(' + ')
+}
+
+function onGlobalKeyEcho(e) {
+  if (isExportMode.value || e.repeat || isPasswordField(e.target)) return
+  const label = formatKeyEcho(e)
+  if (!label) return
+  const id = ++keyEchoId
+  keyEchoes.value = [...keyEchoes.value.slice(-3), { id, label }]
+  const timer = setTimeout(() => {
+    keyEchoes.value = keyEchoes.value.filter(keyEcho => keyEcho.id !== id)
+    keyEchoTimers.delete(timer)
+  }, 1100)
+  keyEchoTimers.add(timer)
+}
+
+function onGlobalClickFirework(e) {
+  // 键盘触发的 click（detail = 0）不产生鼠标特效；减少动态效果时完全关闭。
+  if (isExportMode.value || e.detail === 0 || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+  const id = ++clickFireworkId
+  const hue = 18 + (id * 47) % 310
+  const sparks = Array.from({ length: 10 }, (_, index) => {
+    const angle = (Math.PI * 2 * index) / 10 + (id % 5) * 0.13
+    const distance = 20 + ((id * 11 + index * 7) % 16)
+    return {
+      id: index,
+      x: Math.round(Math.cos(angle) * distance),
+      y: Math.round(Math.sin(angle) * distance),
+      endX: Math.round(Math.cos(angle) * distance * 1.15),
+      endY: Math.round(Math.sin(angle) * distance * 1.15),
+      size: 3 + ((id + index) % 3),
+      delay: index % 2 ? 18 : 0,
+      hue: (hue + index * 12) % 360
+    }
+  })
+  clickFireworks.value.push({ id, x: e.clientX, y: e.clientY, hue, sparks })
+  const timer = setTimeout(() => {
+    clickFireworks.value = clickFireworks.value.filter(burst => burst.id !== id)
+    fireworkTimers.delete(timer)
+  }, 680)
+  fireworkTimers.add(timer)
+}
+
 function toggleSidebar() {
   sidebarCollapsed.value = !sidebarCollapsed.value
   localStorage.setItem('sidebar-collapsed', sidebarCollapsed.value)
@@ -142,6 +250,8 @@ onMounted(() => {
   onBeforeUnload = () => {}
   window.addEventListener('beforeunload', onBeforeUnload)
   window.addEventListener('keydown', onGlobalKeydown)
+  window.addEventListener('keydown', onGlobalKeyEcho, true)
+  window.addEventListener('click', onGlobalClickFirework, true)
   window.addEventListener('rgoose-storage-error', handleStorageError)
   window.addEventListener('rgoose-loading', handleApiLoading)
 })
@@ -156,12 +266,18 @@ onUnmounted(() => {
     onBeforeUnload = null
   }
   window.removeEventListener('keydown', onGlobalKeydown)
+  window.removeEventListener('keydown', onGlobalKeyEcho, true)
+  window.removeEventListener('click', onGlobalClickFirework, true)
   window.removeEventListener('rgoose-storage-error', handleStorageError)
   window.removeEventListener('rgoose-loading', handleApiLoading)
   if (loadingShowTimer) {
     clearTimeout(loadingShowTimer)
     loadingShowTimer = null
   }
+  fireworkTimers.forEach(timer => clearTimeout(timer))
+  fireworkTimers.clear()
+  keyEchoTimers.forEach(timer => clearTimeout(timer))
+  keyEchoTimers.clear()
 })
 </script>
 
@@ -238,6 +354,128 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   min-height: 0;
+}
+
+/* 全局键盘回显：居中靠下展示最近按键，不遮挡操作也不参与命中测试。 */
+.key-echo-layer {
+  position: fixed;
+  left: 50%;
+  bottom: clamp(32px, 12vh, 116px);
+  z-index: 2147483646;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  max-width: min(86vw, 680px);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.key-echo-chip {
+  min-width: 44px;
+  max-width: min(48vw, 260px);
+  padding: 9px 14px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--primary-light) 38%, rgba(255, 255, 255, .68));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--bg-secondary) 82%, transparent);
+  box-shadow: 0 12px 28px -14px rgba(22, 24, 31, .55), inset 0 1px 0 rgba(255, 255, 255, .55);
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  backdrop-filter: blur(12px) saturate(135%);
+  -webkit-backdrop-filter: blur(12px) saturate(135%);
+  animation: key-echo-in 150ms ease-out, key-echo-out 260ms ease-in 840ms forwards;
+}
+
+@keyframes key-echo-in {
+  from { opacity: 0; transform: translateY(8px) scale(.92); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes key-echo-out {
+  to { opacity: 0; transform: translateY(-5px) scale(.96); }
+}
+
+/* 鼠标点击烟花：固定在视口最上层，完全不参与命中测试。 */
+.click-firework-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.click-firework {
+  position: fixed;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.click-firework-ring,
+.click-firework-core,
+.click-firework-spark {
+  position: absolute;
+  display: block;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+
+.click-firework-ring {
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid hsl(var(--firework-hue) 88% 62% / 0.88);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  animation: click-firework-ring 600ms cubic-bezier(.15, .75, .25, 1) forwards;
+}
+
+.click-firework-core {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: hsl(var(--firework-hue) 92% 66%);
+  box-shadow: 0 0 10px hsl(var(--firework-hue) 92% 66% / 0.85);
+  transform: translate(-50%, -50%);
+  animation: click-firework-core 460ms ease-out forwards;
+}
+
+.click-firework-spark {
+  width: var(--spark-size);
+  height: var(--spark-size);
+  border-radius: 999px;
+  background: hsl(var(--spark-hue) 92% 64%);
+  box-shadow: 0 0 7px hsl(var(--spark-hue) 92% 64% / 0.75);
+  transform: translate(-50%, -50%) scale(0.4);
+  animation: click-firework-spark 600ms cubic-bezier(.15, .75, .25, 1) var(--spark-delay) forwards;
+}
+
+@keyframes click-firework-ring {
+  0% { opacity: .95; transform: translate(-50%, -50%) scale(.45); }
+  75% { opacity: .28; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(5.5); }
+}
+
+@keyframes click-firework-core {
+  0% { opacity: 1; transform: translate(-50%, -50%) scale(.6); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.8); }
+}
+
+@keyframes click-firework-spark {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.35); }
+  14% { opacity: 1; }
+  76% { opacity: .8; transform: translate(calc(var(--spark-x) - 50%), calc(var(--spark-y) - 50%)) scale(1); }
+  100% { opacity: 0; transform: translate(calc(var(--spark-end-x) - 50%), calc(var(--spark-end-y) - 50%)) scale(.35); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .click-firework-layer { display: none; }
 }
 
 /* 全局接口 loading 进度条：标题栏下方 2px 细条，不确定进度滚动动画 */

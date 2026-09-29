@@ -8,10 +8,13 @@ const props = defineProps({
   getChildren: { type: Function, required: true },
   getItems: { type: Function, required: true },
   countText: { type: Function, required: true },
-  emptyText: { type: String, default: '这里还没有内容' }
+  emptyText: { type: String, default: '这里还没有内容' },
+  selectionMode: { type: Boolean, default: false },
+  selectedFolderIds: { type: Array, default: () => [] },
+  selectedItemIds: { type: Array, default: () => [] }
 })
 
-const emit = defineEmits(['open-folder', 'open-item', 'folder-context'])
+const emit = defineEmits(['open-folder', 'open-item', 'folder-context', 'toggle-folder', 'toggle-item'])
 
 // 飞出面板与卡牌的间距、视口留白、关闭延迟（ms）
 const DECK_GAP = 4
@@ -157,13 +160,29 @@ function scheduleClose() {
 }
 
 function openFolder(folder) {
+  if (props.selectionMode) {
+    emit('toggle-folder', folder)
+    return
+  }
   emit('open-folder', folder)
   close()
 }
 
 function openItem(item) {
+  if (props.selectionMode) {
+    emit('toggle-item', item)
+    return
+  }
   emit('open-item', item)
   close()
+}
+
+function isFolderSelected(folderId) {
+  return props.selectedFolderIds.includes(folderId)
+}
+
+function isItemSelected(itemId) {
+  return props.selectedItemIds.includes(itemId)
 }
 
 function onScroll(event) {
@@ -199,7 +218,7 @@ onBeforeUnmount(() => {
           v-for="(folder, index) in folders"
           :key="folder.id"
           class="cascade-slot deck-slot"
-          :class="{ 'is-open': chain[0] && chain[0].id === folder.id }"
+            :class="{ 'is-open': chain[0] && chain[0].id === folder.id, 'is-selected': isFolderSelected(folder.id) }"
           :style="deckCardStyle(index)"
           @mouseenter="openFor(folder, $event)"
           @focusin="openFor(folder, $event)"
@@ -258,7 +277,7 @@ onBeforeUnmount(() => {
             v-for="child in col.folders"
             :key="child.id"
             class="cascade-row"
-            :class="{ active: chain[col.depth + 1]?.id === child.id }"
+            :class="{ active: chain[col.depth + 1]?.id === child.id, selected: isFolderSelected(child.id) }"
             @mouseenter="hoverFolder(child, col.depth, $event)"
             @focus="hoverFolder(child, col.depth, $event)"
             role="button"
@@ -292,6 +311,7 @@ onBeforeUnmount(() => {
               v-for="item in columnItems(col)"
               :key="item.id"
               class="cascade-item"
+              :class="{ selected: isItemSelected(item.id) }"
               @click="openItem(item)"
             >
               <span class="cascade-item-title">{{ item.title }}</span>
@@ -397,6 +417,12 @@ onBeforeUnmount(() => {
   border-color: color-mix(in srgb, var(--primary-color) 35%, var(--border-color));
   box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--primary-color) 40%, rgba(0, 0, 0, 0.12));
   outline: none;
+}
+
+.cascade-slot.is-selected .folder-card {
+  border-color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-soft) 64%, var(--bg-secondary));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 26%, transparent);
 }
 
 .folder-card-wave {
@@ -564,6 +590,12 @@ onBeforeUnmount(() => {
   outline: none;
 }
 
+.cascade-row.selected,
+.cascade-item.selected {
+  background: var(--primary-softer);
+  border-color: color-mix(in srgb, var(--primary-color) 38%, var(--border-color));
+}
+
 .cascade-row:hover .folder-card-icon {
   background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
   color: #fff;
@@ -596,13 +628,14 @@ onBeforeUnmount(() => {
 }
 
 .cascade-item {
+  box-sizing: border-box;
   display: flex;
   align-items: baseline;
   gap: 8px;
   width: 100%;
   padding: 7px 9px;
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
   border-radius: 8px;
   text-align: left;
   cursor: pointer;

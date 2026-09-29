@@ -382,7 +382,13 @@
         </div>
         </Teleport>
         <div class="table-scroll" @wheel.stop>
-          <table class="data-table" :style="tableLayoutStyle">
+          <table
+            ref="numericTableRef"
+            class="data-table"
+            :style="tableLayoutStyle"
+            :tabindex="tableCanEdit ? 0 : -1"
+            @keydown="onNumericTableNavigationKeyDown"
+          >
             <colgroup>
               <col v-for="(width, ci) in tableColumnWidths" :key="ci" :style="{ width: `${width}px` }" />
             </colgroup>
@@ -391,14 +397,17 @@
                 <th
                   v-for="(cell, ci) in (tableRows[0] || [])"
                   :key="ci"
-                  :class="{ 'table-cell-selected': tableCellEditing && isTableCellSelected(0, ci) }"
+                  :class="{
+                    'table-cell-selected': isTableCellSelected(0, ci),
+                    'table-cell-editing': tableCellEditing && isTableCellSelected(0, ci)
+                  }"
                   :contenteditable="tableCanEdit && tableCellEditing"
                   spellcheck="false"
                   @click="onNumericTableCellClick($event, 0, ci)"
                   @dblclick.stop="startNumericTableCellEditing($event, 0, ci)"
                   @blur="onCellEdit(0, ci, $event)"
                   @keydown.enter.prevent="$event.target.blur()"
-                  @keydown="onNumericTableCellKeyDown($event, 0, ci)"
+                  @keydown="onNumericTableCellKeyDown"
                   @mousedown.stop="onNumericTableCellMouseDown($event, 0, ci)"
                   @wheel.stop
                 >{{ cell }}</th>
@@ -409,14 +418,17 @@
                 <td
                   v-for="(cell, ci) in row"
                   :key="ci"
-                  :class="[getCellClass(ri + 1, ci, cell), { 'table-cell-selected': tableCellEditing && isTableCellSelected(ri + 1, ci) }]"
+                  :class="[getCellClass(ri + 1, ci, cell), {
+                    'table-cell-selected': isTableCellSelected(ri + 1, ci),
+                    'table-cell-editing': tableCellEditing && isTableCellSelected(ri + 1, ci)
+                  }]"
                   :contenteditable="tableCanEdit && tableCellEditing"
                   spellcheck="false"
                   @click="onNumericTableCellClick($event, ri + 1, ci)"
                   @dblclick.stop="startNumericTableCellEditing($event, ri + 1, ci)"
                   @blur="onCellEdit(ri + 1, ci, $event)"
                   @keydown.enter.prevent="$event.target.blur()"
-                  @keydown="onNumericTableCellKeyDown($event, ri + 1, ci)"
+                  @keydown="onNumericTableCellKeyDown"
                   @mousedown.stop="onNumericTableCellMouseDown($event, ri + 1, ci)"
                   @wheel.stop
                 >{{ cell }}</td>
@@ -829,7 +841,10 @@ function selectTableCell(row, col) {
 // 表格单元格的点击不应继续冒泡到块容器：块已在框选中时，
 // 冒泡会把多选错误地收敛为单选。未选中时仍保留原有的单选行为。
 function onNumericTableCellClick(e, row, col) {
-  if (!tableCellEditing.value) tableSelection.value = null
+  if (!tableCellEditing.value) {
+    selectTableCell(row, col)
+    nextTick(() => numericTableRef.value?.focus({ preventScroll: true }))
+  }
   e.stopPropagation()
   emit('select', props.block.id, e)
 }
@@ -849,6 +864,17 @@ function activateNumericTableCell(cell, row, col) {
   })
 }
 
+function placeCaretInTableCell(cell, key) {
+  if (!cell) return
+  const range = document.createRange()
+  range.selectNodeContents(cell)
+  range.collapse(key === 'ArrowUp' || key === 'ArrowLeft')
+  const selection = window.getSelection()
+  selection?.removeAllRanges()
+  selection?.addRange(range)
+}
+
+const tableCaretArrowKeys = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'])
 const tableArrowOffsets = {
   ArrowUp: [-1, 0],
   ArrowDown: [1, 0],
@@ -866,29 +892,23 @@ function getTableArrowTarget(rows, row, col, key) {
   return { row: nextRow, col: nextCol, cell: nextCells[nextCol] }
 }
 
-function placeCaretInTableCell(cell, key) {
-  if (!cell) return
-  const range = document.createRange()
-  range.selectNodeContents(cell)
-  range.collapse(key === 'ArrowUp' || key === 'ArrowLeft')
-  const selection = window.getSelection()
-  selection?.removeAllRanges()
-  selection?.addRange(range)
+// 编辑单元格时，方向键交给浏览器移动文本光标；只阻止它继续传给画布快捷键。
+function onNumericTableCellKeyDown(e) {
+  if (!tableCanEdit.value || !tableCellEditing.value || !tableCaretArrowKeys.has(e.key)) return
+  e.preventDefault()
+  e.stopPropagation()
+  moveCaretWithinTableCell(e, e.currentTarget)
 }
 
-// 方向键属于表格导航，不让窗口级画布快捷键把整个块移动走。
-function onNumericTableCellKeyDown(e, row, col) {
-  if (!tableCanEdit.value || !tableCellEditing.value || e.ctrlKey || e.metaKey || e.altKey) return
-  const rows = Array.from(blockRef.value?.querySelectorAll('.data-table tr') || [])
-  const target = getTableArrowTarget(rows, row, col, e.key)
+// 单击选中态下，方向键只切换单元格，不会冒泡给画布移动整个块。
+function onNumericTableNavigationKeyDown(e) {
+  if (!tableCanEdit.value || tableCellEditing.value || !tableCaretArrowKeys.has(e.key) || !tableSelection.value) return
+  const rows = Array.from(numericTableRef.value?.rows || [])
+  const target = getTableArrowTarget(rows, tableSelection.value.row, tableSelection.value.col, e.key)
   if (!target) return
   e.preventDefault()
   e.stopPropagation()
   selectTableCell(target.row, target.col)
-  nextTick(() => {
-    target.cell.focus()
-    placeCaretInTableCell(target.cell, e.key)
-  })
 }
 
 function isTableCellSelected(row, col) {
@@ -909,12 +929,10 @@ function onNumericTableCellMouseDown(e, row, col) {
   const resizeColumn = rect.right - e.clientX <= edge
   const resizeRow = rect.bottom - e.clientY <= edge
   if (!resizeColumn && !resizeRow) {
-    if (e.detail >= 2) {
-      activateNumericTableCell(e.currentTarget, row, col)
-      return
-    }
+    // 进入编辑只由 dblclick 处理；不要在 mousedown 里依赖 detail，
+    // 否则快速双击会和单击的清理逻辑争抢焦点，偶发停留在选择态。
     tableCellEditing.value = false
-    tableSelection.value = null
+    selectTableCell(row, col)
     e.preventDefault()
     if (blockRef.value?.contains(document.activeElement)) document.activeElement.blur?.()
     return
@@ -1215,6 +1233,7 @@ const emit = defineEmits([
 const noteStore = useNoteStore()
 const blockRef = ref(null)
 const editorRef = ref(null)
+const numericTableRef = ref(null)
 const inlineTableSelection = ref(null)
 const inlineTableEditing = ref(false)
 let inlineTableElement = null
@@ -1478,12 +1497,7 @@ function onEditorMouseDown(e) {
   const resizeColumn = rect.right - e.clientX <= edge
   const resizeRow = rect.bottom - e.clientY <= edge
   if (!resizeColumn && !resizeRow) {
-    // 内嵌表格采用两阶段选择：第一次点击选中文本块；文本块已选中后，
-    // 下一次点击单元格即可进入编辑态，不要求两次点击达到原生双击速度。
-    if (props.selected || e.detail >= 2) {
-      activateInlineTableCell(table, cell)
-      return
-    }
+    // 进入编辑只由 dblclick 处理，避免快速双击时 mousedown 的状态重置覆盖编辑态。
     inlineTableEditing.value = false
     clearInlineTableSelection()
     e.preventDefault()
@@ -1571,7 +1585,14 @@ function onEditorClick(e) {
   const cell = target.closest('th, td')
   const table = cell?.closest('table')
   if (cell && table && editorRef.value?.contains(table)) {
-    if (!inlineTableEditing.value) clearInlineTableSelection()
+    if (!inlineTableEditing.value) {
+      selectInlineTableCell(table, cell)
+      nextTick(() => {
+        if (!inlineTableEditing.value && inlineTableElement === table) {
+          focusInlineTableNavigation(table)
+        }
+      })
+    }
     e.stopPropagation()
     emit('select', props.block.id, e)
     return
@@ -1607,7 +1628,11 @@ function onBlur() {
     autolinkDom(editorRef.value)
     const content = serializeEditorContent()
     clearInlineTableSelection()
-    emit('update', props.block.id, { content })
+    // 单击选中单元格会让编辑器失焦，但内容没有改变时不能触发重建，
+    // 否则会把紧接着设置的单元格选中框清掉。
+    if (content !== (props.block.content || '')) {
+      emit('update', props.block.id, { content })
+    }
     emit('blur', props.block.id)
   }
 }
@@ -1616,7 +1641,7 @@ function serializeEditorContent(root = editorRef.value) {
   if (!root) return ''
   const clone = root.cloneNode(true)
   clone.querySelectorAll('.inline-table-cell-selected').forEach(cell => {
-    cell.classList.remove('inline-table-cell-selected')
+    cell.classList.remove('inline-table-cell-selected', 'inline-table-cell-editing')
     if (!cell.className) cell.removeAttribute('class')
   })
   return clone.innerHTML
@@ -1632,7 +1657,7 @@ function inlineTableColumnCount(rows = inlineTableRows()) {
 
 function clearInlineTableSelection() {
   editorRef.value?.querySelectorAll('.inline-table-cell-selected').forEach(cell => {
-    cell.classList.remove('inline-table-cell-selected')
+    cell.classList.remove('inline-table-cell-selected', 'inline-table-cell-editing')
   })
   inlineTableElement = null
   inlineTableSelection.value = null
@@ -1645,11 +1670,18 @@ function selectInlineTableCell(table, cell) {
   if (row < 0 || col < 0) return
 
   editorRef.value?.querySelectorAll('.inline-table-cell-selected').forEach(item => {
-    item.classList.remove('inline-table-cell-selected')
+    item.classList.remove('inline-table-cell-selected', 'inline-table-cell-editing')
   })
   inlineTableElement = table
   inlineTableSelection.value = { row, col, rows: rows.length, cols: inlineTableColumnCount(rows) }
   cell.classList.add('inline-table-cell-selected')
+  cell.classList.toggle('inline-table-cell-editing', inlineTableEditing.value)
+}
+
+function focusInlineTableNavigation(table) {
+  if (!table || !editorRef.value?.contains(table)) return
+  table.tabIndex = 0
+  table.focus({ preventScroll: true })
 }
 
 function selectInlineTablePosition(table, row, col) {
@@ -1982,7 +2014,8 @@ function blockParentReplace(oldNode, beforeFrag, afterNode) {
 }
 
 function onEditorKeyDown(e) {
-  if (navigateInlineTableCell(e)) return
+  if (navigateInlineTableSelection(e)) return
+  preserveInlineTableCaretNavigation(e)
 
   if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey && !e.altKey) {
     e.preventDefault()
@@ -2009,28 +2042,56 @@ function onEditorKeyDown(e) {
   }
 }
 
-function navigateInlineTableCell(e) {
-  if (!inlineTableCanEdit.value || !inlineTableEditing.value || e.ctrlKey || e.metaKey || e.altKey) return false
+// 单击选中态下由方向键切换相邻单元格；双击编辑态不进入此分支。
+function navigateInlineTableSelection(e) {
+  if (!inlineTableCanEdit.value || inlineTableEditing.value || !tableCaretArrowKeys.has(e.key) || !inlineTableSelection.value) return false
+  const table = e.target?.closest?.('table') || inlineTableElement
+  if (!table || !editorRef.value?.contains(table)) return false
+  const selection = inlineTableSelection.value
+  const rows = inlineTableRows(table)
+  const target = getTableArrowTarget(rows, selection.row, selection.col, e.key)
+  if (!target) return false
+  e.preventDefault()
+  e.stopPropagation()
+  selectInlineTableCell(table, target.cell)
+  nextTick(() => focusInlineTableNavigation(table))
+  return true
+}
+
+function preserveInlineTableCaretNavigation(e) {
+  if (!inlineTableCanEdit.value || !inlineTableEditing.value || !tableCaretArrowKeys.has(e.key)) return
   // contenteditable 的 keydown 目标始终是外层编辑器，单元格需从光标范围取得。
   const selection = window.getSelection()
   const focusNode = selection?.focusNode || selection?.anchorNode
   const focusElement = focusNode?.nodeType === Node.ELEMENT_NODE ? focusNode : focusNode?.parentElement
   const cell = e.target?.closest?.('th, td') || focusElement?.closest?.('th, td')
   const table = cell?.closest?.('table')
-  if (!cell || !table || !editorRef.value?.contains(table)) return false
-  const rows = inlineTableRows(table)
-  const row = rows.indexOf(cell.parentElement)
-  const col = row >= 0 ? Array.from(rows[row].cells).indexOf(cell) : -1
-  const target = getTableArrowTarget(rows, row, col, e.key)
-  if (!target) return false
+  if (!cell || !table || !editorRef.value?.contains(table)) return
   e.preventDefault()
   e.stopPropagation()
-  selectInlineTableCell(table, target.cell)
-  nextTick(() => {
-    editorRef.value?.focus()
-    placeCaretInTableCell(target.cell, e.key)
-  })
-  return true
+  moveCaretWithinTableCell(e, cell)
+}
+
+/**
+ * contenteditable 表格会在单元格边缘把原生方向键导航到相邻 td/th。
+ * 这里自行推进 selection，并在跨出当前单元格时恢复原范围。
+ */
+function moveCaretWithinTableCell(e, cell) {
+  const selection = window.getSelection()
+  if (!cell || !selection?.rangeCount || typeof selection.modify !== 'function') return
+  const original = selection.getRangeAt(0).cloneRange()
+  const anchorInside = selection.anchorNode && cell.contains(selection.anchorNode)
+  const focusInside = selection.focusNode && cell.contains(selection.focusNode)
+  if (!anchorInside || !focusInside) return
+
+  const direction = e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? 'backward' : 'forward'
+  const granularity = e.key === 'ArrowLeft' || e.key === 'ArrowRight' ? 'character' : 'line'
+  selection.modify(e.shiftKey ? 'extend' : 'move', direction, granularity)
+
+  if (!cell.contains(selection.anchorNode) || !cell.contains(selection.focusNode)) {
+    selection.removeAllRanges()
+    selection.addRange(original)
+  }
 }
 
 function focusEditorAtEnd() {
@@ -2548,6 +2609,8 @@ onUnmounted(() => {
 
 .note-block.selected {
   border-color: var(--primary-color);
+  outline: 2px solid var(--primary-color);
+  outline-offset: -1px;
   box-shadow: 0 0 0 2px var(--primary-soft), var(--shadow-md);
 }
 
@@ -2921,10 +2984,10 @@ onUnmounted(() => {
   box-shadow: inset 0 0 0 2px var(--primary-color);
 }
 
-.text-editor :deep(th.inline-table-cell-selected::after),
-.text-editor :deep(td.inline-table-cell-selected::after),
-.data-table th.table-cell-selected::after,
-.data-table td.table-cell-selected::after {
+.text-editor :deep(th.inline-table-cell-selected.inline-table-cell-editing::after),
+.text-editor :deep(td.inline-table-cell-selected.inline-table-cell-editing::after),
+.data-table th.table-cell-selected.table-cell-editing::after,
+.data-table td.table-cell-selected.table-cell-editing::after {
   content: '';
   position: absolute;
   z-index: 3;
@@ -2936,10 +2999,10 @@ onUnmounted(() => {
   background: linear-gradient(to right, transparent 3px, var(--primary-color) 3px, var(--primary-color) 5px, transparent 5px);
 }
 
-.text-editor :deep(th.inline-table-cell-selected::before),
-.text-editor :deep(td.inline-table-cell-selected::before),
-.data-table th.table-cell-selected::before,
-.data-table td.table-cell-selected::before {
+.text-editor :deep(th.inline-table-cell-selected.inline-table-cell-editing::before),
+.text-editor :deep(td.inline-table-cell-selected.inline-table-cell-editing::before),
+.data-table th.table-cell-selected.table-cell-editing::before,
+.data-table td.table-cell-selected.table-cell-editing::before {
   content: '';
   position: absolute;
   z-index: 3;
@@ -3472,6 +3535,11 @@ onUnmounted(() => {
   outline: 2px solid var(--primary-color);
   outline-offset: -2px;
   background: var(--primary-soft);
+}
+.data-table:focus,
+.text-editor :deep(table:focus) {
+  /* 表格本身只承担方向键导航焦点，视觉焦点由外层块与选中单元格统一绘制。 */
+  outline: none;
 }
 .table-actions {
   display: flex;

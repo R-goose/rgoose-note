@@ -269,7 +269,7 @@ export const useNoteStore = defineStore('note', () => {
       .finally(markSaved)
   }
 
-  function deleteFolder(folderId) {
+  function deleteFolder(folderId, { silent = false } = {}) {
     const folder = folders.value.find(f => f.id === folderId)
     if (!folder) return
     if (folder.isSystem) return
@@ -309,7 +309,8 @@ export const useNoteStore = defineStore('note', () => {
     markSaving()
     return foldersApi.delete(folderId)
       .then(() => {
-        toastSuccess(`文件夹「${folder.name}」已移入回收站`)
+        if (!silent) toastSuccess(`文件夹「${folder.name}」已移入回收站`)
+        return true
       })
       .catch(err => {
         console.error('删除文件夹失败:', err)
@@ -325,7 +326,8 @@ export const useNoteStore = defineStore('note', () => {
         })
         // 回滚 currentFolderId
         currentFolderId.value = prevCurrentFolderId
-        toastError('删除失败：文件夹未能同步，请重试')
+        if (!silent) toastError('删除失败：文件夹未能同步，请重试')
+        return false
       })
       .finally(markSaved)
   }
@@ -422,7 +424,7 @@ export const useNoteStore = defineStore('note', () => {
     return note
   }
 
-  function deleteNote(id) {
+  function deleteNote(id, { silent = false } = {}) {
     const note = notes.value.find(n => n.id === id)
     if (!note) return
     const backup = { deleted: note.deleted, updatedAt: note.updatedAt }
@@ -437,16 +439,52 @@ export const useNoteStore = defineStore('note', () => {
     markSaving()
     return notesApi.delete(id)
       .then(() => {
-        toastSuccess(`笔记「${note.title || '未命名笔记'}」已移入回收站`)
+        if (!silent) toastSuccess(`笔记「${note.title || '未命名笔记'}」已移入回收站`)
+        return true
       })
       .catch(err => {
         console.error('删除笔记失败:', err)
         note.deleted = backup.deleted
         note.updatedAt = backup.updatedAt
         if (prevCurrentNoteId === id) currentNoteId.value = prevCurrentNoteId
-        toastError('删除失败：笔记未能同步，请重试')
+        if (!silent) toastError('删除失败：笔记未能同步，请重试')
+        return false
       })
       .finally(markSaved)
+  }
+
+  /**
+   * 批量软删除笔记与文件夹。若同时选中父、子文件夹，只请求最外层文件夹；
+   * 已被所选文件夹递归覆盖的笔记也不会重复删除。
+   */
+  async function deleteItems({ folderIds = [], noteIds = [] } = {}) {
+    const selectedFolderIds = [...new Set(folderIds)].filter(id => {
+      const folder = folders.value.find(item => item.id === id)
+      return folder && !folder.deleted && !folder.isSystem
+    })
+    const topLevelFolderIds = selectedFolderIds.filter(id =>
+      !selectedFolderIds.some(parentId => parentId !== id && getAllChildFolderIds(parentId).includes(id))
+    )
+    const coveredFolderIds = new Set(topLevelFolderIds.flatMap(id => [id, ...getAllChildFolderIds(id)]))
+    const standaloneNoteIds = [...new Set(noteIds)].filter(id => {
+      const note = notes.value.find(item => item.id === id)
+      return note && !note.deleted && !coveredFolderIds.has(note.folderId)
+    })
+
+    if (!topLevelFolderIds.length && !standaloneNoteIds.length) return { folderCount: 0, noteCount: 0, success: true }
+
+    const results = await Promise.all([
+      ...topLevelFolderIds.map(id => deleteFolder(id, { silent: true })),
+      ...standaloneNoteIds.map(id => deleteNote(id, { silent: true }))
+    ])
+    const success = results.every(Boolean)
+    const labels = []
+    if (topLevelFolderIds.length) labels.push(`${topLevelFolderIds.length} 个文件夹`)
+    if (standaloneNoteIds.length) labels.push(`${standaloneNoteIds.length} 篇笔记`)
+    if (success) toastSuccess(`已将 ${labels.join('和')} 移入回收站`)
+    else toastError('部分内容未能同步删除，已恢复失败项，请重试')
+
+    return { folderCount: topLevelFolderIds.length, noteCount: standaloneNoteIds.length, success }
   }
 
   // ==================== 回收站操作 ====================
@@ -900,6 +938,7 @@ export const useNoteStore = defineStore('note', () => {
     isFolderNameDuplicate,
     renameFolder,
     deleteFolder,
+    deleteItems,
     setCurrentFolder,
     saveCurrentFolder,
     restoreLastFolder,

@@ -4,8 +4,8 @@
       <div class="header-left">
         <h1>{{ currentFolderName }}</h1>
         <span class="note-count">{{ filteredNotes.length }} 篇笔记</span>
-      </div>
-      <div class="header-right">
+        </div>
+        <div class="header-right">
         <div class="search-box">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <circle cx="11" cy="11" r="8"/>
@@ -20,22 +20,32 @@
             @keydown.esc="searchKeyword = ''"
           />
         </div>
-        <CustomSelect v-model="sortKey" :options="sortOptions" class="sort-box" title="排序方式">
-          <template #label="{ item }">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink: 0">
+        <template v-if="batchSelectionMode">
+          <span class="batch-selection-count">已选 {{ batchSelectionTotal }} 项</span>
+          <button class="btn btn-secondary" @click="selectAllVisibleItems">全选当前</button>
+          <button class="btn btn-secondary" :disabled="!batchSelectionTotal" @click="clearBatchSelection">取消选择</button>
+          <button class="btn btn-danger" :disabled="!batchSelectionTotal" @click="openBatchDeleteConfirm">批量删除</button>
+          <button class="btn btn-secondary" @click="toggleBatchSelectionMode">完成</button>
+        </template>
+        <template v-else>
+          <CustomSelect v-model="sortKey" :options="sortOptions" class="sort-box" title="排序方式">
+            <template #label="{ item }">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink: 0">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <polyline points="19 12 12 19 5 12"/>
+              </svg>
+              {{ item.label }}
+            </template>
+          </CustomSelect>
+          <button class="btn btn-secondary" @click="toggleBatchSelectionMode">批量管理</button>
+          <button class="btn btn-primary" @click="createNote">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
               <line x1="12" y1="5" x2="12" y2="19"/>
-              <polyline points="19 12 12 19 5 12"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
             </svg>
-            {{ item.label }}
-          </template>
-        </CustomSelect>
-        <button class="btn btn-primary" @click="createNote">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <line x1="12" y1="5" x2="12" y2="19"/>
-            <line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-          新建笔记
-        </button>
+            新建笔记
+          </button>
+        </template>
       </div>
     </header>
     
@@ -79,9 +89,14 @@
             :get-items="getFolderNotes"
             :count-text="folderCountText"
             empty-text="这个文件夹里还没有笔记"
+            :selection-mode="batchSelectionMode"
+            :selected-folder-ids="selectedFolderIds"
+            :selected-item-ids="selectedNoteIds"
             @open-folder="folder => enterFolder(folder.id)"
             @open-item="item => openNote(item.id)"
             @folder-context="onFolderContextMenu"
+            @toggle-folder="folder => toggleFolderSelection(folder.id)"
+            @toggle-item="item => toggleNoteSelection(item.id)"
           />
         </div>
         <div v-if="filteredNotes.length > 0" class="all-notes-section">
@@ -91,10 +106,20 @@
               v-for="note in filteredNotes"
               :key="note.id"
               class="note-card"
-              @click="openNote(note.id)"
+              :class="{ 'batch-selected': isNoteSelected(note.id) }"
+              @click="batchSelectionMode ? toggleNoteSelection(note.id) : openNote(note.id)"
               @contextmenu.prevent.stop="onNoteContextMenu($event, note)"
             >
               <div class="note-card-media" :class="{ 'has-cover': getNoteCover(note) }">
+                <button
+                  v-if="batchSelectionMode"
+                  class="item-selection-toggle"
+                  :class="{ checked: isNoteSelected(note.id) }"
+                  :aria-label="isNoteSelected(note.id) ? '取消选择笔记' : '选择笔记'"
+                  @click.stop="toggleNoteSelection(note.id)"
+                >
+                  <svg v-if="isNoteSelected(note.id)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 12 10 17 20 7"/></svg>
+                </button>
                 <img v-if="getNoteCover(note)" :src="getNoteCover(note)" alt="" loading="lazy" />
                 <div v-else class="note-card-title-cover">
                   <span>{{ (note.title || '无标题').slice(0, 6) }}</span>
@@ -186,10 +211,20 @@
           v-for="note in filteredNotes"
           :key="note.id"
           class="note-card"
-          @click="openNote(note.id)"
+          :class="{ 'batch-selected': isNoteSelected(note.id) }"
+          @click="batchSelectionMode ? toggleNoteSelection(note.id) : openNote(note.id)"
           @contextmenu.prevent.stop="onNoteContextMenu($event, note)"
         >
           <div class="note-card-media" :class="{ 'has-cover': getNoteCover(note) }">
+            <button
+              v-if="batchSelectionMode"
+              class="item-selection-toggle"
+              :class="{ checked: isNoteSelected(note.id) }"
+              :aria-label="isNoteSelected(note.id) ? '取消选择笔记' : '选择笔记'"
+              @click.stop="toggleNoteSelection(note.id)"
+            >
+              <svg v-if="isNoteSelected(note.id)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 12 10 17 20 7"/></svg>
+            </button>
             <img v-if="getNoteCover(note)" :src="getNoteCover(note)" alt="" loading="lazy" />
             <div v-else class="note-card-title-cover">
               <span>{{ (note.title || '无标题').slice(0, 6) }}</span>
@@ -468,12 +503,36 @@
             </div>
             <div>
               <h3>确认删除文件夹</h3>
-              <p>确定删除文件夹「{{ deleteFolderState.target?.name }}」？文件夹内的笔记不会被删除。</p>
+              <p>确定删除文件夹「{{ deleteFolderState.target?.name }}」？其子文件夹和其中的笔记会一起移入回收站。</p>
             </div>
           </div>
           <div class="confirm-actions">
             <button class="btn btn-secondary" @click="deleteFolderState.show = false">取消</button>
             <button class="btn btn-primary" @click="confirmDeleteFolder">确认删除</button>
+          </div>
+        </div>
+      </JellyModal>
+    </Teleport>
+
+    <Teleport to="body">
+      <JellyModal :show="batchDeleteState.show" @close="closeBatchDeleteConfirm">
+        <div class="modal-content confirm-modal">
+          <div class="confirm-header">
+            <div class="confirm-icon warning">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+            </div>
+            <div>
+              <h3>确认批量删除</h3>
+              <p>{{ batchDeleteDescription }}</p>
+            </div>
+          </div>
+          <div class="confirm-actions">
+            <button class="btn btn-secondary" @click="closeBatchDeleteConfirm">取消</button>
+            <button class="btn btn-danger" @click="confirmBatchDelete">移入回收站</button>
           </div>
         </div>
       </JellyModal>
@@ -643,6 +702,86 @@ function enterFolder(folderId) {
 
 /** 面板顶层展示所有根级目录，包括系统「根目录」；子级通过 hover 逐层飞出。 */
 const rootFolders = computed(() => filteredFolders.value.filter(f => !f.parentId))
+
+// ===== 批量选择与删除 =====
+const batchSelectionMode = ref(false)
+const selectedNoteIds = ref([])
+const selectedFolderIds = ref([])
+const batchDeleteState = ref({ show: false })
+
+const selectedNotesForBatch = computed(() => {
+  const selected = new Set(selectedNoteIds.value)
+  return noteStore.notes.filter(note => selected.has(note.id) && !note.deleted)
+})
+const selectedFoldersForBatch = computed(() => {
+  const selected = new Set(selectedFolderIds.value)
+  return noteStore.folders.filter(folder => selected.has(folder.id) && !folder.deleted && !folder.isSystem)
+})
+const batchSelectionTotal = computed(() => selectedNotesForBatch.value.length + selectedFoldersForBatch.value.length)
+const batchDeleteDescription = computed(() => {
+  const labels = []
+  if (selectedFoldersForBatch.value.length) labels.push(`${selectedFoldersForBatch.value.length} 个文件夹`)
+  if (selectedNotesForBatch.value.length) labels.push(`${selectedNotesForBatch.value.length} 篇笔记`)
+  const selected = labels.join('和') || '所选内容'
+  return `确定将 ${selected} 移入回收站吗？所选文件夹的子文件夹和其中笔记也会一并移入回收站。`
+})
+
+function toggleBatchSelectionMode() {
+  batchSelectionMode.value = !batchSelectionMode.value
+  if (!batchSelectionMode.value) clearBatchSelection()
+}
+
+function toggleSelection(ids, id) {
+  const index = ids.value.indexOf(id)
+  if (index >= 0) ids.value.splice(index, 1)
+  else ids.value.push(id)
+}
+
+function toggleNoteSelection(id) {
+  toggleSelection(selectedNoteIds, id)
+}
+
+function toggleFolderSelection(id) {
+  const folder = noteStore.folders.find(item => item.id === id)
+  if (!folder || folder.deleted || folder.isSystem) return
+  toggleSelection(selectedFolderIds, id)
+}
+
+function isNoteSelected(id) {
+  return selectedNoteIds.value.includes(id)
+}
+
+function clearBatchSelection() {
+  selectedNoteIds.value = []
+  selectedFolderIds.value = []
+}
+
+function selectAllVisibleItems() {
+  selectedNoteIds.value = [...new Set([...selectedNoteIds.value, ...filteredNotes.value.map(note => note.id)])]
+  if (!noteStore.currentFolderId) {
+    const visibleFolderIds = rootFolders.value.filter(folder => !folder.isSystem).map(folder => folder.id)
+    selectedFolderIds.value = [...new Set([...selectedFolderIds.value, ...visibleFolderIds])]
+  }
+}
+
+function openBatchDeleteConfirm() {
+  if (!batchSelectionTotal.value) return
+  batchDeleteState.value.show = true
+}
+
+function closeBatchDeleteConfirm() {
+  batchDeleteState.value.show = false
+}
+
+async function confirmBatchDelete() {
+  if (!batchSelectionTotal.value) return
+  const folderIds = selectedFoldersForBatch.value.map(folder => folder.id)
+  const noteIds = selectedNotesForBatch.value.map(note => note.id)
+  closeBatchDeleteConfirm()
+  await noteStore.deleteItems({ folderIds, noteIds })
+  clearBatchSelection()
+  batchSelectionMode.value = false
+}
 
 function getChildFoldersOf(folderId) {
   return noteStore.getChildFolders(folderId)
@@ -1152,6 +1291,13 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
+.batch-selection-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary-dark);
+  white-space: nowrap;
+}
+
 .search-box {
   display: flex;
   align-items: center;
@@ -1308,6 +1454,12 @@ onUnmounted(() => {
   background: color-mix(in srgb, var(--bg-secondary) 92%, var(--primary-soft));
 }
 
+.note-card.batch-selected {
+  border-color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-soft) 52%, var(--bg-secondary));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 22%, transparent);
+}
+
 .note-card-media {
   position: relative;
   width: 100%;
@@ -1318,6 +1470,40 @@ onUnmounted(() => {
 
 .note-card-media.has-cover {
   background: var(--bg-tertiary);
+}
+
+.item-selection-toggle {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1.5px solid color-mix(in srgb, var(--text-tertiary) 65%, var(--bg-secondary));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--bg-secondary) 88%, transparent);
+  color: #fff;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.item-selection-toggle:hover {
+  transform: scale(1.06);
+  border-color: var(--primary-color);
+}
+
+.item-selection-toggle.checked {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.note-card.batch-selected .note-card-actions,
+.note-card:has(.item-selection-toggle) .note-card-actions {
+  display: none;
 }
 
 .note-card-media img {
