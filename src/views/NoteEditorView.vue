@@ -2610,6 +2610,10 @@ function findPrev() {
 watch(findKeyword, () => computeFindMatches())
 
 function onKeyDown(e) {
+  // 文本、表格等局部控件已经处理过的按键不应再落到画布快捷键，
+  // 否则单元格用 Esc 退出编辑时会被这里再次取消块选中。
+  if (e.defaultPrevented) return
+
   if (showImagePreviewModal.value) {
     if (e.key === 'Escape') {
       e.preventDefault()

@@ -505,6 +505,7 @@
           :contenteditable="!readOnly && !linkSelectionMode && !block.locked"
           spellcheck="false"
           :data-placeholder="block.content ? '' : '输入内容...'"
+          @beforeinput="onEditorBeforeInput"
           @input="onInput"
           @click="onEditorClick"
           @dblclick="onEditorDoubleClick"
@@ -528,6 +529,7 @@
         spellcheck="false"
         :style="editorStyle"
         :data-placeholder="block.content ? '' : '点击输入内容...'"
+        @beforeinput="onEditorBeforeInput"
         @input="onInput"
         @click="onEditorClick"
         @dblclick="onEditorDoubleClick"
@@ -841,7 +843,17 @@ function selectTableCell(row, col) {
 // 表格单元格的点击不应继续冒泡到块容器：块已在框选中时，
 // 冒泡会把多选错误地收敛为单选。未选中时仍保留原有的单选行为。
 function onNumericTableCellClick(e, row, col) {
-  if (!tableCellEditing.value) {
+  const previousSelection = tableSelection.value
+  const isAnotherCell = previousSelection && (previousSelection.row !== row || previousSelection.col !== col)
+  if (tableCellEditing.value && isAnotherCell) {
+    const editingCell = document.activeElement
+    if (editingCell?.matches?.('th, td')) {
+      onCellEdit(previousSelection.row, previousSelection.col, { target: editingCell })
+    }
+    tableCellEditing.value = false
+    selectTableCell(row, col)
+    nextTick(() => numericTableRef.value?.focus({ preventScroll: true }))
+  } else if (!tableCellEditing.value) {
     selectTableCell(row, col)
     nextTick(() => numericTableRef.value?.focus({ preventScroll: true }))
   }
@@ -894,7 +906,17 @@ function getTableArrowTarget(rows, row, col, key) {
 
 // 编辑单元格时，方向键交给浏览器移动文本光标；只阻止它继续传给画布快捷键。
 function onNumericTableCellKeyDown(e) {
-  if (!tableCanEdit.value || !tableCellEditing.value || !tableCaretArrowKeys.has(e.key)) return
+  if (!tableCanEdit.value || !tableCellEditing.value) return
+  if (e.key === 'Escape') {
+    const selection = tableSelection.value
+    e.preventDefault()
+    e.stopPropagation()
+    if (selection) onCellEdit(selection.row, selection.col, e)
+    tableCellEditing.value = false
+    nextTick(() => numericTableRef.value?.focus({ preventScroll: true }))
+    return
+  }
+  if (!tableCaretArrowKeys.has(e.key)) return
   e.preventDefault()
   e.stopPropagation()
   moveCaretWithinTableCell(e, e.currentTarget)
@@ -902,8 +924,22 @@ function onNumericTableCellKeyDown(e) {
 
 // 单击选中态下，方向键只切换单元格，不会冒泡给画布移动整个块。
 function onNumericTableNavigationKeyDown(e) {
-  if (!tableCanEdit.value || tableCellEditing.value || !tableCaretArrowKeys.has(e.key) || !tableSelection.value) return
+  if (!tableCanEdit.value || tableCellEditing.value || !tableSelection.value) return
   const rows = Array.from(numericTableRef.value?.rows || [])
+  // 单击选中态按 Esc 交给画布取消块选中；先清掉单元格选中，避免两者状态割裂。
+  if (e.key === 'Escape') {
+    tableSelection.value = null
+    return
+  }
+  if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+    const cell = rows[tableSelection.value.row]?.cells?.[tableSelection.value.col]
+    if (!cell) return
+    e.preventDefault()
+    e.stopPropagation()
+    activateNumericTableCell(cell, tableSelection.value.row, tableSelection.value.col)
+    return
+  }
+  if (!tableCaretArrowKeys.has(e.key)) return
   const target = getTableArrowTarget(rows, tableSelection.value.row, tableSelection.value.col, e.key)
   if (!target) return
   e.preventDefault()
@@ -929,12 +965,9 @@ function onNumericTableCellMouseDown(e, row, col) {
   const resizeColumn = rect.right - e.clientX <= edge
   const resizeRow = rect.bottom - e.clientY <= edge
   if (!resizeColumn && !resizeRow) {
-    // 进入编辑只由 dblclick 处理；不要在 mousedown 里依赖 detail，
-    // 否则快速双击会和单击的清理逻辑争抢焦点，偶发停留在选择态。
-    tableCellEditing.value = false
-    selectTableCell(row, col)
+    // 单击与双击都由后续 click/dblclick 统一处理。这里不清除焦点或选中，
+    // 否则双击的两次 mousedown 会造成单元格与块边框闪烁。
     e.preventDefault()
-    if (blockRef.value?.contains(document.activeElement)) document.activeElement.blur?.()
     return
   }
 
@@ -1497,13 +1530,9 @@ function onEditorMouseDown(e) {
   const resizeColumn = rect.right - e.clientX <= edge
   const resizeRow = rect.bottom - e.clientY <= edge
   if (!resizeColumn && !resizeRow) {
-    // 进入编辑只由 dblclick 处理，避免快速双击时 mousedown 的状态重置覆盖编辑态。
-    inlineTableEditing.value = false
-    clearInlineTableSelection()
+    // 不在 mousedown 清空选中或失焦；双击会经历两次 mousedown，
+    // 这样可避免先失焦再进入编辑造成的闪烁。
     e.preventDefault()
-    if (editorRef.value?.contains(document.activeElement) || document.activeElement === editorRef.value) {
-      document.activeElement.blur?.()
-    }
     return
   }
 
@@ -1585,7 +1614,15 @@ function onEditorClick(e) {
   const cell = target.closest('th, td')
   const table = cell?.closest('table')
   if (cell && table && editorRef.value?.contains(table)) {
-    if (!inlineTableEditing.value) {
+    const editingCell = editorRef.value.querySelector('.inline-table-cell-editing')
+    if (inlineTableEditing.value && editingCell && editingCell !== cell) {
+      // 编辑中切到另一格：提交当前文本并回到目标格的选中导航态。
+      inlineTableEditing.value = false
+      selectInlineTableCell(table, cell)
+      const content = serializeEditorContent()
+      if (content !== (props.block.content || '')) emit('update', props.block.id, { content })
+      nextTick(() => focusInlineTableNavigation(table))
+    } else if (!inlineTableEditing.value) {
       selectInlineTableCell(table, cell)
       nextTick(() => {
         if (!inlineTableEditing.value && inlineTableElement === table) {
@@ -1623,8 +1660,24 @@ function onInput(e) {
   saveSelection()
 }
 
-function onBlur() {
+// 外层正文一直是 contenteditable；表格仅处于选中态时，阻止浏览器把输入写进残留光标。
+function onEditorBeforeInput(e) {
+  if (!inlineTableSelection.value || inlineTableEditing.value) return
+  const selection = window.getSelection()
+  const focusNode = selection?.focusNode || selection?.anchorNode
+  const focusElement = focusNode?.nodeType === Node.ELEMENT_NODE ? focusNode : focusNode?.parentElement
+  const isInSelectedTable = focusElement?.closest?.('table') === inlineTableElement || document.activeElement === inlineTableElement
+  if (!isInSelectedTable) return
+  e.preventDefault()
+  e.stopPropagation()
+}
+
+function onBlur(e) {
   if (editorRef.value) {
+    // 单元格选中态会把焦点移到可导航的 table；这是编辑器内部焦点切换，
+    // 不能按真正失焦处理，否则紧接着的单击会把选中格立即清掉。
+    const nextFocus = e?.relatedTarget
+    if (!inlineTableEditing.value && inlineTableElement?.contains(nextFocus)) return
     autolinkDom(editorRef.value)
     const content = serializeEditorContent()
     clearInlineTableSelection()
@@ -1644,6 +1697,7 @@ function serializeEditorContent(root = editorRef.value) {
     cell.classList.remove('inline-table-cell-selected', 'inline-table-cell-editing')
     if (!cell.className) cell.removeAttribute('class')
   })
+  clone.querySelectorAll('table[contenteditable]').forEach(table => table.removeAttribute('contenteditable'))
   return clone.innerHTML
 }
 
@@ -1674,6 +1728,7 @@ function selectInlineTableCell(table, cell) {
   })
   inlineTableElement = table
   inlineTableSelection.value = { row, col, rows: rows.length, cols: inlineTableColumnCount(rows) }
+  table.contentEditable = inlineTableEditing.value ? 'true' : 'false'
   cell.classList.add('inline-table-cell-selected')
   cell.classList.toggle('inline-table-cell-editing', inlineTableEditing.value)
 }
@@ -2014,6 +2069,9 @@ function blockParentReplace(oldNode, beforeFrag, afterNode) {
 }
 
 function onEditorKeyDown(e) {
+  if (exitInlineTableEditingOnEscape(e)) return
+  clearInlineTableSelectionOnEscape(e)
+  if (activateInlineTableSelectionOnEnter(e)) return
   if (navigateInlineTableSelection(e)) return
   preserveInlineTableCaretNavigation(e)
 
@@ -2040,6 +2098,47 @@ function onEditorKeyDown(e) {
       return
     }
   }
+}
+
+// 单击选中态的 Esc 要与画布的取消块选中保持一致，因此不拦截事件，
+// 仅提前清除单元格高亮，让事件继续传到画布处理器。
+function clearInlineTableSelectionOnEscape(e) {
+  if (!inlineTableCanEdit.value || inlineTableEditing.value || !inlineTableSelection.value || e.key !== 'Escape') return
+  clearInlineTableSelection()
+}
+
+// Esc 只退出当前单元格的编辑态，仍保留该单元格选中，便于继续用方向键切换。
+function exitInlineTableEditingOnEscape(e) {
+  if (!inlineTableCanEdit.value || !inlineTableEditing.value || e.key !== 'Escape') return false
+  const table = e.target?.closest?.('table') || inlineTableElement
+  const selection = inlineTableSelection.value
+  const cell = table && selection ? inlineTableRows(table)[selection.row]?.cells?.[selection.col] : null
+  if (!table || !cell || !editorRef.value?.contains(table)) return false
+  e.preventDefault()
+  e.stopPropagation()
+  inlineTableEditing.value = false
+  selectInlineTableCell(table, cell)
+  const content = serializeEditorContent()
+  if (content !== (props.block.content || '')) emit('update', props.block.id, { content })
+  nextTick(() => focusInlineTableNavigation(table))
+  return true
+}
+
+// 单击选中单元格后可用 Enter 进入编辑，和双击进入编辑保持一致。
+function activateInlineTableSelectionOnEnter(e) {
+  if (
+    !inlineTableCanEdit.value || inlineTableEditing.value || !inlineTableSelection.value ||
+    e.key !== 'Enter' || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey
+  ) return false
+  const table = e.target?.closest?.('table') || inlineTableElement
+  if (!table || !editorRef.value?.contains(table)) return false
+  const selection = inlineTableSelection.value
+  const cell = inlineTableRows(table)[selection.row]?.cells?.[selection.col]
+  if (!cell) return false
+  e.preventDefault()
+  e.stopPropagation()
+  activateInlineTableCell(table, cell)
+  return true
 }
 
 // 单击选中态下由方向键切换相邻单元格；双击编辑态不进入此分支。
