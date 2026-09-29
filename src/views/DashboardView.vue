@@ -139,7 +139,7 @@
             <div v-for="f in folderStats" :key="f.id" class="folder-stat-row clickable" @click="openFolder(f.id)">
               <svg class="folder-stat-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
               <span class="folder-stat-name">{{ f.name }}</span>
-              <span class="folder-stat-count">{{ f.count }} 篇</span>
+              <span class="folder-stat-count">直属 {{ f.direct }} · 子级 {{ f.descendants }}</span>
             </div>
           </div>
           <div v-else class="empty-hint">创建文件夹归类笔记</div>
@@ -245,9 +245,9 @@ const folderStats = computed(() => {
   refreshKey.value
   return noteStore.folders
     .filter(f => !f.deleted && !f.isSystem)
-    .map(f => ({ id: f.id, name: f.name, count: noteStore.getFolderNoteCount(f.id) }))
-    .filter(f => f.count > 0)
-    .sort((a, b) => b.count - a.count)
+    .map(f => ({ id: f.id, name: f.name, ...noteStore.getFolderNoteStats(f.id) }))
+    .filter(f => f.total > 0)
+    .sort((a, b) => b.total - a.total)
     .slice(0, 8)
 })
 

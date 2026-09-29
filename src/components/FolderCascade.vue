@@ -20,7 +20,7 @@ const emit = defineEmits(['open-folder', 'open-item', 'folder-context', 'toggle-
 const DECK_GAP = 4
 const VIEWPORT_MARGIN = 12
 const MIN_PANEL_H = 200
-const COLUMN_WIDTH = 236
+const COLUMN_WIDTH = 280
 const CLOSE_DELAY = 300
 const STACK_PEEK_Y = 10
 
@@ -226,6 +226,7 @@ onBeforeUnmount(() => {
           <button
             type="button"
             class="cascade-card folder-card"
+            :style="{ '--folder-color': folder.color || '#64748b' }"
             @click="openFolder(folder)"
             @contextmenu.prevent="emit('folder-context', $event, folder)"
           >
@@ -278,6 +279,7 @@ onBeforeUnmount(() => {
             :key="child.id"
             class="cascade-row"
             :class="{ active: chain[col.depth + 1]?.id === child.id, selected: isFolderSelected(child.id) }"
+            :style="{ '--folder-color': child.color || '#64748b' }"
             @mouseenter="hoverFolder(child, col.depth, $event)"
             @focus="hoverFolder(child, col.depth, $event)"
             role="button"
@@ -431,7 +433,7 @@ onBeforeUnmount(() => {
   bottom: -6px;
   width: 118px;
   height: 42px;
-  color: var(--primary-color);
+  color: var(--folder-color, var(--primary-color));
   opacity: 0.1;
   transition: opacity var(--transition-normal), transform var(--transition-normal);
   pointer-events: none;
@@ -447,19 +449,19 @@ onBeforeUnmount(() => {
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--primary-soft), var(--primary-softer));
-  color: var(--primary-color);
+  background: color-mix(in srgb, var(--folder-color, var(--primary-color)) 16%, var(--bg-secondary));
+  color: var(--folder-color, var(--primary-color));
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-color) 20%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--folder-color, var(--primary-color)) 26%, transparent);
   transition: all var(--transition-normal);
 }
 
 .folder-card:hover .folder-card-icon {
-  background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+  background: linear-gradient(135deg, var(--folder-color, var(--primary-color)), color-mix(in srgb, var(--folder-color, var(--primary-color)) 68%, #000));
   color: #fff;
-  box-shadow: 0 4px 10px -2px color-mix(in srgb, var(--primary-color) 50%, transparent);
+  box-shadow: 0 4px 10px -2px color-mix(in srgb, var(--folder-color, var(--primary-color)) 50%, transparent);
 }
 
 .folder-card-content {
@@ -480,6 +482,9 @@ onBeforeUnmount(() => {
   margin-top: 2px;
   font-size: 12px;
   color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 折叠时压在下面的卡牌数量 */
@@ -502,7 +507,7 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  width: 236px;
+  width: 280px;
   flex-shrink: 0;
   padding: 6px;
   max-height: var(--cascade-max-h, 60vh);
@@ -597,7 +602,7 @@ onBeforeUnmount(() => {
 }
 
 .cascade-row:hover .folder-card-icon {
-  background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+  background: linear-gradient(135deg, var(--folder-color, var(--primary-color)), color-mix(in srgb, var(--folder-color, var(--primary-color)) 68%, #000));
   color: #fff;
 }
 

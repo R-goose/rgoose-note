@@ -1,7 +1,7 @@
 {
   "name": "r-goose-note",
   "private": true,
-  "version": "2.4.42",
+  "version": "2.5.0",
   "description": "R-Goose Note - 画布式笔记应用",
   "author": "R-Goose",
   "type": "module",
@@ -21,11 +21,13 @@
     "clean:release": "node scripts/clean-release.mjs",
     "electron:dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
     "electron:build": "npm run kill:app && npm run clean:release && vite build && node scripts/build-electron.mjs",
-    "electron:build:mirror": "npm run kill:app && npm run clean:release && vite build && node scripts/build-electron.mjs --mirror"
+    "electron:build:mirror": "npm run kill:app && npm run clean:release && vite build && node scripts/build-electron.mjs --mirror",
+    "electron:publish:gitee": "npm run kill:app && npm run clean:release && vite build && node scripts/build-electron.mjs --publish-gitee"
   },
   "dependencies": {
     "adm-zip": "^0.5.18",
     "better-sqlite3": "11.5.0",
+    "electron-updater": "^6.8.9",
     "express": "^5.2.1",
     "multer": "^2.2.0",
     "uuid": "^9.0.1"
@@ -71,6 +73,12 @@
       "node_modules/file-uri-to-path/**",
       "!test/**"
     ],
+    "extraResources": [
+      {
+        "from": "build/app-update.yml",
+        "to": "app-update.yml"
+      }
+    ],
     "asarUnpack": [
       "**/node_modules/better-sqlite3/**"
     ],
@@ -83,7 +91,10 @@
       "icon": "build/icon.ico"
     },
     "mac": {
-      "target": "dmg",
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "icon": "build/icon.icns",
       "category": "public.app-category.productivity"
     },
@@ -99,7 +110,13 @@
     },
     "electronDownload": {
       "mirror": "https://npmmirror.com/mirrors/electron/"
-    }
+    },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://gitee.com/kokomi123/rgoose-note/releases/download/latest"
+      }
+    ]
   },
   "volta": {
     "node": "24.4.0"

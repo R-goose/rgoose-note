@@ -798,7 +798,8 @@ function getFolderNotes(folderId) {
 }
 
 function folderCountText(folder) {
-  return `${noteStore.getFolderNoteCount(folder.id)} 篇笔记`
+  const { direct, descendants } = noteStore.getFolderNoteStats(folder.id)
+  return `直属 ${direct} 篇 · 子级 ${descendants} 篇`
 }
 
 /** 列表排序方式：updatedAt / createdAt / title（本地持久化） */

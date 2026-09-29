@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, protocol, Tray, Menu, safeStorage } = require('electron')
+const { autoUpdater } = require('electron-updater')
 const path = require('path')
 const fs = require('fs')
 const backend = require('./backend')
@@ -10,6 +11,118 @@ let tray = null
 let isQuitting = false
 const AI_BASE_URL = 'https://open.bigmodel.cn/api/coding/paas/v4'
 const aiRequests = new Map()
+const UPDATE_UNAVAILABLE_MESSAGE = '当前为开发环境，安装后的正式版本才支持检查更新。'
+let updateState = {
+  status: 'idle',
+  version: null,
+  releaseName: null,
+  releaseNotes: null,
+  percent: 0,
+  message: ''
+}
+let autoUpdaterReady = false
+
+function updatesSupported() {
+  return app.isPackaged && !process.env.RGOOSE_DISABLE_AUTO_UPDATE
+}
+
+function publicUpdateState() {
+  return { ...updateState, supported: updatesSupported(), currentVersion: app.getVersion() }
+}
+
+function broadcastUpdateState() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('app-update:state', publicUpdateState())
+  }
+}
+
+function setUpdateState(next) {
+  updateState = { ...updateState, ...next }
+  broadcastUpdateState()
+}
+
+function releaseNotesText(notes) {
+  if (Array.isArray(notes)) return notes.map(item => item.note).filter(Boolean).join('\n')
+  return typeof notes === 'string' ? notes : ''
+}
+
+function configureAutoUpdater() {
+  if (!updatesSupported() || autoUpdaterReady) return
+  autoUpdaterReady = true
+  autoUpdater.autoDownload = false
+  autoUpdater.autoInstallOnAppQuit = false
+
+  autoUpdater.on('checking-for-update', () => {
+    setUpdateState({ status: 'checking', message: '正在检查更新…', percent: 0 })
+  })
+  autoUpdater.on('update-available', info => {
+    setUpdateState({
+      status: 'available',
+      version: info.version || null,
+      releaseName: info.releaseName || null,
+      releaseNotes: releaseNotesText(info.releaseNotes),
+      message: `发现新版本 ${info.version || ''}`.trim(),
+      percent: 0
+    })
+  })
+  autoUpdater.on('update-not-available', () => {
+    setUpdateState({ status: 'not-available', message: '已是最新版本。', percent: 0 })
+  })
+  autoUpdater.on('download-progress', progress => {
+    setUpdateState({
+      status: 'downloading',
+      percent: Math.max(0, Math.min(100, Math.round(progress.percent || 0))),
+      message: '正在下载更新…'
+    })
+  })
+  autoUpdater.on('update-downloaded', info => {
+    setUpdateState({
+      status: 'downloaded',
+      version: info.version || updateState.version,
+      releaseName: info.releaseName || updateState.releaseName,
+      releaseNotes: releaseNotesText(info.releaseNotes) || updateState.releaseNotes,
+      percent: 100,
+      message: '更新已下载，重启后即可安装。'
+    })
+  })
+  autoUpdater.on('error', error => {
+    console.error('[updater]', error)
+    setUpdateState({ status: 'error', message: error?.message || '检查更新失败，请稍后重试。' })
+  })
+}
+
+ipcMain.handle('app-update:get-state', () => publicUpdateState())
+ipcMain.handle('app-update:check', async () => {
+  if (!updatesSupported()) {
+    setUpdateState({ status: 'unavailable', message: UPDATE_UNAVAILABLE_MESSAGE, percent: 0 })
+    return publicUpdateState()
+  }
+  configureAutoUpdater()
+  try {
+    await autoUpdater.checkForUpdates()
+  } catch (error) {
+    setUpdateState({ status: 'error', message: error?.message || '检查更新失败，请稍后重试。' })
+  }
+  return publicUpdateState()
+})
+ipcMain.handle('app-update:download', async () => {
+  if (!updatesSupported()) return publicUpdateState()
+  configureAutoUpdater()
+  if (updateState.status !== 'available') return publicUpdateState()
+  try {
+    await autoUpdater.downloadUpdate()
+  } catch (error) {
+    setUpdateState({ status: 'error', message: error?.message || '下载更新失败，请稍后重试。' })
+  }
+  return publicUpdateState()
+})
+ipcMain.handle('app-update:install', () => {
+  if (updatesSupported() && updateState.status === 'downloaded') {
+    isQuitting = true
+    autoUpdater.quitAndInstall(false, true)
+  }
+  return publicUpdateState()
+})
 
 // 注册自定义协议（必须在 app.whenReady 之前）
 protocol.registerSchemesAsPrivileged([

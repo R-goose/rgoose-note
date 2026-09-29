@@ -93,17 +93,25 @@
         </button>
       </div>
       <div v-show="!isSectionCollapsed('folders')" class="folder-list">
-        <template v-for="item in visibleFolders" :key="item.folder.id">
+        <template v-for="item in visibleFolders" :key="item.type === 'folder' ? `folder-${item.folder.id}` : `note-${item.note.id}`">
           <div
+            v-if="item.type === 'folder'"
             class="folder-item"
-            :class="{ active: noteStore.currentFolderId === item.folder.id }"
+            :class="{ active: noteStore.currentFolderId === item.folder.id, 'drag-over': dragOverFolderId === item.folder.id }"
             :style="{ paddingLeft: (item.depth * 16 + 4) + 'px' }"
+            :draggable="!item.folder.isSystem && !editingFolderId"
             @click="onFolderClick(item.folder)"
             @dblclick.stop="startRenameFolder(item.folder)"
             @contextmenu.prevent="showFolderContextMenu($event, item.folder)"
+            @dragstart.stop="onDragStart($event, 'folder', item.folder)"
+            @dragend="onDragEnd"
+            @dragenter="onDragEnterFolder($event, item.folder)"
+            @dragover="onDragOverFolder($event, item.folder)"
+            @dragleave="onDragLeaveFolder($event, item.folder)"
+            @drop="onDropOnFolder($event, item.folder)"
           >
             <span
-              v-if="hasChildFolders(item.folder.id)"
+              v-if="hasFolderContents(item.folder.id)"
               class="folder-toggle"
               :class="{ expanded: isFolderExpanded(item.folder.id) }"
               @click.stop="toggleFolderExpandById(item.folder.id)"
@@ -113,7 +121,7 @@
               </svg>
             </span>
             <span v-else class="folder-spacer" aria-hidden="true"></span>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" :style="{ color: item.folder.color || '#64748b' }">
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
             </svg>
             <div v-if="editingFolderId === item.folder.id" class="folder-input-wrapper">
@@ -140,10 +148,39 @@
                 :title="t.name"
               >{{ t.name }}</span>
             </div>
-            <span class="folder-count">{{ getFolderNoteCount(item.folder.id) }}</span>
+            <span class="folder-count" :title="folderNoteCountTitle(item.folder.id)">
+              <span>直属 {{ getFolderNoteStats(item.folder.id).direct }}</span>
+              <span>子级 {{ getFolderNoteStats(item.folder.id).descendants }}</span>
+            </span>
           </div>
+          <button
+            v-else
+            type="button"
+            class="sidebar-note-item"
+            :class="{ active: route.params.id === item.note.id }"
+            :style="{ paddingLeft: (item.depth * 16 + 25) + 'px' }"
+            :title="item.note.title || '无标题笔记'"
+            draggable="true"
+            @click.stop="openNote(item.note.id)"
+            @contextmenu.prevent.stop="showNoteContextMenu($event, item.note)"
+            @dragstart.stop="onDragStart($event, 'note', item.note)"
+            @dragend="onDragEnd"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 1-1V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="8" y1="13" x2="16" y2="13"/>
+              <line x1="8" y1="17" x2="14" y2="17"/>
+            </svg>
+            <span class="sidebar-note-title">{{ item.note.title || '无标题笔记' }}</span>
+            <svg v-if="item.note.pinned" class="sidebar-note-pin" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-label="已置顶">
+              <line x1="12" y1="17" x2="12" y2="22"/>
+              <path d="M5 17h14l-1.5-5.5a2 2 0 0 0-1.9-1.5h-7.2a2 2 0 0 0-1.9 1.5z"/>
+              <path d="M9 8V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/>
+            </svg>
+          </button>
           <div
-            v-if="isCreatingFolder && newFolderParentId === item.folder.id"
+            v-if="item.type === 'folder' && isCreatingFolder && newFolderParentId === item.folder.id"
             class="folder-item creating"
             :style="{ paddingLeft: ((item.depth + 1) * 18 + 12) + 'px' }"
           >
@@ -237,6 +274,35 @@
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
           </svg>
           删除
+        </div>
+      </div>
+
+      <div
+        v-if="noteContextMenu.show"
+        class="folder-context-menu"
+        :style="{ top: noteContextMenu.y + 'px', left: noteContextMenu.x + 'px' }"
+        @click.stop
+      >
+        <div class="context-menu-item" @click="openNoteFromContextMenu">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+          打开笔记
+        </div>
+        <div class="context-menu-item" @click="duplicateNoteFromContextMenu">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+          复制副本
+        </div>
+        <div class="context-menu-item danger" @click="deleteNoteFromContextMenu">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
+          删除笔记
         </div>
       </div>
       
@@ -470,6 +536,30 @@
     </Teleport>
 
     <Teleport to="body">
+      <JellyModal :show="pendingMove.show" @close="closeMoveConfirm">
+        <div class="modal-content confirm-modal move-confirm-modal">
+          <div class="confirm-header">
+            <div class="confirm-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                <path d="M8 12h8"/>
+                <path d="m13 8 4 4-4 4"/>
+              </svg>
+            </div>
+            <div>
+              <h3>确认移动{{ pendingMove.type === 'folder' ? '文件夹' : '笔记' }}</h3>
+              <p>确定将「{{ pendingMoveSource?.name || pendingMoveSource?.title || '该项目' }}」移动到「{{ getFolderDisplayPath(pendingMoveTarget?.id) || pendingMoveTarget?.name || '目标文件夹' }}」吗？</p>
+            </div>
+          </div>
+          <div class="confirm-actions">
+            <button type="button" class="btn btn-secondary" @click="closeMoveConfirm">取消</button>
+            <button type="button" class="btn btn-primary" @click="confirmMove">确认移动</button>
+          </div>
+        </div>
+      </JellyModal>
+    </Teleport>
+
+    <Teleport to="body">
       <JellyModal :show="!!folderToDelete" @close="folderToDelete = null">
         <div class="modal-content confirm-modal">
           <div class="confirm-header">
@@ -542,7 +632,7 @@
 <script setup>
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { useNoteStore } from '@/stores/note'
+import { SYSTEM_ROOT_FOLDER_ID, useNoteStore } from '@/stores/note'
 import { useTagStore, TAG_PRESET_COLORS } from '@/stores/tag'
 import { useThemeStore } from '@/stores/theme'
 import { useToast } from '@/composables/useToast'
@@ -570,6 +660,10 @@ const isCreatingFolder = ref(false)
 const newFolderName = ref('')
 const newFolderParentId = ref(null)
 const folderContextMenu = ref({ show: false, x: 0, y: 0, folder: null })
+const noteContextMenu = ref({ show: false, x: 0, y: 0, note: null })
+const dragItem = ref(null)
+const dragOverFolderId = ref(null)
+const pendingMove = ref({ show: false, type: '', sourceId: '', targetId: '' })
 const expandedFolderIds = ref(new Set())
 const collapsedSections = ref({})
 function toggleSection(key) {
@@ -611,8 +705,21 @@ const currentFolderName = computed(() => {
   return noteStore.folders.find(f => f.id === noteStore.currentFolderId)?.name || ''
 })
 
+const pendingMoveSource = computed(() => {
+  const { type, sourceId } = pendingMove.value
+  if (type === 'folder') return noteStore.folders.find(folder => folder.id === sourceId && !folder.deleted) || null
+  if (type === 'note') return noteStore.notes.find(note => note.id === sourceId && !note.deleted) || null
+  return null
+})
+const pendingMoveTarget = computed(() =>
+  noteStore.folders.find(folder => folder.id === pendingMove.value.targetId && !folder.deleted) || null
+)
+
 const visibleFolders = computed(() => {
   const result = []
+  const sortNotes = (a, b) =>
+    ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || ((b.updatedAt || 0) - (a.updatedAt || 0))
+
   function walk(parentId, depth) {
     const children = noteStore.folders
       .filter(f => (f.parentId || null) === parentId && !f.deleted)
@@ -620,10 +727,14 @@ const visibleFolders = computed(() => {
         if (a.isSystem && !b.isSystem) return -1
         if (!a.isSystem && b.isSystem) return 1
         return a.createdAt - b.createdAt
-      })
+    })
     for (const folder of children) {
-      result.push({ folder, depth })
+      result.push({ type: 'folder', folder, depth })
       if (expandedFolderIds.value.has(folder.id)) {
+        const directNotes = noteStore.notes
+          .filter(note => !note.deleted && (note.folderId === folder.id || (folder.id === SYSTEM_ROOT_FOLDER_ID && note.folderId == null)))
+          .sort(sortNotes)
+        directNotes.forEach(note => result.push({ type: 'note', note, depth: depth + 1 }))
         walk(folder.id, depth + 1)
       }
     }
@@ -672,8 +783,13 @@ function confirmDeleteNote() {
   noteToDelete.value = null
 }
 
-function getFolderNoteCount(folderId) {
-  return noteStore.getFolderNoteCount?.(folderId) || 0
+function getFolderNoteStats(folderId) {
+  return noteStore.getFolderNoteStats?.(folderId) || { direct: 0, descendants: 0, total: 0 }
+}
+
+function folderNoteCountTitle(folderId) {
+  const { direct, descendants, total } = getFolderNoteStats(folderId)
+  return `直属 ${direct} 篇笔记；子级 ${descendants} 篇笔记；共 ${total} 篇`
 }
 
 function formatTime(timestamp) {
@@ -688,8 +804,9 @@ function isFolderExpanded(folderId) {
   return expandedFolderIds.value.has(folderId)
 }
 
-function hasChildFolders(folderId) {
-  return noteStore.folders.some(f => f.parentId === folderId && !f.deleted)
+function hasFolderContents(folderId) {
+  return noteStore.folders.some(f => f.parentId === folderId && !f.deleted) ||
+    noteStore.notes.some(note => !note.deleted && (note.folderId === folderId || (folderId === SYSTEM_ROOT_FOLDER_ID && note.folderId == null)))
 }
 
 function onFolderClick(folder) {
@@ -698,7 +815,7 @@ function onFolderClick(folder) {
     router.push('/notes')
     return
   }
-  if (hasChildFolders(folder.id)) {
+  if (hasFolderContents(folder.id)) {
     toggleFolderExpandById(folder.id)
   }
   selectFolder(folder.id)
@@ -793,11 +910,128 @@ function cancelCreateFolder() {
 }
 
 function showFolderContextMenu(e, folder) {
+  hideNoteContextMenu()
   folderContextMenu.value = { show: true, x: e.clientX, y: e.clientY, folder }
 }
 
 function hideFolderContextMenu() {
   folderContextMenu.value = { show: false, x: 0, y: 0, folder: null }
+}
+
+function showNoteContextMenu(e, note) {
+  hideFolderContextMenu()
+  noteContextMenu.value = { show: true, x: e.clientX, y: e.clientY, note }
+}
+
+function hideNoteContextMenu() {
+  noteContextMenu.value = { show: false, x: 0, y: 0, note: null }
+}
+
+function openNoteFromContextMenu() {
+  const note = noteContextMenu.value.note
+  hideNoteContextMenu()
+  if (note) openNote(note.id)
+}
+
+function duplicateNoteFromContextMenu() {
+  const note = noteContextMenu.value.note
+  hideNoteContextMenu()
+  if (note) noteStore.duplicateNote(note.id)
+}
+
+function deleteNoteFromContextMenu() {
+  const note = noteContextMenu.value.note
+  hideNoteContextMenu()
+  if (note) noteToDelete.value = note
+}
+
+function isFolderDescendantOf(folderId, possibleAncestorId) {
+  let current = noteStore.folders.find(folder => folder.id === folderId && !folder.deleted)
+  while (current?.parentId) {
+    if (current.parentId === possibleAncestorId) return true
+    current = noteStore.folders.find(folder => folder.id === current.parentId && !folder.deleted)
+  }
+  return false
+}
+
+function canDropOnFolder(targetFolder) {
+  const source = dragItem.value
+  if (!source || !targetFolder || targetFolder.deleted) return false
+  if (source.type === 'note') {
+    const note = noteStore.notes.find(item => item.id === source.id && !item.deleted)
+    if (!note) return false
+    const currentFolderId = note.folderId || SYSTEM_ROOT_FOLDER_ID
+    return currentFolderId !== targetFolder.id
+  }
+  const folder = noteStore.folders.find(item => item.id === source.id && !item.deleted)
+  return !!folder && !folder.isSystem && folder.id !== targetFolder.id && !isFolderDescendantOf(targetFolder.id, folder.id)
+}
+
+function onDragStart(event, type, item) {
+  if (type === 'folder' && item.isSystem) {
+    event.preventDefault()
+    return
+  }
+  dragItem.value = { type, id: item.id }
+  event.dataTransfer.effectAllowed = 'move'
+  event.dataTransfer.setData('application/x-rgoose-sidebar-item', JSON.stringify(dragItem.value))
+  event.dataTransfer.setData('text/plain', item.title || item.name || '')
+}
+
+function onDragEnd() {
+  dragItem.value = null
+  dragOverFolderId.value = null
+}
+
+function onDragEnterFolder(event, folder) {
+  if (!canDropOnFolder(folder)) return
+  event.preventDefault()
+  dragOverFolderId.value = folder.id
+}
+
+function onDragOverFolder(event, folder) {
+  if (!canDropOnFolder(folder)) return
+  event.preventDefault()
+  event.dataTransfer.dropEffect = 'move'
+  dragOverFolderId.value = folder.id
+}
+
+function onDragLeaveFolder(event, folder) {
+  if (event.currentTarget.contains(event.relatedTarget)) return
+  if (dragOverFolderId.value === folder.id) dragOverFolderId.value = null
+}
+
+function onDropOnFolder(event, folder) {
+  event.preventDefault()
+  if (!canDropOnFolder(folder)) return onDragEnd()
+  const source = dragItem.value
+  dragOverFolderId.value = null
+  dragItem.value = null
+  pendingMove.value = { show: true, type: source.type, sourceId: source.id, targetId: folder.id }
+}
+
+function closeMoveConfirm() {
+  pendingMove.value = { show: false, type: '', sourceId: '', targetId: '' }
+}
+
+async function confirmMove() {
+  const source = pendingMoveSource.value
+  const target = pendingMoveTarget.value
+  const type = pendingMove.value.type
+  if (!source || !target) return closeMoveConfirm()
+  let moved = false
+  if (type === 'note') {
+    noteStore.moveNoteToFolder(source.id, target.id)
+    moved = true
+  } else if (type === 'folder') {
+    moved = await noteStore.moveFolderToParent(source.id, target.id)
+  }
+  if (moved) {
+    const next = new Set(expandedFolderIds.value)
+    next.add(target.id)
+    expandedFolderIds.value = next
+  }
+  closeMoveConfirm()
 }
 
 function createFolderFromMenu() {
@@ -1136,6 +1370,7 @@ onMounted(async () => {
   await noteStore.init()
   await tagStore.init()
   document.addEventListener('click', hideFolderContextMenu)
+  document.addEventListener('click', hideNoteContextMenu)
   document.addEventListener('click', handleFolderSelectDocClick)
   document.addEventListener('click', closeFolderModalTagDropdown)
 
@@ -1148,6 +1383,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   document.removeEventListener('click', hideFolderContextMenu)
+  document.removeEventListener('click', hideNoteContextMenu)
   document.removeEventListener('click', handleFolderSelectDocClick)
   document.removeEventListener('click', closeFolderModalTagDropdown)
   if (historyTimer) clearInterval(historyTimer)
@@ -1450,6 +1686,12 @@ function closeFolderModalTagDropdown(e) {
   color: var(--primary-color);
 }
 
+.folder-item.drag-over {
+  background: color-mix(in srgb, var(--primary-soft) 82%, var(--bg-secondary));
+  box-shadow: inset 0 0 0 1px var(--primary-color), 0 0 0 2px color-mix(in srgb, var(--primary-color) 18%, transparent);
+  color: var(--primary-color);
+}
+
 .folder-toggle {
   width: 12px;
   height: 12px;
@@ -1535,18 +1777,65 @@ function closeFolderModalTagDropdown(e) {
 }
 
 .folder-count {
-  font-size: 11px;
-  color: var(--secondary-dark);
-  background: var(--secondary-softer);
-  padding: 1px 6px;
-  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.78;
+  white-space: nowrap;
   flex-shrink: 0;
   margin-left: auto;
 }
 
 .folder-item.active .folder-count {
-  background: rgba(107, 189, 143, 0.18);
-  color: var(--primary-dark);
+  color: var(--text-secondary);
+  opacity: 0.9;
+}
+
+.sidebar-note-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-width: 0;
+  padding-top: 6px;
+  padding-right: 10px;
+  padding-bottom: 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.sidebar-note-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.sidebar-note-item.active {
+  background: color-mix(in srgb, var(--primary-soft) 68%, transparent);
+  color: var(--primary-color);
+}
+
+.sidebar-note-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-note-pin {
+  flex-shrink: 0;
+  color: var(--warning-color);
 }
 
 .btn-icon-small {

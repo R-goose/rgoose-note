@@ -533,6 +533,19 @@
               <div class="setting-desc">版本 {{ APP_VERSION }}</div>
             </div>
           </div>
+          <div v-if="canAppUpdate" id="set-about-update" class="setting-item update-item">
+            <div class="setting-info">
+              <div class="setting-name">软件更新</div>
+              <div class="setting-desc">{{ updateDescription }}</div>
+              <div v-if="appUpdate.releaseNotes" class="update-notes">{{ appUpdate.releaseNotes }}</div>
+            </div>
+            <div class="update-control">
+              <span v-if="appUpdate.status === 'downloading'" class="update-progress">{{ appUpdate.percent }}%</span>
+              <button class="btn btn-primary btn-sm" :disabled="updateActionDisabled" @click="runAppUpdateAction">
+                {{ updateActionLabel }}
+              </button>
+            </div>
+          </div>
           <div id="set-about-platform" class="setting-item">
             <div class="setting-info">
               <div class="setting-name">平台支持</div>
@@ -862,6 +875,37 @@ async function confirmExport() {
 // ============ 通用：关闭到托盘 ============
 const canCloseToTray = typeof window !== 'undefined' && !!window.electronAPI?.getCloseToTray
 const closeToTray = ref(false)
+const canAppUpdate = typeof window !== 'undefined' && !!window.electronAPI?.appUpdate
+const appUpdate = ref({ status: 'idle', version: null, releaseNotes: '', percent: 0, message: '' })
+let stopAppUpdateListener = null
+
+const updateActionLabel = computed(() => {
+  if (appUpdate.value.status === 'available') return '下载更新'
+  if (appUpdate.value.status === 'downloading') return `下载中 ${appUpdate.value.percent || 0}%`
+  if (appUpdate.value.status === 'downloaded') return '重启并安装'
+  if (appUpdate.value.status === 'checking') return '正在检查…'
+  return '检查更新'
+})
+
+const updateActionDisabled = computed(() => ['checking', 'downloading'].includes(appUpdate.value.status))
+
+const updateDescription = computed(() => {
+  const state = appUpdate.value
+  if (state.message) return state.message
+  return '通过 Gitee Release 获取新版本。'
+})
+
+async function runAppUpdateAction() {
+  const api = window.electronAPI?.appUpdate
+  if (!api) return
+  try {
+    if (appUpdate.value.status === 'available') appUpdate.value = await api.download()
+    else if (appUpdate.value.status === 'downloaded') await api.install()
+    else appUpdate.value = await api.check()
+  } catch (error) {
+    appUpdate.value = { ...appUpdate.value, status: 'error', message: error?.message || '更新操作失败，请稍后重试。' }
+  }
+}
 
 const settingsContentRef = ref(null)
 const activeSettingsSection = ref('settings-section-data')
@@ -1204,6 +1248,7 @@ const settingsIndex = computed(() => {
   }
   // 关于项
   items.push({ id: 'set-about-version', name: '版本信息', group: '关于', desc: 'R-Goose Note 版本', keywords: '版本 关于 应用 rgoose goose 版本号' })
+  if (canAppUpdate) items.push({ id: 'set-about-update', name: '软件更新', group: '关于', desc: '检查、下载并安装最新版本', keywords: '更新 升级 检查更新 下载 安装 gitee release' })
   items.push({ id: 'set-about-platform', name: '平台支持', group: '关于', desc: 'Web / Windows', keywords: '平台 支持 系统 web windows 环境' })
   items.push({ id: 'set-about-license', name: '版权归属', group: '关于', desc: '基于 Vue 3 的笔记应用', keywords: '版权 归属 vue 作者 开发 license 开源' })
   return items
@@ -1321,6 +1366,14 @@ async function loadBackups() {
 }
 
 onMounted(async () => {
+  if (canAppUpdate) {
+    try {
+      appUpdate.value = await window.electronAPI.appUpdate.getState()
+      stopAppUpdateListener = window.electronAPI.appUpdate.onStateChange(state => { appUpdate.value = state })
+    } catch (error) {
+      console.warn('读取更新状态失败:', error)
+    }
+  }
   if (isDesktopAi) {
     try {
       const status = await window.electronAPI.ai.status()
@@ -1357,6 +1410,11 @@ onMounted(async () => {
     loadBackups(),
     closeToTrayTask
   ])
+})
+
+onUnmounted(() => {
+  stopAppUpdateListener?.()
+  stopAppUpdateListener = null
 })
 
 const usageTotal = computed(() => {
@@ -2190,6 +2248,35 @@ function resetAllShortcuts() {
 
 .setting-item:last-child {
   border-bottom: none;
+}
+
+.update-item {
+  align-items: flex-start;
+}
+
+.update-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.update-progress {
+  min-width: 34px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--primary-dark);
+  text-align: right;
+}
+
+.update-notes {
+  max-width: 600px;
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-tertiary);
+  white-space: pre-line;
 }
 
 .switch-wrap {

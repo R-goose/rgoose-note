@@ -76,6 +76,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   windowIsMaximized: () => ipcRenderer.invoke('window-is-maximized'),
   getCloseToTray: () => ipcRenderer.invoke('get-close-to-tray'),
   setCloseToTray: enabled => ipcRenderer.invoke('set-close-to-tray', enabled),
+  appUpdate: {
+    getState: () => ipcRenderer.invoke('app-update:get-state'),
+    check: () => ipcRenderer.invoke('app-update:check'),
+    download: () => ipcRenderer.invoke('app-update:download'),
+    install: () => ipcRenderer.invoke('app-update:install'),
+    onStateChange: cb => {
+      const handler = (_event, state) => cb(state)
+      ipcRenderer.on('app-update:state', handler)
+      return () => ipcRenderer.removeListener('app-update:state', handler)
+    }
+  },
   captureExport: payload => ipcRenderer.invoke('capture-export', payload),
   sendExportReady: data => ipcRenderer.send('export-ready', data),
   onMaximizeChange: cb => {

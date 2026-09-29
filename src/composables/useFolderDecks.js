@@ -1,7 +1,8 @@
 import { ref } from 'vue'
 
 // 卡牌尺寸与扇面步进（px），布局计算与 CSS 变量同源
-export const DECK_CARD_W = 168
+// 留出足够空间展示“直属 / 子级”统计，避免卡片元信息换行。
+export const DECK_CARD_W = 212
 export const DECK_CARD_H = 88
 export const DECK_PEEK = 4
 export const DECK_COLS = 3

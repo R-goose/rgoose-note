@@ -805,6 +805,7 @@ const formulaEditing = ref(false)
 // ===== 数值表格块 =====
 const tableEditing = ref(false)
 const tableCellEditing = ref(false)
+const numericEditingCell = ref(null)
 const tableRawText = ref('')
 const tableRows = computed(() => parseTableData(props.block?.tableData))
 const tableSelection = ref(null)
@@ -846,11 +847,11 @@ function onNumericTableCellClick(e, row, col) {
   const previousSelection = tableSelection.value
   const isAnotherCell = previousSelection && (previousSelection.row !== row || previousSelection.col !== col)
   if (tableCellEditing.value && isAnotherCell) {
-    const editingCell = document.activeElement
-    if (editingCell?.matches?.('th, td')) {
-      onCellEdit(previousSelection.row, previousSelection.col, { target: editingCell })
+    if (numericEditingCell.value) {
+      onCellEdit(previousSelection.row, previousSelection.col, { target: numericEditingCell.value })
     }
     tableCellEditing.value = false
+    numericEditingCell.value = null
     selectTableCell(row, col)
     nextTick(() => numericTableRef.value?.focus({ preventScroll: true }))
   } else if (!tableCellEditing.value) {
@@ -869,6 +870,7 @@ function startNumericTableCellEditing(e, row, col) {
 function activateNumericTableCell(cell, row, col) {
   if (!cell || !tableCanEdit.value) return
   tableCellEditing.value = true
+  numericEditingCell.value = cell
   selectTableCell(row, col)
   nextTick(() => {
     cell.focus()
@@ -913,6 +915,7 @@ function onNumericTableCellKeyDown(e) {
     e.stopPropagation()
     if (selection) onCellEdit(selection.row, selection.col, e)
     tableCellEditing.value = false
+    numericEditingCell.value = null
     nextTick(() => numericTableRef.value?.focus({ preventScroll: true }))
     return
   }
@@ -965,8 +968,8 @@ function onNumericTableCellMouseDown(e, row, col) {
   const resizeColumn = rect.right - e.clientX <= edge
   const resizeRow = rect.bottom - e.clientY <= edge
   if (!resizeColumn && !resizeRow) {
-    // 单击与双击都由后续 click/dblclick 统一处理。这里不清除焦点或选中，
-    // 否则双击的两次 mousedown 会造成单元格与块边框闪烁。
+    // 编辑态放行浏览器原生选区；非编辑态仍拦截，保留单击选格与双击不闪烁。
+    if (tableCellEditing.value) return
     e.preventDefault()
     return
   }
@@ -1530,8 +1533,9 @@ function onEditorMouseDown(e) {
   const resizeColumn = rect.right - e.clientX <= edge
   const resizeRow = rect.bottom - e.clientY <= edge
   if (!resizeColumn && !resizeRow) {
-    // 不在 mousedown 清空选中或失焦；双击会经历两次 mousedown，
-    // 这样可避免先失焦再进入编辑造成的闪烁。
+    // 编辑态必须放行原生 mousedown，才能拖动选择单元格内的文本。
+    // 非编辑态继续拦截，避免双击的两次 mousedown 带来焦点闪烁。
+    if (inlineTableEditing.value) return
     e.preventDefault()
     return
   }

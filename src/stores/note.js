@@ -10,6 +10,14 @@ import { connectionsApi } from '@/api/connections'
 
 export const SYSTEM_ROOT_FOLDER_ID = 'system-root'
 
+const SYSTEM_ROOT_FOLDER_COLOR = '#64748b'
+const FOLDER_COLOR_PALETTE = [
+  '#e07a5f', '#d977a8', '#b779d0', '#7c83d6', '#5b8def', '#3d9cba',
+  '#2fa48f', '#6baa61', '#a3a94d', '#c59443', '#c87645', '#aa6d64',
+  '#c65d78', '#8e79c9', '#537ec7', '#438da4', '#438d76', '#759550',
+  '#aa8d45', '#b9773d', '#b56576', '#7d6dba', '#4f7eaa', '#5f966a'
+]
+
 export const useNoteStore = defineStore('note', () => {
   const notes = ref([])
   const folders = ref([])
@@ -88,6 +96,19 @@ export const useNoteStore = defineStore('note', () => {
       return notes.value.filter(n => (n.folderId == null || n.folderId === SYSTEM_ROOT_FOLDER_ID) && !n.deleted).length
     }
     return notes.value.filter(n => n.folderId === folderId && !n.deleted).length
+  }
+
+  /**
+   * 文件夹笔记数量分层统计：直属笔记与全部后代文件夹内的笔记分开返回，
+   * 避免将二者混为一个难以理解的角标数字。
+   */
+  function getFolderNoteStats(folderId) {
+    const direct = getFolderNoteCount(folderId)
+    const childFolderIds = getAllChildFolderIds(folderId)
+    const descendants = childFolderIds.length
+      ? notes.value.filter(note => !note.deleted && childFolderIds.includes(note.folderId)).length
+      : 0
+    return { direct, descendants, total: direct + descendants }
   }
 
   function getChildFolderCount(folderId) {
@@ -181,6 +202,10 @@ export const useNoteStore = defineStore('note', () => {
         existing.updatedAt = getTimestamp()
         try { await foldersApi.update(existing.id, existing) } catch {}
       }
+      if (!existing.color) {
+        existing.color = SYSTEM_ROOT_FOLDER_COLOR
+        try { await foldersApi.update(existing.id, { color: existing.color, updatedAt: existing.updatedAt }) } catch {}
+      }
       return existing
     }
     const now = getTimestamp()
@@ -189,6 +214,7 @@ export const useNoteStore = defineStore('note', () => {
       name: '根目录',
       parentId: null,
       tags: [],
+      color: SYSTEM_ROOT_FOLDER_COLOR,
       isSystem: true,
       createdAt: now,
       updatedAt: now
@@ -204,7 +230,26 @@ export const useNoteStore = defineStore('note', () => {
     })
     folders.value.forEach(f => {
       if (!Array.isArray(f.tags)) f.tags = []
+      if (!f.color) {
+        f.color = f.isSystem ? SYSTEM_ROOT_FOLDER_COLOR : pickUnusedFolderColor()
+        // 旧数据首次加载时补齐颜色；失败不回滚，下一次同步会再次尝试。
+        foldersApi.update(f.id, { color: f.color, updatedAt: f.updatedAt }).catch(() => {})
+      }
     })
+  }
+
+  function pickUnusedFolderColor() {
+    const used = new Set(folders.value.filter(folder => !folder.deleted).map(folder => folder.color).filter(Boolean))
+    const available = FOLDER_COLOR_PALETTE.filter(color => !used.has(color))
+    if (available.length) return available[Math.floor(Math.random() * available.length)]
+
+    // 调色板耗尽后从较大的 HSL 色域随机生成，并在当前数据中排重。
+    for (let attempt = 0; attempt < 720; attempt++) {
+      const hue = Math.floor(Math.random() * 360)
+      const color = `hsl(${hue} 58% 48%)`
+      if (!used.has(color)) return color
+    }
+    return `hsl(${Date.now() % 360} 58% 48%)`
   }
 
   // ==================== 文件夹操作 ====================
@@ -216,6 +261,7 @@ export const useNoteStore = defineStore('note', () => {
       name,
       parentId,
       tags: [],
+      color: pickUnusedFolderColor(),
       createdAt: now,
       updatedAt: now
     }
@@ -389,6 +435,39 @@ export const useNoteStore = defineStore('note', () => {
         .catch(err => console.error('移动笔记失败:', err))
         .finally(markSaved)
     }
+  }
+
+  /** 将文件夹移动到另一文件夹下，阻止系统根目录与循环层级。 */
+  function moveFolderToParent(folderId, parentId = null) {
+    const folder = folders.value.find(item => item.id === folderId && !item.deleted)
+    if (!folder || folder.isSystem) return false
+    const nextParentId = parentId || null
+    if (nextParentId === folder.parentId) return true
+    if (nextParentId === folderId || getAllChildFolderIds(folderId).includes(nextParentId)) {
+      toastError('不能将文件夹移动到自身或其子文件夹中')
+      return false
+    }
+    if (nextParentId && !folders.value.some(item => item.id === nextParentId && !item.deleted)) return false
+    if (isFolderNameDuplicate(folder.name, nextParentId, folderId)) {
+      toastError('目标文件夹中已有同名文件夹')
+      return false
+    }
+
+    const previousParentId = folder.parentId
+    const previousUpdatedAt = folder.updatedAt
+    folder.parentId = nextParentId
+    folder.updatedAt = getTimestamp()
+    markSaving()
+    return foldersApi.update(folderId, { parentId: nextParentId, updatedAt: folder.updatedAt })
+      .then(() => true)
+      .catch(err => {
+        console.error('移动文件夹失败:', err)
+        folder.parentId = previousParentId
+        folder.updatedAt = previousUpdatedAt
+        toastError('移动文件夹失败，请重试')
+        return false
+      })
+      .finally(markSaved)
   }
 
   // ==================== 笔记操作 ====================
@@ -943,6 +1022,7 @@ export const useNoteStore = defineStore('note', () => {
     saveCurrentFolder,
     restoreLastFolder,
     moveNoteToFolder,
+    moveFolderToParent,
     createNote,
     deleteNote,
     restoreNote,
@@ -968,6 +1048,7 @@ export const useNoteStore = defineStore('note', () => {
     getChildFolders,
     getChildFolderCount,
     getFolderNoteCount,
+    getFolderNoteStats,
     rootFolders,
     getFolderPath,
     getFolderPathString
