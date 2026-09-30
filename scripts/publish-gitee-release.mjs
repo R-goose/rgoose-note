@@ -10,6 +10,7 @@ const token = env.GITEE_TOKEN
 const dirArgIndex = argv.indexOf('--dir')
 const artifactDir = dirArgIndex >= 0 ? argv[dirArgIndex + 1] : env.UPDATE_ARTIFACT_DIR
 const REQUEST_TIMEOUT_MS = 3 * 60 * 1000
+const UPLOAD_TIMEOUT_MS = 20 * 60 * 1000
 
 if (!token) {
   console.error('缺少 GITEE_TOKEN；请在当前终端或 CI 的密钥变量中设置后再发布。')
@@ -26,10 +27,10 @@ function endpoint(path) {
   return url
 }
 
-async function request(path, options = {}) {
+async function request(path, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
   const response = await fetch(endpoint(path), {
     ...options,
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    signal: AbortSignal.timeout(timeoutMs)
   })
   if (!response.ok) {
     const detail = (await response.text()).slice(0, 500)
@@ -101,7 +102,7 @@ async function uploadAttachment(releaseId, filePath) {
   console.log(`正在上传：${basename(filePath)}（${Math.ceil(size / 1024 / 1024)} MB）`)
   const form = new FormData()
   form.append('file', new Blob([content]), basename(filePath))
-  await request(`/releases/${releaseId}/attach_files`, { method: 'POST', body: form })
+  await request(`/releases/${releaseId}/attach_files`, { method: 'POST', body: form }, UPLOAD_TIMEOUT_MS)
   console.log(`已上传：${basename(filePath)}`)
 }
 
