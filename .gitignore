@@ -5,6 +5,8 @@ dist
 .env
 .env.*
 !.env.example
-release/
-release-build/
-release-build-*/
+# 安装包会归档到 installers/ 并纳入版本管理；构建输出不再被整体忽略。
+# 仅忽略 electron-builder 解包出的应用目录，它们不是可分发安装包，且会在下次构建时重建。
+release-build-*/mac/
+release-build-*/mac-arm64/
+release-build-*/win-*-unpacked/

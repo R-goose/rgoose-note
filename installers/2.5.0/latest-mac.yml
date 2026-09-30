@@ -1,0 +1,11 @@
+version: 2.5.0
+files:
+  - url: R-Goose Note-2.5.0-arm64-mac.zip
+    sha512: r7riiU7oXrCzeoCDUPyi1UqX1q46OGjDIW1XixNnq8GMCLFP9UcQqGrm2Caf3MX2jMGVQlz/FWMOjNyf0GKIeA==
+    size: 104308983
+  - url: R-Goose Note-2.5.0-arm64.dmg
+    sha512: TXl5+jmlo+REsUYus1QsiO51Vw6+h8JoHCwZpw52lCP3olbxUWCiHsfklCmixowOW7gWlXkkQazPULRMiy33Cg==
+    size: 98640060
+path: R-Goose Note-2.5.0-arm64-mac.zip
+sha512: r7riiU7oXrCzeoCDUPyi1UqX1q46OGjDIW1XixNnq8GMCLFP9UcQqGrm2Caf3MX2jMGVQlz/FWMOjNyf0GKIeA==
+releaseDate: '2026-09-30T03:22:13.058Z'
