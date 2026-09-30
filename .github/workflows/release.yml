@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   publish:
-    name: Local macOS and Windows release
+    name: Local Windows release
     # 由此 Mac 的专用 Runner 执行：避免 GitHub Hosted Runner 到 Gitee
     # 的大文件跨网传输，并让工作流使用已有的 GITEE_TOKEN Secret。
     runs-on: [self-hosted, macOS, ARM64, rgoose-note-release]
@@ -39,7 +39,7 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
         run: node scripts/verify-release-version.mjs
 
-      - name: Build and publish to Gitee Release
+      - name: Build and publish Windows installer to Gitee Release
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
-        run: npm run electron:publish:gitee:all
+        run: npm run electron:publish:gitee:win

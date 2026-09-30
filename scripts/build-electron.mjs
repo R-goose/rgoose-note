@@ -6,6 +6,7 @@ const root = resolve(process.cwd())
 const useMirror = argv.includes('--mirror')
 const publishToGitee = argv.includes('--publish-gitee')
 const buildAllPlatforms = argv.includes('--all-platforms')
+const buildWindowsOnly = argv.includes('--windows-only')
 
 const ts = new Date()
 const pad = (n) => String(n).padStart(2, '0')
@@ -40,16 +41,24 @@ function run(command, args, failureMessage) {
 }
 
 async function main() {
+  if (buildAllPlatforms && buildWindowsOnly) {
+    throw new Error('不能同时使用 --all-platforms 和 --windows-only。')
+  }
+  if (publishToGitee && buildAllPlatforms) {
+    throw new Error('macOS 安装包仅供本地安装，不支持通过此脚本上传；请使用 --windows-only 发布 Windows。')
+  }
   if (buildAllPlatforms && process.platform !== 'darwin') {
     throw new Error('双平台本地发布仅支持在 macOS 上执行。')
   }
 
-  // Apple Silicon 默认会把 --win 构建为 Windows ARM64；为兼容绝大多数
-  // Intel/AMD Windows 设备，双平台发布明确生成 Windows x64。macOS 则
-  // 生成当前开发机可验证的 Apple Silicon ARM64 DMG/ZIP。
+  // Apple Silicon 默认会把 --win 构建为 Windows ARM64；明确指定 x64，
+  // 以兼容绝大多数 Intel/AMD Windows 设备。未指定平台时保留本机构建，
+  // 供 macOS 本地安装使用。
   const builds = buildAllPlatforms
     ? [['--mac', '--arm64'], ['--win', '--x64']]
-    : [[]]
+    : buildWindowsOnly
+      ? [['--win', '--x64']]
+      : [[]]
   let windowsBuildStarted = false
   try {
     for (const targetArgs of builds) {
@@ -68,6 +77,7 @@ async function main() {
   if (!publishToGitee) return
   const publishArgs = [join(root, 'scripts', 'publish-gitee-release.mjs'), '--dir', join(root, outDir)]
   if (buildAllPlatforms) publishArgs.push('--platform', 'all')
+  if (buildWindowsOnly) publishArgs.push('--platform', 'win32')
   await run('node', publishArgs, 'Gitee Release 发布脚本启动失败')
 }
 
