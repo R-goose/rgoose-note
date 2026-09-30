@@ -19,7 +19,10 @@ if (useMirror) {
 }
 
 const cli = join(root, 'node_modules', 'electron-builder', 'cli.js')
-const child = spawn('node', [cli, '--projectDir', '.', `--config.directories.output=${outDir}`], {
+// `build.publish` 是应用检查更新所使用的 generic 下载地址，并不是
+// electron-builder 可直接发布的目标。无论是否处于 Git tag CI，都由
+// publish-gitee-release.mjs 在打包成功后统一上传到 Gitee Release。
+const child = spawn('node', [cli, '--projectDir', '.', `--config.directories.output=${outDir}`, '--publish', 'never'], {
   cwd: root,
   env,
   stdio: 'inherit',
