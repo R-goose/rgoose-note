@@ -11,7 +11,6 @@ let tray = null
 let isQuitting = false
 const AI_BASE_URL = 'https://open.bigmodel.cn/api/coding/paas/v4'
 const aiRequests = new Map()
-const UPDATE_UNAVAILABLE_MESSAGE = '当前为开发环境，安装后的正式版本才支持检查更新。'
 let updateState = {
   status: 'idle',
   version: null,
@@ -23,7 +22,14 @@ let updateState = {
 let autoUpdaterReady = false
 
 function updatesSupported() {
-  return app.isPackaged && !process.env.RGOOSE_DISABLE_AUTO_UPDATE
+  // macOS 仅通过本机 DMG 安装，不发布 ZIP 更新源；只有 Windows 正式包支持线上更新。
+  return process.platform === 'win32' && app.isPackaged && !process.env.RGOOSE_DISABLE_AUTO_UPDATE
+}
+
+function updateUnsupportedMessage() {
+  if (!app.isPackaged) return '当前为开发环境，安装后的正式版本才支持检查更新。'
+  if (process.platform === 'darwin') return 'macOS 版本通过本地 DMG 安装，请在此 Mac 上构建新版安装包。'
+  return '当前版本不支持线上检查更新。'
 }
 
 function publicUpdateState() {
@@ -94,7 +100,7 @@ function configureAutoUpdater() {
 ipcMain.handle('app-update:get-state', () => publicUpdateState())
 ipcMain.handle('app-update:check', async () => {
   if (!updatesSupported()) {
-    setUpdateState({ status: 'unavailable', message: UPDATE_UNAVAILABLE_MESSAGE, percent: 0 })
+    setUpdateState({ status: 'unavailable', message: updateUnsupportedMessage(), percent: 0 })
     return publicUpdateState()
   }
   configureAutoUpdater()

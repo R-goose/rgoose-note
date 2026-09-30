@@ -89,12 +89,17 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "publish": [
+        {
+          "provider": "generic",
+          "url": "https://gitee.com/kokomi123/rgoose-note/releases/download/latest"
+        }
+      ]
     },
     "mac": {
       "target": [
-        "dmg",
-        "zip"
+        "dmg"
       ],
       "icon": "build/icon.icns",
       "category": "public.app-category.productivity"
@@ -111,13 +116,7 @@
     },
     "electronDownload": {
       "mirror": "https://npmmirror.com/mirrors/electron/"
-    },
-    "publish": [
-      {
-        "provider": "generic",
-        "url": "https://gitee.com/kokomi123/rgoose-note/releases/download/latest"
-      }
-    ]
+    }
   },
   "volta": {
     "node": "24.4.0"

@@ -388,6 +388,9 @@
             :style="tableLayoutStyle"
             :tabindex="tableCanEdit ? 0 : -1"
             @keydown="onNumericTableNavigationKeyDown"
+            @copy="onNumericTableClipboard"
+            @cut="onNumericTableClipboard"
+            @paste="onNumericTableClipboard"
           >
             <colgroup>
               <col v-for="(width, ci) in tableColumnWidths" :key="ci" :style="{ width: `${width}px` }" />
@@ -510,7 +513,9 @@
           @click="onEditorClick"
           @dblclick="onEditorDoubleClick"
           @blur="onBlur"
-          @paste="onPaste"
+          @copy="onEditorClipboard"
+          @cut="onEditorClipboard"
+          @paste="onEditorPaste"
           @keydown="onEditorKeyDown"
           @mouseup="saveSelection"
           @keyup="saveSelection"
@@ -534,7 +539,9 @@
         @click="onEditorClick"
         @dblclick="onEditorDoubleClick"
         @blur="onBlur"
-        @paste="onPaste"
+        @copy="onEditorClipboard"
+        @cut="onEditorClipboard"
+        @paste="onEditorPaste"
         @keydown="onEditorKeyDown"
         @mouseup="saveSelection"
         @keyup="saveSelection"
@@ -906,9 +913,43 @@ function getTableArrowTarget(rows, row, col, key) {
   return { row: nextRow, col: nextCol, cell: nextCells[nextCol] }
 }
 
+function isTableClipboardShortcut(e) {
+  return (e.ctrlKey || e.metaKey) && !e.altKey && ['c', 'x', 'v'].includes(e.key.toLowerCase())
+}
+
+function isTableSelectAllShortcut(e) {
+  return (e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'a'
+}
+
+function selectTableCellContents(cell) {
+  if (!cell) return
+  const range = document.createRange()
+  range.selectNodeContents(cell)
+  const selection = window.getSelection()
+  selection?.removeAllRanges()
+  selection?.addRange(range)
+}
+
+function writeCellTextToClipboard(e, text) {
+  if (!e.clipboardData) return false
+  e.clipboardData.setData('text/plain', text)
+  return true
+}
+
 // 编辑单元格时，方向键交给浏览器移动文本光标；只阻止它继续传给画布快捷键。
 function onNumericTableCellKeyDown(e) {
   if (!tableCanEdit.value || !tableCellEditing.value) return
+  if (isTableSelectAllShortcut(e)) {
+    e.preventDefault()
+    e.stopPropagation()
+    selectTableCellContents(e.currentTarget)
+    return
+  }
+  // 让浏览器触发 copy/cut/paste 事件，但不让画布快捷键把它当作“复制块”。
+  if (isTableClipboardShortcut(e)) {
+    e.stopPropagation()
+    return
+  }
   if (e.key === 'Escape') {
     const selection = tableSelection.value
     e.preventDefault()
@@ -929,6 +970,16 @@ function onNumericTableCellKeyDown(e) {
 function onNumericTableNavigationKeyDown(e) {
   if (!tableCanEdit.value || tableCellEditing.value || !tableSelection.value) return
   const rows = Array.from(numericTableRef.value?.rows || [])
+  if (isTableClipboardShortcut(e)) {
+    e.stopPropagation()
+    return
+  }
+  if (isTableSelectAllShortcut(e)) {
+    // 未进入编辑态时没有文本选区；阻止其落到画布的全选逻辑即可。
+    e.preventDefault()
+    e.stopPropagation()
+    return
+  }
   // 单击选中态按 Esc 交给画布取消块选中；先清掉单元格选中，避免两者状态割裂。
   if (e.key === 'Escape') {
     tableSelection.value = null
@@ -948,6 +999,34 @@ function onNumericTableNavigationKeyDown(e) {
   e.preventDefault()
   e.stopPropagation()
   selectTableCell(target.row, target.col)
+}
+
+// 单击选中单元格时，复制/剪切/粘贴针对一个格的纯文本，而不是整个块。
+function onNumericTableClipboard(e) {
+  if (!tableCanEdit.value || tableCellEditing.value || !tableSelection.value) return
+  const { row, col } = tableSelection.value
+  const currentText = tableRows.value[row]?.[col] || ''
+
+  if (e.type === 'copy' || e.type === 'cut') {
+    if (!writeCellTextToClipboard(e, currentText)) return
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.type === 'cut') {
+      emit('save-history')
+      emit('update', props.block.id, { tableData: updateTableCell(props.block.tableData, row, col, '') })
+    }
+    return
+  }
+
+  if (e.type === 'paste') {
+    const types = Array.from(e.clipboardData?.types || [])
+    if (!types.includes('text/plain')) return
+    const pastedText = e.clipboardData.getData('text/plain')
+    e.preventDefault()
+    e.stopPropagation()
+    emit('save-history')
+    emit('update', props.block.id, { tableData: updateTableCell(props.block.tableData, row, col, pastedText) })
+  }
 }
 
 function isTableCellSelected(row, col) {
@@ -1958,6 +2037,82 @@ function onPaste(e) {
   document.execCommand('insertText', false, text)
 }
 
+function getSelectedInlineTableCell() {
+  if (!inlineTableSelection.value || !inlineTableElement || !editorRef.value?.contains(inlineTableElement)) return null
+  const { row, col } = inlineTableSelection.value
+  return inlineTableRows(inlineTableElement)[row]?.cells?.[col] || null
+}
+
+function commitInlineTableCellText(cell, text) {
+  if (!cell) return
+  const table = cell.closest('table')
+  const selection = inlineTableSelection.value
+  const tableIndex = table && editorRef.value
+    ? Array.from(editorRef.value.querySelectorAll('table')).indexOf(table)
+    : -1
+  cell.textContent = text
+  if (!text) cell.appendChild(document.createElement('br'))
+  const content = serializeEditorContent()
+  if (content !== (props.block.content || '')) emit('update', props.block.id, { content })
+
+  // update 会使外层编辑器根据新 content 重新同步 DOM。恢复同一张表、同一坐标的
+  // 单元格选中态，否则下一次 ⌘A 会退化为选择整个文本块。
+  if (selection && tableIndex >= 0) {
+    nextTick(() => {
+      const currentTable = editorRef.value?.querySelectorAll('table')[tableIndex]
+      const currentCell = currentTable && inlineTableRows(currentTable)[selection.row]?.cells?.[selection.col]
+      if (!currentTable || !currentCell) return
+      inlineTableEditing.value = false
+      selectInlineTableCell(currentTable, currentCell)
+      focusInlineTableNavigation(currentTable)
+    })
+  }
+}
+
+// 内嵌表格在“单击选中”状态下没有浏览器文本选区，需要自行处理剪贴板。
+// 编辑状态保留浏览器的复制/剪切选区语义；粘贴始终作为当前单元格文本处理，避免 Markdown 被插入为整块内容。
+function onEditorClipboard(e) {
+  const cell = getSelectedInlineTableCell()
+  if (!cell || inlineTableEditing.value) return false
+
+  if (e.type === 'copy' || e.type === 'cut') {
+    if (!writeCellTextToClipboard(e, cell.innerText || cell.textContent || '')) return false
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.type === 'cut') {
+      emit('save-history')
+      commitInlineTableCellText(cell, '')
+    }
+    return true
+  }
+
+  if (e.type === 'paste') {
+    const types = Array.from(e.clipboardData?.types || [])
+    if (!types.includes('text/plain')) return false
+    e.preventDefault()
+    e.stopPropagation()
+    emit('save-history')
+    commitInlineTableCellText(cell, e.clipboardData.getData('text/plain'))
+    return true
+  }
+  return false
+}
+
+function onEditorPaste(e) {
+  const cell = getSelectedInlineTableCell()
+  if (cell && inlineTableEditing.value) {
+    const types = Array.from(e.clipboardData?.types || [])
+    if (types.includes('text/plain')) {
+      e.preventDefault()
+      e.stopPropagation()
+      document.execCommand('insertText', false, e.clipboardData.getData('text/plain'))
+      return
+    }
+  }
+  if (onEditorClipboard(e)) return
+  onPaste(e)
+}
+
 function insertBlocksAtCursor(html) {
   const editor = editorRef.value
   if (!editor) return
@@ -2073,6 +2228,8 @@ function blockParentReplace(oldNode, beforeFrag, afterNode) {
 }
 
 function onEditorKeyDown(e) {
+  if (selectInlineTableCellTextOnShortcut(e)) return
+  if (stopInlineTableClipboardShortcut(e)) return
   if (exitInlineTableEditingOnEscape(e)) return
   clearInlineTableSelectionOnEscape(e)
   if (activateInlineTableSelectionOnEnter(e)) return
@@ -2102,6 +2259,25 @@ function onEditorKeyDown(e) {
       return
     }
   }
+}
+
+// 外层文本编辑器本身也是 contenteditable。显式选中当前 td/th，避免 ⌘A/Ctrl+A
+// 沿 DOM 向外选择整个文本块。
+function selectInlineTableCellTextOnShortcut(e) {
+  if (!inlineTableCanEdit.value || !inlineTableEditing.value || !isTableSelectAllShortcut(e)) return false
+  const cell = getSelectedInlineTableCell()
+  if (!cell) return false
+  e.preventDefault()
+  e.stopPropagation()
+  selectTableCellContents(cell)
+  return true
+}
+
+function stopInlineTableClipboardShortcut(e) {
+  if (!inlineTableCanEdit.value || !inlineTableSelection.value || !isTableClipboardShortcut(e)) return false
+  // 不阻止默认行为，以保留浏览器的 copy/cut/paste 事件；只阻止事件到达画布快捷键。
+  e.stopPropagation()
+  return true
 }
 
 // 单击选中态的 Esc 要与画布的取消块选中保持一致，因此不拦截事件，
