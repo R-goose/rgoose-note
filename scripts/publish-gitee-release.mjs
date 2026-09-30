@@ -85,7 +85,7 @@ function getPlatformArtifacts() {
 async function collectArtifacts(dir, artifacts) {
   const names = await readdir(dir)
   const files = names.filter(artifacts.matches)
-  if (!files.some(artifacts.manifest)) {
+  if (!files.some(name => artifacts.manifest.test(name))) {
     throw new Error(`未找到 ${artifacts.label} 的更新清单；请确认目录来自 electron-builder。`)
   }
   return files.map(name => resolve(dir, name))
@@ -113,6 +113,6 @@ try {
   for (const filePath of files) await uploadAttachment(release.id, filePath)
   console.log(`${artifacts.label} 发布完成：https://gitee.com/${OWNER}/${REPO}/releases/tag/${RELEASE_TAG}`)
 } catch (error) {
-  console.error(error?.message || error)
+  console.error(error?.stack || error?.message || error)
   exit(1)
 }
