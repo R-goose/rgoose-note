@@ -43,7 +43,7 @@ jobs:
 
       - name: Verify release version
         env:
-          GITHUB_REF_NAME: ${{ inputs.release_tag || github.ref_name }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
         run: node scripts/verify-release-version.mjs
 
       - name: Build and publish to Gitee Release
