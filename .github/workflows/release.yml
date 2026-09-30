@@ -35,7 +35,8 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24.4.0
+          # 使用 LTS 版本，避免 Node 24 的实验性运行时行为影响 Gitee 大文件上传。
+          node-version: 22
           cache: npm
 
       - name: Install dependencies

@@ -1,4 +1,4 @@
-import { readFile, readdir } from 'node:fs/promises'
+import { readFile, readdir, stat } from 'node:fs/promises'
 import { basename, resolve } from 'node:path'
 import { argv, env, exit } from 'node:process'
 
@@ -9,6 +9,7 @@ const API_ROOT = `https://gitee.com/api/v5/repos/${OWNER}/${REPO}`
 const token = env.GITEE_TOKEN
 const dirArgIndex = argv.indexOf('--dir')
 const artifactDir = dirArgIndex >= 0 ? argv[dirArgIndex + 1] : env.UPDATE_ARTIFACT_DIR
+const REQUEST_TIMEOUT_MS = 3 * 60 * 1000
 
 if (!token) {
   console.error('缺少 GITEE_TOKEN；请在当前终端或 CI 的密钥变量中设置后再发布。')
@@ -26,7 +27,10 @@ function endpoint(path) {
 }
 
 async function request(path, options = {}) {
-  const response = await fetch(endpoint(path), options)
+  const response = await fetch(endpoint(path), {
+    ...options,
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+  })
   if (!response.ok) {
     const detail = (await response.text()).slice(0, 500)
     throw new Error(`Gitee API 请求失败（${response.status}）：${detail}`)
@@ -93,6 +97,8 @@ async function collectArtifacts(dir, artifacts) {
 
 async function uploadAttachment(releaseId, filePath) {
   const content = await readFile(filePath)
+  const { size } = await stat(filePath)
+  console.log(`正在上传：${basename(filePath)}（${Math.ceil(size / 1024 / 1024)} MB）`)
   const form = new FormData()
   form.append('file', new Blob([content]), basename(filePath))
   await request(`/releases/${releaseId}/attach_files`, { method: 'POST', body: form })
