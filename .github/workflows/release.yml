@@ -16,18 +16,10 @@ permissions:
 
 jobs:
   publish:
-    name: ${{ matrix.name }} release
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: macOS
-            os: macos-latest
-          - name: Windows
-            # windows-latest 已切换到 VS 2026；当前 node-gyp 无法识别该环境。
-            # 固定在带有受支持 C++ 工具链的 Windows Server 2022。
-            os: windows-2022
+    name: Local macOS and Windows release
+    # 由此 Mac 的专用 Runner 执行：避免 GitHub Hosted Runner 到 Gitee
+    # 的大文件跨网传输，并让工作流使用已有的 GITEE_TOKEN Secret。
+    runs-on: [self-hosted, macOS, ARM64, rgoose-note-release]
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -50,4 +42,4 @@ jobs:
       - name: Build and publish to Gitee Release
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
-        run: npm run electron:publish:gitee
+        run: npm run electron:publish:gitee:all

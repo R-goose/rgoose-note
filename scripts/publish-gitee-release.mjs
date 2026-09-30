@@ -9,6 +9,8 @@ const API_ROOT = `https://gitee.com/api/v5/repos/${OWNER}/${REPO}`
 const token = env.GITEE_TOKEN
 const dirArgIndex = argv.indexOf('--dir')
 const artifactDir = dirArgIndex >= 0 ? argv[dirArgIndex + 1] : env.UPDATE_ARTIFACT_DIR
+const platformArgIndex = argv.indexOf('--platform')
+const requestedPlatform = platformArgIndex >= 0 ? argv[platformArgIndex + 1] : process.platform
 const REQUEST_TIMEOUT_MS = 3 * 60 * 1000
 const UPLOAD_TIMEOUT_MS = 20 * 60 * 1000
 
@@ -82,16 +84,21 @@ const PLATFORM_ARTIFACTS = {
 }
 
 function getPlatformArtifacts() {
-  const artifacts = PLATFORM_ARTIFACTS[process.platform]
-  if (!artifacts) throw new Error(`暂不支持在 ${process.platform} 上发布更新包。`)
-  return artifacts
+  if (requestedPlatform === 'all') return [PLATFORM_ARTIFACTS.darwin, PLATFORM_ARTIFACTS.win32]
+  const artifacts = PLATFORM_ARTIFACTS[requestedPlatform]
+  if (!artifacts) throw new Error(`暂不支持发布 ${requestedPlatform} 平台的更新包。`)
+  return [artifacts]
 }
 
-async function collectArtifacts(dir, artifacts) {
+async function collectArtifacts(dir, artifactSets) {
   const names = await readdir(dir)
-  const files = names.filter(artifacts.matches)
-  if (!files.some(name => artifacts.manifest.test(name))) {
-    throw new Error(`未找到 ${artifacts.label} 的更新清单；请确认目录来自 electron-builder。`)
+  const files = []
+  for (const artifacts of artifactSets) {
+    const platformFiles = names.filter(artifacts.matches)
+    if (!platformFiles.some(name => artifacts.manifest.test(name))) {
+      throw new Error(`未找到 ${artifacts.label} 的更新清单；请确认目录来自 electron-builder。`)
+    }
+    files.push(...platformFiles)
   }
   return files.map(name => resolve(dir, name))
 }
@@ -107,18 +114,18 @@ async function uploadAttachment(releaseId, filePath) {
 }
 
 try {
-  const artifacts = getPlatformArtifacts()
-  const files = await collectArtifacts(resolve(artifactDir), artifacts)
+  const artifactSets = getPlatformArtifacts()
+  const files = await collectArtifacts(resolve(artifactDir), artifactSets)
   const release = await findOrCreateLatestRelease()
   for (const attachment of release.attach_files || []) {
     const attachmentName = attachment.name || attachment.filename || ''
-    if (artifacts.matches(attachmentName)) {
+    if (artifactSets.some(artifacts => artifacts.matches(attachmentName))) {
       await request(`/releases/${release.id}/attach_files/${attachment.id}`, { method: 'DELETE' })
-      console.log(`已替换旧 ${artifacts.label} 产物：${attachmentName}`)
+      console.log(`已替换旧发布产物：${attachmentName}`)
     }
   }
   for (const filePath of files) await uploadAttachment(release.id, filePath)
-  console.log(`${artifacts.label} 发布完成：https://gitee.com/${OWNER}/${REPO}/releases/tag/${RELEASE_TAG}`)
+  console.log(`${artifactSets.map(artifacts => artifacts.label).join(' + ')} 发布完成：https://gitee.com/${OWNER}/${REPO}/releases/tag/${RELEASE_TAG}`)
 } catch (error) {
   console.error(error?.stack || error?.message || error)
   exit(1)
