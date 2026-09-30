@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: '要发布的版本标签（例如 v2.5.0）'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -19,7 +25,9 @@ jobs:
           - name: macOS
             os: macos-latest
           - name: Windows
-            os: windows-latest
+            # windows-latest 已切换到 VS 2026；当前 node-gyp 无法识别该环境。
+            # 固定在带有受支持 C++ 工具链的 Windows Server 2022。
+            os: windows-2022
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -34,6 +42,8 @@ jobs:
         run: npm ci
 
       - name: Verify release version
+        env:
+          GITHUB_REF_NAME: ${{ inputs.release_tag || github.ref_name }}
         run: node scripts/verify-release-version.mjs
 
       - name: Build and publish to Gitee Release
