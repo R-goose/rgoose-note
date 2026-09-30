@@ -117,7 +117,10 @@ try {
   const artifactSets = getPlatformArtifacts()
   const files = await collectArtifacts(resolve(artifactDir), artifactSets)
   const release = await findOrCreateLatestRelease()
-  for (const attachment of release.attach_files || []) {
+  // Release 概览只包含 assets 的展示信息，缺少附件 ID；必须通过专用
+  // 接口读取附件，才能可靠删除早先发布留下的同名文件。
+  const attachments = await request(`/releases/${release.id}/attach_files?per_page=100`)
+  for (const attachment of attachments) {
     const attachmentName = attachment.name || attachment.filename || ''
     if (artifactSets.some(artifacts => artifacts.matches(attachmentName))) {
       await request(`/releases/${release.id}/attach_files/${attachment.id}`, { method: 'DELETE' })
