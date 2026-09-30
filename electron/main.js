@@ -125,7 +125,19 @@ ipcMain.handle('app-update:download', async () => {
 ipcMain.handle('app-update:install', () => {
   if (updatesSupported() && updateState.status === 'downloaded') {
     isQuitting = true
-    autoUpdater.quitAndInstall(false, true)
+    setUpdateState({ status: 'installing', message: '正在关闭应用并安装更新…', percent: 100 })
+    // 更新器会在下一轮事件循环调用 app.quit()。在此之前先隐藏窗口、销毁托盘并释放数据库，
+    // 防止“关闭到托盘”配置让应用看似仍在运行，或让安装器等待文件句柄释放。
+    destroyTray()
+    backend.stop()
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.hide()
+    try {
+      autoUpdater.quitAndInstall(false, true)
+    } catch (error) {
+      isQuitting = false
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show()
+      setUpdateState({ status: 'error', message: error?.message || '启动更新安装失败，请稍后重试。' })
+    }
   }
   return publicUpdateState()
 })

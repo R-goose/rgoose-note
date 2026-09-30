@@ -533,16 +533,30 @@
               <div class="setting-desc">版本 {{ APP_VERSION }}</div>
             </div>
           </div>
-          <div v-if="canAppUpdate" id="set-about-update" class="setting-item update-item">
+          <div v-if="canAppUpdate" id="set-about-update" class="setting-item update-item" :class="`is-${appUpdate.status}`">
+            <div class="update-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 5v4h4" />
+                <path d="M4 13a8.1 8.1 0 0 0 15.5 2M20 19v-4h-4" />
+              </svg>
+            </div>
             <div class="setting-info">
-              <div class="setting-name">软件更新</div>
+              <div class="update-heading">
+                <div class="setting-name">软件更新</div>
+                <span class="update-status" :class="`is-${appUpdate.status}`">{{ updateStatusLabel }}</span>
+              </div>
               <div class="setting-desc">{{ updateDescription }}</div>
+              <div v-if="appUpdate.status === 'downloading'" class="update-progress-track" aria-label="更新下载进度">
+                <span :style="updateProgressStyle"></span>
+              </div>
               <div v-if="appUpdate.releaseNotes" class="update-notes">{{ appUpdate.releaseNotes }}</div>
             </div>
             <div class="update-control">
               <span v-if="appUpdate.status === 'downloading'" class="update-progress">{{ appUpdate.percent }}%</span>
-              <button class="btn btn-primary btn-sm" :disabled="updateActionDisabled" @click="runAppUpdateAction">
-                {{ updateActionLabel }}
+              <button class="btn btn-primary btn-sm update-action" :class="{ 'is-working': isUpdateWorking, 'is-ready': appUpdate.status === 'downloaded' }" :disabled="updateActionDisabled" @click="runAppUpdateAction">
+                <svg v-if="isUpdateWorking" class="update-action-spinner" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-dasharray="28 24" /></svg>
+                <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></svg>
+                <span>{{ updateActionLabel }}</span>
               </button>
             </div>
           </div>
@@ -883,11 +897,27 @@ const updateActionLabel = computed(() => {
   if (appUpdate.value.status === 'available') return '下载更新'
   if (appUpdate.value.status === 'downloading') return `下载中 ${appUpdate.value.percent || 0}%`
   if (appUpdate.value.status === 'downloaded') return '重启并安装'
+  if (appUpdate.value.status === 'installing') return '正在安装…'
   if (appUpdate.value.status === 'checking') return '正在检查…'
   return '检查更新'
 })
 
-const updateActionDisabled = computed(() => ['checking', 'downloading'].includes(appUpdate.value.status))
+const isUpdateWorking = computed(() => ['checking', 'downloading', 'installing'].includes(appUpdate.value.status))
+const updateActionDisabled = computed(() => isUpdateWorking.value)
+const updateProgressStyle = computed(() => ({ width: `${Math.max(0, Math.min(100, appUpdate.value.percent || 0))}%` }))
+const updateStatusLabel = computed(() => {
+  const labels = {
+    available: '可更新',
+    downloading: '下载中',
+    downloaded: '已就绪',
+    installing: '安装中',
+    checking: '检查中',
+    'not-available': '已是最新',
+    unavailable: '暂不可用',
+    error: '更新失败'
+  }
+  return labels[appUpdate.value.status] || '待检查'
+})
 
 const updateDescription = computed(() => {
   const state = appUpdate.value
@@ -900,7 +930,10 @@ async function runAppUpdateAction() {
   if (!api) return
   try {
     if (appUpdate.value.status === 'available') appUpdate.value = await api.download()
-    else if (appUpdate.value.status === 'downloaded') await api.install()
+    else if (appUpdate.value.status === 'downloaded') {
+      appUpdate.value = { ...appUpdate.value, status: 'installing', message: '正在关闭应用并安装更新…' }
+      await api.install()
+    }
     else appUpdate.value = await api.check()
   } catch (error) {
     appUpdate.value = { ...appUpdate.value, status: 'error', message: error?.message || '更新操作失败，请稍后重试。' }
@@ -2252,6 +2285,107 @@ function resetAllShortcuts() {
 
 .update-item {
   align-items: flex-start;
+  gap: 14px;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(112deg, color-mix(in srgb, var(--primary-soft, #e8f3ec) 66%, var(--bg-secondary)) 0%, var(--bg-secondary) 57%);
+}
+
+.update-item::after {
+  content: '';
+  position: absolute;
+  width: 180px;
+  height: 180px;
+  right: -78px;
+  top: -125px;
+  border: 1px solid color-mix(in srgb, var(--primary-color, #6bbd8f) 18%, transparent);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.update-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--primary-color, #5da97c);
+  background: color-mix(in srgb, var(--primary-color, #6bbd8f) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary-color, #6bbd8f) 23%, transparent);
+  border-radius: 13px;
+}
+
+.update-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.update-item.is-downloading .update-icon svg,
+.update-item.is-checking .update-icon svg,
+.update-item.is-installing .update-icon svg {
+  animation: spin 1.1s linear infinite;
+}
+
+.update-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.update-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border: 1px solid var(--border-light);
+  border-radius: 999px;
+  background: var(--bg-primary);
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .03em;
+}
+
+.update-status.is-available,
+.update-status.is-downloaded {
+  color: #2d895b;
+  background: #e8f6ee;
+  border-color: #bfe4cd;
+}
+
+.update-status.is-downloading,
+.update-status.is-checking,
+.update-status.is-installing {
+  color: #4f7fa8;
+  background: #edf5fb;
+  border-color: #c7ddeb;
+}
+
+.update-status.is-error {
+  color: #b94d55;
+  background: #fff0f1;
+  border-color: #f1c8cc;
+}
+
+.update-progress-track {
+  width: min(380px, 100%);
+  height: 6px;
+  margin-top: 9px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--primary-color, #6bbd8f) 16%, transparent);
+}
+
+.update-progress-track > span {
+  display: block;
+  height: 100%;
+  min-width: 6px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--primary-color, #6bbd8f), #86cfa6);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--primary-color, #6bbd8f) 60%, transparent);
+  transition: width .25s ease;
 }
 
 .update-control {
@@ -2259,15 +2393,47 @@ function resetAllShortcuts() {
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
-  padding-top: 2px;
+  position: relative;
+  z-index: 1;
+  padding-top: 3px;
 }
 
 .update-progress {
   min-width: 34px;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  color: var(--primary-dark);
+  color: var(--primary-dark, #397553);
+  font-weight: 700;
   text-align: right;
+}
+
+.update-action {
+  min-width: 112px;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 10px !important;
+  box-shadow: 0 4px 11px color-mix(in srgb, var(--primary-color, #6bbd8f) 22%, transparent);
+}
+
+.update-action svg {
+  width: 15px;
+  height: 15px;
+}
+
+.update-action.is-ready {
+  background: #357a57;
+}
+
+.update-action.is-working {
+  opacity: .88;
+  box-shadow: none;
+}
+
+.update-action-spinner {
+  animation: spin .8s linear infinite;
 }
 
 .update-notes {
@@ -2277,6 +2443,24 @@ function resetAllShortcuts() {
   line-height: 1.55;
   color: var(--text-tertiary);
   white-space: pre-line;
+}
+
+@media (max-width: 640px) {
+  .update-item {
+    gap: 11px;
+    flex-wrap: wrap;
+  }
+
+  .update-item .setting-info {
+    min-width: 0;
+    flex: 1 1 calc(100% - 50px);
+  }
+
+  .update-control {
+    width: 100%;
+    justify-content: flex-end;
+    padding-top: 0;
+  }
 }
 
 .switch-wrap {
