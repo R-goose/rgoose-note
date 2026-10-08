@@ -16,6 +16,7 @@ const REQUEST_TIMEOUT_MS = 3 * 60 * 1000
 const UPLOAD_TIMEOUT_MS = 20 * 60 * 1000
 const UPLOAD_MAX_ATTEMPTS = 4
 const UPLOAD_RETRY_DELAYS_MS = [3_000, 10_000, 25_000]
+const GITEE_UPLOAD_HOST = 'gitee.com'
 
 if (!token) {
   console.error('缺少 GITEE_TOKEN；请在当前终端或 CI 的密钥变量中设置后再发布。')
@@ -130,11 +131,12 @@ function escapeCurlConfig(value) {
   return String(value).replaceAll('\\', '\\\\').replaceAll('"', '\\"')
 }
 
-function uploadWithCurl(releaseId, filePath) {
+async function uploadWithCurl(releaseId, filePath) {
   // 大文件通过 Node 的 undici 上传到 Gitee 时会频繁断连。curl 使用流式
   // multipart，不会把完整 EXE 载入 Node 内存；令牌仅经标准输入传给 curl，
   // 不会出现在 Actions 日志、命令行参数或临时配置文件中。
   const url = endpoint(`/releases/${releaseId}/attach_files`).toString()
+  const directAddress = await resolveGiteeUploadAddress()
   const config = [
     'fail-with-body',
     'silent',
@@ -143,6 +145,7 @@ function uploadWithCurl(releaseId, filePath) {
     'connect-timeout = "60"',
     `max-time = "${Math.ceil(UPLOAD_TIMEOUT_MS / 1000)}"`,
     `url = "${escapeCurlConfig(url)}"`,
+    ...(directAddress ? [`connect-to = "${GITEE_UPLOAD_HOST}:443:${directAddress}:443"`] : []),
     `form = "file=@${escapeCurlConfig(filePath)}"`
   ].join('\n')
 
@@ -159,6 +162,27 @@ function uploadWithCurl(releaseId, filePath) {
     })
     curl.stdin.end(config)
   })
+}
+
+async function resolveGiteeUploadAddress() {
+  // 此 Mac 的代理会将 gitee.com 解析到 198.18.0.0/15 虚拟地址，小请求正常、
+  // 大文件上传却会卡住。通过 DoH 取得真实地址后让 curl 直连，同时仍使用
+  // gitee.com 作为 SNI 与 Host，TLS 校验不受影响。
+  try {
+    const response = await fetch(`https://dns.google/resolve?name=${GITEE_UPLOAD_HOST}&type=A`, {
+      signal: AbortSignal.timeout(20_000)
+    })
+    if (!response.ok) throw new Error(`DoH 状态码 ${response.status}`)
+    const payload = await response.json()
+    const address = payload.Answer?.map(record => record.data).find(value =>
+      typeof value === 'string' && /^(?!198\.18\.)(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}$/.test(value)
+    )
+    if (!address) throw new Error('未返回可用 IPv4 地址')
+    return address
+  } catch (error) {
+    console.warn(`无法解析 Gitee 直连地址，将使用默认网络路径：${error?.message || error}`)
+    return null
+  }
 }
 
 try {
