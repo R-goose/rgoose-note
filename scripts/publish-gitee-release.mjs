@@ -13,6 +13,8 @@ const platformArgIndex = argv.indexOf('--platform')
 const requestedPlatform = platformArgIndex >= 0 ? argv[platformArgIndex + 1] : process.platform
 const REQUEST_TIMEOUT_MS = 3 * 60 * 1000
 const UPLOAD_TIMEOUT_MS = 20 * 60 * 1000
+const UPLOAD_MAX_ATTEMPTS = 4
+const UPLOAD_RETRY_DELAYS_MS = [3_000, 10_000, 25_000]
 
 if (!token) {
   console.error('缺少 GITEE_TOKEN；请在当前终端或 CI 的密钥变量中设置后再发布。')
@@ -104,13 +106,27 @@ async function collectArtifacts(dir, artifactSets) {
 }
 
 async function uploadAttachment(releaseId, filePath) {
-  const content = await readFile(filePath)
   const { size } = await stat(filePath)
-  console.log(`正在上传：${basename(filePath)}（${Math.ceil(size / 1024 / 1024)} MB）`)
-  const form = new FormData()
-  form.append('file', new Blob([content]), basename(filePath))
-  await request(`/releases/${releaseId}/attach_files`, { method: 'POST', body: form }, UPLOAD_TIMEOUT_MS)
-  console.log(`已上传：${basename(filePath)}`)
+  const name = basename(filePath)
+  for (let attempt = 1; attempt <= UPLOAD_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      // 每次重试都重新创建 Blob 与 FormData；fetch 失败后其请求体不可复用。
+      const content = await readFile(filePath)
+      const form = new FormData()
+      form.append('file', new Blob([content]), name)
+      console.log(`正在上传：${name}（${Math.ceil(size / 1024 / 1024)} MB，第 ${attempt}/${UPLOAD_MAX_ATTEMPTS} 次）`)
+      await request(`/releases/${releaseId}/attach_files`, { method: 'POST', body: form }, UPLOAD_TIMEOUT_MS)
+      console.log(`已上传：${name}`)
+      return
+    } catch (error) {
+      const message = error?.message || String(error)
+      const isNetworkOrServerFailure = error?.name === 'TypeError' || /Gitee API 请求失败（(?:408|429|5\d{2})）/.test(message)
+      if (!isNetworkOrServerFailure || attempt === UPLOAD_MAX_ATTEMPTS) throw error
+      const delay = UPLOAD_RETRY_DELAYS_MS[attempt - 1]
+      console.warn(`上传连接异常，将在 ${Math.round(delay / 1000)} 秒后重试：${name}（${message}）`)
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
+  }
 }
 
 try {
