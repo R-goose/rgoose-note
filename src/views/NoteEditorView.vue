@@ -3174,7 +3174,11 @@ function onCanvasMouseDown(e) {
 function onCanvasMouseMove() {
 }
 
-function onCanvasMouseUp() {
+function onCanvasMouseUp(e) {
+  if (connectMode.value && connectingFrom.value && !e.target.closest?.('.connect-dot')) {
+    connectingFrom.value = null
+    connectingPosition.value = null
+  }
 }
 
 function screenToCanvas(clientX, clientY) {
@@ -4878,17 +4882,24 @@ function toggleConnectMode() {
 }
 
 function startConnection(blockId, position) {
-  if (connectMode.value) {
-    connectingFrom.value = blockId
-    connectingPosition.value = position
+  if (!connectMode.value) return
+  if (connectingFrom.value === blockId) {
+    connectingFrom.value = null
+    connectingPosition.value = null
+    return
   }
+  if (connectingFrom.value) {
+    endConnection(blockId, position)
+    return
+  }
+  connectingFrom.value = blockId
+  connectingPosition.value = position
 }
 
 function endConnection(blockId, position) {
-  if (connectMode.value && connectingFrom.value && connectingFrom.value !== blockId) {
-    saveHistory()
-    noteStore.addConnection(note.value.id, connectingFrom.value, blockId, 'straight')
-  }
+  if (!connectMode.value || !connectingFrom.value || connectingFrom.value === blockId) return
+  saveHistory()
+  noteStore.addConnection(note.value.id, connectingFrom.value, blockId, 'straight')
   connectingFrom.value = null
   connectingPosition.value = null
 }

@@ -1832,10 +1832,10 @@ function onEditorBeforeInput(e) {
 
 function onBlur(e) {
   if (editorRef.value) {
-    // 单元格选中态会把焦点移到可导航的 table；这是编辑器内部焦点切换，
-    // 不能按真正失焦处理，否则紧接着的单击会把选中格立即清掉。
+    // 单元格选中或编辑时，点击表格会在编辑器与 table 间切换焦点。
+    // 这仍是表格内部操作；真正切换到别的单元格由 onEditorClick 决定是否退出编辑。
     const nextFocus = e?.relatedTarget
-    if (!inlineTableEditing.value && inlineTableElement?.contains(nextFocus)) return
+    if (inlineTableElement?.contains(nextFocus)) return
     autolinkDom(editorRef.value)
     const content = serializeEditorContent()
     clearInlineTableSelection()

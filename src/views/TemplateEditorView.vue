@@ -669,30 +669,34 @@ function toggleConnectMode() {
   }
 }
 function startConnection(blockId, position) {
-  if (connectMode.value) {
-    connectingFrom.value = blockId
-    connectingPosition.value = position
+  if (!connectMode.value) return
+  if (connectingFrom.value === blockId) {
+    cancelTempConnection()
+    return
   }
+  if (connectingFrom.value) {
+    endConnection(blockId)
+    return
+  }
+  connectingFrom.value = blockId
+  connectingPosition.value = position
 }
 function endConnection(blockId) {
-  if (connectMode.value && connectingFrom.value && connectingFrom.value !== blockId) {
-    draftConnections.value.push({
-      id: generateId(),
-      from: connectingFrom.value,
-      to: blockId,
-      shape: 'straight',
-      color: '#6bbd8f',
-      width: '2',
-      dash: 'solid',
-      arrow: 'standard',
-      dir: 'forward',
-      label: ''
-    })
-    selectedConnectionId.value = draftConnections.value[draftConnections.value.length - 1].id
-  }
-  connectingFrom.value = null
-  connectingPosition.value = null
-  tempMousePos.value = { x: 0, y: 0 }
+  if (!connectMode.value || !connectingFrom.value || connectingFrom.value === blockId) return
+  draftConnections.value.push({
+    id: generateId(),
+    from: connectingFrom.value,
+    to: blockId,
+    shape: 'straight',
+    color: '#6bbd8f',
+    width: '2',
+    dash: 'solid',
+    arrow: 'standard',
+    dir: 'forward',
+    label: ''
+  })
+  selectedConnectionId.value = draftConnections.value[draftConnections.value.length - 1].id
+  cancelTempConnection()
 }
 
 function selectConnection(id) {

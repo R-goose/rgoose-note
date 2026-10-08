@@ -540,7 +540,8 @@
               <div v-if="appUpdate.releaseNotes" class="update-notes">{{ appUpdate.releaseNotes }}</div>
             </div>
             <div class="update-control">
-              <button class="btn btn-primary btn-sm" :disabled="updateActionDisabled" @click="runAppUpdateAction">
+              <button class="btn btn-primary btn-sm" :disabled="updateActionDisabled" :aria-busy="updateActionDisabled" @click="runAppUpdateAction">
+                <span v-if="updateActionDisabled" class="btn-loading-spinner" aria-hidden="true"></span>
                 {{ updateActionLabel }}
               </button>
             </div>
@@ -896,11 +897,18 @@ const updateDescription = computed(() => {
 
 async function runAppUpdateAction() {
   const api = window.electronAPI?.appUpdate
-  if (!api) return
+  if (!api || updateActionDisabled.value) return
+  const status = appUpdate.value.status
   try {
-    if (appUpdate.value.status === 'available') appUpdate.value = await api.download()
-    else if (appUpdate.value.status === 'downloaded') await api.install()
-    else appUpdate.value = await api.check()
+    if (status === 'available') {
+      appUpdate.value = { ...appUpdate.value, status: 'downloading', percent: 0, message: '正在准备下载更新…' }
+      appUpdate.value = await api.download()
+    } else if (status === 'downloaded') {
+      await api.install()
+    } else {
+      appUpdate.value = { ...appUpdate.value, status: 'checking', message: '正在检查更新…' }
+      appUpdate.value = await api.check()
+    }
   } catch (error) {
     appUpdate.value = { ...appUpdate.value, status: 'error', message: error?.message || '更新操作失败，请稍后重试。' }
   }

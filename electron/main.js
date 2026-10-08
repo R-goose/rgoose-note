@@ -115,6 +115,7 @@ ipcMain.handle('app-update:download', async () => {
   if (!updatesSupported()) return publicUpdateState()
   configureAutoUpdater()
   if (updateState.status !== 'available') return publicUpdateState()
+  setUpdateState({ status: 'downloading', percent: 0, message: '正在准备下载更新…' })
   try {
     await autoUpdater.downloadUpdate()
   } catch (error) {
