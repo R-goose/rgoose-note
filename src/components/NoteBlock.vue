@@ -404,10 +404,12 @@
                     'table-cell-selected': isTableCellSelected(0, ci),
                     'table-cell-editing': tableCellEditing && isTableCellSelected(0, ci)
                   }"
-                  :contenteditable="tableCanEdit && tableCellEditing"
+                  :contenteditable="tableCanEdit && selected && tableCellEditing && isTableCellSelected(0, ci)"
                   spellcheck="false"
                   @click="onNumericTableCellClick($event, 0, ci)"
                   @dblclick.stop="startNumericTableCellEditing($event, 0, ci)"
+                  @focus="onNumericTableCellFocus($event, 0, ci)"
+                  @beforeinput="onNumericTableCellBeforeInput($event, 0, ci)"
                   @blur="onCellEdit(0, ci, $event)"
                   @keydown.enter.prevent="$event.target.blur()"
                   @keydown="onNumericTableCellKeyDown"
@@ -425,10 +427,12 @@
                     'table-cell-selected': isTableCellSelected(ri + 1, ci),
                     'table-cell-editing': tableCellEditing && isTableCellSelected(ri + 1, ci)
                   }]"
-                  :contenteditable="tableCanEdit && tableCellEditing"
+                  :contenteditable="tableCanEdit && selected && tableCellEditing && isTableCellSelected(ri + 1, ci)"
                   spellcheck="false"
                   @click="onNumericTableCellClick($event, ri + 1, ci)"
                   @dblclick.stop="startNumericTableCellEditing($event, ri + 1, ci)"
+                  @focus="onNumericTableCellFocus($event, ri + 1, ci)"
+                  @beforeinput="onNumericTableCellBeforeInput($event, ri + 1, ci)"
                   @blur="onCellEdit(ri + 1, ci, $event)"
                   @keydown.enter.prevent="$event.target.blur()"
                   @keydown="onNumericTableCellKeyDown"
@@ -839,8 +843,18 @@ const tableSelectionLabel = computed(() => {
   const rowLabel = tableSelection.value.row === 0 ? '表头' : `第 ${tableSelection.value.row} 行`
   return `${rowLabel} · 第 ${tableSelection.value.col + 1} 列`
 })
-const canDeleteSelectedRow = computed(() => !!tableSelection.value && tableSelection.value.row > 0 && tableRows.value.length > 2)
-const canDeleteSelectedColumn = computed(() => !!tableSelection.value && tableRows.value[0].length > 1)
+function canDeleteTableRow(selection) {
+  const row = selection?.row
+  return Number.isInteger(row) && row > 0 && row < tableRows.value.length
+}
+
+function canDeleteTableColumn(selection) {
+  const col = selection?.col
+  return Number.isInteger(col) && col >= 0 && col < tableRows.value[0].length && tableRows.value[0].length > 1
+}
+
+const canDeleteSelectedRow = computed(() => canDeleteTableRow(tableSelection.value))
+const canDeleteSelectedColumn = computed(() => canDeleteTableColumn(tableSelection.value))
 const tableLayoutStyle = computed(() => ({ width: `${tableColumnWidths.value.reduce((sum, width) => sum + width, 0)}px` }))
 
 function selectTableCell(row, col) {
@@ -848,23 +862,40 @@ function selectTableCell(row, col) {
   tableSelection.value = { row, col }
 }
 
+// 编辑态只允许当前单元格接收输入。切换到另一格或块失焦时，先让当前
+// 单元格触发 blur 保存，再清理编辑引用，避免 DOM 焦点和视觉选中分离。
+function finishNumericTableCellEditing() {
+  const activeCell = numericEditingCell.value
+  const selection = tableSelection.value
+  if (activeCell && document.activeElement === activeCell) {
+    activeCell.blur()
+  } else if (activeCell && selection) {
+    onCellEdit(selection.row, selection.col, { target: activeCell })
+  }
+  tableCellEditing.value = false
+  numericEditingCell.value = null
+}
+
+function focusNumericTableNavigation() {
+  nextTick(() => numericTableRef.value?.focus({ preventScroll: true }))
+}
+
+watch([() => props.selected, tableCanEdit], ([selected, canEdit]) => {
+  if (selected && canEdit) return
+  finishNumericTableCellEditing()
+  tableSelection.value = null
+})
+
 // 表格单元格的点击不应继续冒泡到块容器：块已在框选中时，
 // 冒泡会把多选错误地收敛为单选。未选中时仍保留原有的单选行为。
 function onNumericTableCellClick(e, row, col) {
-  const previousSelection = tableSelection.value
-  const isAnotherCell = previousSelection && (previousSelection.row !== row || previousSelection.col !== col)
-  if (tableCellEditing.value && isAnotherCell) {
-    if (numericEditingCell.value) {
-      onCellEdit(previousSelection.row, previousSelection.col, { target: numericEditingCell.value })
-    }
-    tableCellEditing.value = false
-    numericEditingCell.value = null
-    selectTableCell(row, col)
-    nextTick(() => numericTableRef.value?.focus({ preventScroll: true }))
-  } else if (!tableCellEditing.value) {
-    selectTableCell(row, col)
-    nextTick(() => numericTableRef.value?.focus({ preventScroll: true }))
+  // 单击始终回到“选中单元格”态；只有双击或 Enter 才能进入编辑。
+  // 这也覆盖再次单击当前编辑格的情况，避免视觉已失焦但仍可输入。
+  if (tableCellEditing.value) {
+    finishNumericTableCellEditing()
   }
+  selectTableCell(row, col)
+  focusNumericTableNavigation()
   e.stopPropagation()
   emit('select', props.block.id, e)
 }
@@ -883,6 +914,27 @@ function activateNumericTableCell(cell, row, col) {
     cell.focus()
     placeCaretInTableCell(cell, 'ArrowRight')
   })
+}
+
+function isCurrentNumericTableEditingCell(cell, row, col) {
+  return tableCanEdit.value &&
+    props.selected &&
+    tableCellEditing.value &&
+    numericEditingCell.value === cell &&
+    isTableCellSelected(row, col)
+}
+
+function onNumericTableCellFocus(e, row, col) {
+  if (isCurrentNumericTableEditingCell(e.currentTarget, row, col)) return
+  // 防御浏览器在状态切换帧内把焦点落在旧 contenteditable 单元格上。
+  e.currentTarget.blur()
+  focusNumericTableNavigation()
+}
+
+function onNumericTableCellBeforeInput(e, row, col) {
+  if (isCurrentNumericTableEditingCell(e.currentTarget, row, col)) return
+  e.preventDefault()
+  e.stopPropagation()
 }
 
 function placeCaretInTableCell(cell, key) {
@@ -938,7 +990,11 @@ function writeCellTextToClipboard(e, text) {
 
 // 编辑单元格时，方向键交给浏览器移动文本光标；只阻止它继续传给画布快捷键。
 function onNumericTableCellKeyDown(e) {
-  if (!tableCanEdit.value || !tableCellEditing.value) return
+  if (!isCurrentNumericTableEditingCell(e.currentTarget, tableSelection.value?.row, tableSelection.value?.col)) {
+    e.preventDefault()
+    e.stopPropagation()
+    return
+  }
   if (isTableSelectAllShortcut(e)) {
     e.preventDefault()
     e.stopPropagation()
@@ -951,13 +1007,10 @@ function onNumericTableCellKeyDown(e) {
     return
   }
   if (e.key === 'Escape') {
-    const selection = tableSelection.value
     e.preventDefault()
     e.stopPropagation()
-    if (selection) onCellEdit(selection.row, selection.col, e)
-    tableCellEditing.value = false
-    numericEditingCell.value = null
-    nextTick(() => numericTableRef.value?.focus({ preventScroll: true }))
+    finishNumericTableCellEditing()
+    focusNumericTableNavigation()
     return
   }
   if (!tableCaretArrowKeys.has(e.key)) return
@@ -1048,7 +1101,16 @@ function onNumericTableCellMouseDown(e, row, col) {
   const resizeRow = rect.bottom - e.clientY <= edge
   if (!resizeColumn && !resizeRow) {
     // 编辑态放行浏览器原生选区；非编辑态仍拦截，保留单击选格与双击不闪烁。
-    if (tableCellEditing.value) return
+    if (tableCellEditing.value) {
+      e.preventDefault()
+      if (!isTableCellSelected(row, col)) {
+        // 先同步提交原单元格，阻止新单元格在 click 前获得原生可编辑焦点。
+        finishNumericTableCellEditing()
+        selectTableCell(row, col)
+        focusNumericTableNavigation()
+      }
+      return
+    }
     e.preventDefault()
     return
   }
@@ -1185,25 +1247,28 @@ function insertColumnRelative(direction) {
   })
   tableSelection.value = { row: tableSelection.value.row, col }
 }
-function deleteSelectedRow() {
-  if (!canDeleteSelectedRow.value) return
-  const row = tableSelection.value.row
-  const nextRow = Math.max(1, Math.min(row, tableRows.value.length - 2))
+function deleteSelectedRow(selection = tableSelection.value) {
+  const row = selection?.row
+  if (!canDeleteTableRow(selection)) return
+  finishNumericTableCellEditing()
+  const nextRow = tableRows.value.length <= 2 ? 0 : Math.max(1, Math.min(row, tableRows.value.length - 2))
+  const nextCol = Math.min(selection.col || 0, Math.max(0, tableRows.value[0].length - 1))
   emit('update', props.block.id, {
     tableData: deleteTableRow(props.block.tableData, row),
     tableRowHeights: deleteTableSize(props.block.tableRowHeights, row, tableRows.value.length, TABLE_DEFAULT_ROW_HEIGHT, TABLE_MIN_ROW_HEIGHT)
   })
-  tableSelection.value = { row: nextRow, col: tableSelection.value.col }
+  tableSelection.value = { row: nextRow, col: nextCol }
 }
-function deleteSelectedColumn() {
-  if (!canDeleteSelectedColumn.value) return
-  const col = tableSelection.value.col
+function deleteSelectedColumn(selection = tableSelection.value) {
+  const col = selection?.col
+  if (!canDeleteTableColumn(selection)) return
+  finishNumericTableCellEditing()
   const nextCol = Math.max(0, Math.min(col, tableRows.value[0].length - 2))
   emit('update', props.block.id, {
     tableData: deleteTableColumn(props.block.tableData, col),
     tableColumnWidths: deleteTableSize(props.block.tableColumnWidths, col, tableRows.value[0].length, TABLE_DEFAULT_COLUMN_WIDTH, TABLE_MIN_COLUMN_WIDTH)
   })
-  tableSelection.value = { row: tableSelection.value.row, col: nextCol }
+  tableSelection.value = { row: Math.min(selection.row || 0, tableRows.value.length - 1), col: nextCol }
 }
 
 function tableCellsContainContent(cells) {
@@ -1216,42 +1281,52 @@ function tableCellsContainContent(cells) {
 }
 
 function requestDeleteSelectedRow() {
-  if (!canDeleteSelectedRow.value || !tableSelection.value) return
-  const row = tableRows.value[tableSelection.value.row] || []
-  if (tableCellsContainContent(row)) pendingTableDelete.value = { type: 'numeric-row', label: '行' }
-  else deleteSelectedRow()
+  if (!canDeleteTableRow(tableSelection.value)) return
+  const selection = { ...tableSelection.value }
+  const row = tableRows.value[selection.row] || []
+  if (tableCellsContainContent(row)) pendingTableDelete.value = { type: 'numeric-row', label: '行', selection }
+  else deleteSelectedRow(selection)
 }
 
 function requestDeleteSelectedColumn() {
-  if (!canDeleteSelectedColumn.value || !tableSelection.value) return
-  const col = tableSelection.value.col
+  if (!canDeleteTableColumn(tableSelection.value)) return
+  const selection = { ...tableSelection.value }
+  const col = selection.col
   if (tableCellsContainContent(tableRows.value.map(row => row[col] ?? ''))) {
-    pendingTableDelete.value = { type: 'numeric-column', label: '列' }
-  } else deleteSelectedColumn()
+    pendingTableDelete.value = { type: 'numeric-column', label: '列', selection }
+  } else deleteSelectedColumn(selection)
 }
 
 function requestDeleteInlineTableRow() {
   if (!canDeleteInlineTableRow.value || !inlineTableElement || !inlineTableSelection.value) return
-  const row = inlineTableRows(inlineTableElement)[inlineTableSelection.value.row]
-  if (tableCellsContainContent(row?.cells)) pendingTableDelete.value = { type: 'inline-row', label: '行' }
-  else deleteInlineTableRow()
+  const selection = { ...inlineTableSelection.value }
+  const tableIndex = Array.from(editorRef.value?.querySelectorAll('table') || []).indexOf(inlineTableElement)
+  const row = inlineTableRows(inlineTableElement)[selection.row]
+  if (tableCellsContainContent(row?.cells)) pendingTableDelete.value = { type: 'inline-row', label: '行', selection, tableIndex }
+  else deleteInlineTableRow(selection, inlineTableElement)
 }
 
 function requestDeleteInlineTableColumn() {
   if (!canDeleteInlineTableColumn.value || !inlineTableElement || !inlineTableSelection.value) return
-  const col = inlineTableSelection.value.col
+  const selection = { ...inlineTableSelection.value }
+  const tableIndex = Array.from(editorRef.value?.querySelectorAll('table') || []).indexOf(inlineTableElement)
+  const col = selection.col
   const containsContent = inlineTableRows(inlineTableElement).some(row => tableCellsContainContent([row.cells[col]]))
-  if (containsContent) pendingTableDelete.value = { type: 'inline-column', label: '列' }
-  else deleteInlineTableColumn()
+  if (containsContent) pendingTableDelete.value = { type: 'inline-column', label: '列', selection, tableIndex }
+  else deleteInlineTableColumn(selection, inlineTableElement)
 }
 
 function confirmTableDelete() {
-  const type = pendingTableDelete.value?.type
+  const pending = pendingTableDelete.value
+  const type = pending?.type
   pendingTableDelete.value = null
-  if (type === 'numeric-row') deleteSelectedRow()
-  else if (type === 'numeric-column') deleteSelectedColumn()
-  else if (type === 'inline-row') deleteInlineTableRow()
-  else if (type === 'inline-column') deleteInlineTableColumn()
+  if (type === 'numeric-row') deleteSelectedRow(pending.selection)
+  else if (type === 'numeric-column') deleteSelectedColumn(pending.selection)
+  else if (type === 'inline-row' || type === 'inline-column') {
+    const table = editorRef.value?.querySelectorAll('table')?.[pending.tableIndex]
+    if (type === 'inline-row') deleteInlineTableRow(pending.selection, table)
+    else deleteInlineTableColumn(pending.selection, table)
+  }
 }
 const formulaText = ref('')
 const formulaTextareaRef = ref(null)
@@ -1422,7 +1497,7 @@ const inlineTableSelectionLabel = computed(() => {
   return `${Math.max(0, rows - 1)} 行 × ${cols} 列 · ${rowLabel} · 第 ${col + 1} 列`
 })
 const canDeleteInlineTableRow = computed(() => (
-  !!inlineTableSelection.value && inlineTableSelection.value.row > 0 && inlineTableSelection.value.rows > 2
+  !!inlineTableSelection.value && inlineTableSelection.value.row > 0 && inlineTableSelection.value.row < inlineTableSelection.value.rows
 ))
 const canDeleteInlineTableColumn = computed(() => (
   !!inlineTableSelection.value && inlineTableSelection.value.cols > 1
@@ -1871,11 +1946,12 @@ function insertInlineTableRow(direction) {
   commitInlineTableChange(table, Math.min(index, rows.length), Math.min(selection.col, cols - 1))
 }
 
-function deleteInlineTableRow() {
-  if (!canDeleteInlineTableRow.value || !inlineTableElement) return
-  const table = inlineTableElement
-  const { row, col, rows } = inlineTableSelection.value
-  const nextRow = Math.max(1, Math.min(row, rows - 2))
+function deleteInlineTableRow(selection = inlineTableSelection.value, table = inlineTableElement) {
+  if (!inlineTableCanEdit.value || !table || !editorRef.value?.contains(table)) return
+  const rowCount = inlineTableRows(table).length
+  const { row, col } = selection || {}
+  if (!Number.isInteger(row) || row <= 0 || row >= rowCount) return
+  const nextRow = rowCount <= 2 ? 0 : Math.max(1, Math.min(row, rowCount - 2))
   table.deleteRow(row)
   commitInlineTableChange(table, nextRow, col)
 }
@@ -1902,10 +1978,11 @@ function insertInlineTableColumn(direction) {
   commitInlineTableChange(table, selection.row, index)
 }
 
-function deleteInlineTableColumn() {
-  if (!canDeleteInlineTableColumn.value || !inlineTableElement) return
-  const table = inlineTableElement
-  const { row, col, cols } = inlineTableSelection.value
+function deleteInlineTableColumn(selection = inlineTableSelection.value, table = inlineTableElement) {
+  if (!inlineTableCanEdit.value || !table || !editorRef.value?.contains(table)) return
+  const { row, col } = selection || {}
+  const cols = inlineTableColumnCount(inlineTableRows(table))
+  if (!Number.isInteger(col) || col < 0 || col >= cols || cols <= 1) return
   const nextCol = Math.max(0, Math.min(col, cols - 2))
   inlineTableRows(table).forEach(tableRow => {
     if (tableRow.cells[col]) tableRow.deleteCell(col)

@@ -4,7 +4,9 @@ export function parseTableData(raw, fallback = DEFAULT_TABLE_DATA) {
   const source = typeof raw === 'string' && raw.trim() ? raw : fallback
   const rows = source
     .split(/\r?\n/)
-    .filter(line => line.trim())
+    // 空白数据行也是有效的表格行，尤其是单列表格新增出的空行。
+    // 仅忽略开头的空行，保留表头之后的空行以免增删行后被重新解析丢失。
+    .filter((line, index) => line.trim() || index > 0)
     .map(line => line.split(/\||\t/).map(cell => cell.trim()))
 
   if (!rows.length) return [['列1'], ['']]
@@ -13,7 +15,6 @@ export function parseTableData(raw, fallback = DEFAULT_TABLE_DATA) {
     ...row.slice(0, columnCount),
     ...Array(Math.max(0, columnCount - row.length)).fill('')
   ])
-  if (normalized.length === 1) normalized.push(Array(columnCount).fill(''))
   return normalized
 }
 
@@ -57,7 +58,7 @@ export function insertTableRow(raw, rowIndex) {
 
 export function deleteTableRow(raw, rowIndex) {
   const rows = parseTableData(raw)
-  if (rows.length <= 2 || rowIndex <= 0 || rowIndex >= rows.length) return serializeTableData(rows)
+  if (rows.length <= 1 || rowIndex <= 0 || rowIndex >= rows.length) return serializeTableData(rows)
   rows.splice(rowIndex, 1)
   return serializeTableData(rows)
 }

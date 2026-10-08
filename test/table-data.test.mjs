@@ -30,8 +30,11 @@ assert.equal(deleteTableRow(source, 1), '姓名|分数\n小鸭|80')
 assert.equal(deleteTableColumn(source, 0), '分数\n90\n80')
 assert.equal(updateTableCell(source, 1, 1, ' 95 '), '姓名|分数\n小鹅|95\n小鸭|80')
 
-// 至少保留表头、一行数据和一列，避免编辑操作产生不可用空表。
-assert.equal(deleteTableRow('A\n1', 1), 'A\n1')
+// 至少保留表头和一列；最后一条数据行也可以删除。
+assert.equal(deleteTableRow('A\n1', 1), 'A')
+assert.deepEqual(parseTableData('A'), [['A']])
+assert.equal(insertTableRow('A', 1), 'A\n')
+assert.deepEqual(parseTableData('A\n'), [['A'], ['']])
 assert.equal(deleteTableColumn('A\n1', 0), 'A\n1')
 
 console.log('table-data: PASS')

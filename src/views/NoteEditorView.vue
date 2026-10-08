@@ -1018,13 +1018,6 @@
           </svg>
           新建公式块
         </div>
-        <div class="context-menu-item" @click="addTableBlockAtContext">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="12" y1="3" x2="12" y2="21"/>
-          </svg>
-          新建数值表格
-        </div>
-
         <div class="context-menu-divider"></div>
         <div class="context-menu-label">媒体</div>
         <div class="context-menu-item" @click="addImageBlockAtContext">
@@ -4095,22 +4088,6 @@ function addFormulaBlockAtContext() {
       type: 'formula',
       formula: '',
       width: 240
-    })
-    contextMenu.value.show = false
-    focusAndCenterBlock(block.id)
-  }
-}
-
-function addTableBlockAtContext() {
-  if (note.value) {
-    saveHistory()
-    const block = noteStore.addBlock(note.value.id, {
-      x: contextMenu.value.canvasX - 140,
-      y: contextMenu.value.canvasY - 50,
-      type: 'table',
-      tableData: '属性|攻击|防御\n角色A|100|80\n角色B|90|95\n角色C|110|70',
-      tableAnalysis: false,
-      width: 280
     })
     contextMenu.value.show = false
     focusAndCenterBlock(block.id)
