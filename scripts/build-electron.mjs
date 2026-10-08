@@ -69,7 +69,7 @@ async function main() {
     // electron-builder 为 Windows 交叉构建原生模块时会重写工作区的
     // better-sqlite3 二进制。无论构建结果如何，都恢复当前 Mac 的模块，
     // 以免后续 electron:dev 无法加载 SQLite。
-    if (windowsBuildStarted) {
+    if (windowsBuildStarted && process.platform === 'darwin') {
       await run('node', [cli, 'install-app-deps', '--platform', 'darwin', '--arch', 'arm64'], '恢复 macOS 原生依赖失败')
     }
   }
