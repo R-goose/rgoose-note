@@ -1,7 +1,7 @@
 {
   "name": "r-goose-note",
   "private": true,
-  "version": "2.5.3",
+  "version": "2.5.4",
   "description": "R-Goose Note - 画布式笔记应用",
   "author": "R-Goose",
   "type": "module",
@@ -19,11 +19,12 @@
     "test:smoke": "electron --no-sandbox . --test-smoke",
     "kill:app": "node scripts/kill-app.mjs",
     "clean:release": "node scripts/clean-release.mjs",
+    "prepare:installer-assets": "node scripts/prepare-installer-assets.mjs",
     "electron:dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
-    "electron:build": "npm run kill:app && npm run clean:release && vite build && node scripts/build-electron.mjs",
-    "electron:build:mirror": "npm run kill:app && npm run clean:release && vite build && node scripts/build-electron.mjs --mirror",
+    "electron:build": "npm run prepare:installer-assets && npm run kill:app && npm run clean:release && vite build && node scripts/build-electron.mjs",
+    "electron:build:mirror": "npm run prepare:installer-assets && npm run kill:app && npm run clean:release && vite build && node scripts/build-electron.mjs --mirror",
     "electron:publish:gitee": "npm run electron:publish:gitee:win",
-    "electron:publish:gitee:win": "npm run kill:app && npm run clean:release && vite build && node scripts/build-electron.mjs --publish-gitee --windows-only"
+    "electron:publish:gitee:win": "npm run prepare:installer-assets && npm run kill:app && npm run clean:release && vite build && node scripts/build-electron.mjs --publish-gitee --windows-only"
   },
   "dependencies": {
     "adm-zip": "^0.5.18",
@@ -103,6 +104,29 @@
       ],
       "icon": "build/icon.icns",
       "category": "public.app-category.productivity"
+    },
+    "dmg": {
+      "background": "build/dmg-background.png",
+      "icon": "build/icon.icns",
+      "iconSize": 92,
+      "iconTextSize": 12,
+      "window": {
+        "width": 540,
+        "height": 380
+      },
+      "contents": [
+        {
+          "x": 135,
+          "y": 220,
+          "type": "file"
+        },
+        {
+          "x": 405,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
     },
     "linux": {
       "target": "AppImage",
