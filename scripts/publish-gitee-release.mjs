@@ -1,4 +1,5 @@
-import { readFile, readdir, stat } from 'node:fs/promises'
+import { readdir, stat } from 'node:fs/promises'
+import { spawn } from 'node:child_process'
 import { basename, resolve } from 'node:path'
 import { argv, env, exit } from 'node:process'
 
@@ -110,12 +111,8 @@ async function uploadAttachment(releaseId, filePath) {
   const name = basename(filePath)
   for (let attempt = 1; attempt <= UPLOAD_MAX_ATTEMPTS; attempt += 1) {
     try {
-      // 每次重试都重新创建 Blob 与 FormData；fetch 失败后其请求体不可复用。
-      const content = await readFile(filePath)
-      const form = new FormData()
-      form.append('file', new Blob([content]), name)
       console.log(`正在上传：${name}（${Math.ceil(size / 1024 / 1024)} MB，第 ${attempt}/${UPLOAD_MAX_ATTEMPTS} 次）`)
-      await request(`/releases/${releaseId}/attach_files`, { method: 'POST', body: form }, UPLOAD_TIMEOUT_MS)
+      await uploadWithCurl(releaseId, filePath)
       console.log(`已上传：${name}`)
       return
     } catch (error) {
@@ -127,6 +124,41 @@ async function uploadAttachment(releaseId, filePath) {
       await new Promise(resolve => setTimeout(resolve, delay))
     }
   }
+}
+
+function escapeCurlConfig(value) {
+  return String(value).replaceAll('\\', '\\\\').replaceAll('"', '\\"')
+}
+
+function uploadWithCurl(releaseId, filePath) {
+  // 大文件通过 Node 的 undici 上传到 Gitee 时会频繁断连。curl 使用流式
+  // multipart，不会把完整 EXE 载入 Node 内存；令牌仅经标准输入传给 curl，
+  // 不会出现在 Actions 日志、命令行参数或临时配置文件中。
+  const url = endpoint(`/releases/${releaseId}/attach_files`).toString()
+  const config = [
+    'fail-with-body',
+    'silent',
+    'show-error',
+    'location',
+    'connect-timeout = "60"',
+    `max-time = "${Math.ceil(UPLOAD_TIMEOUT_MS / 1000)}"`,
+    `url = "${escapeCurlConfig(url)}"`,
+    `form = "file=@${escapeCurlConfig(filePath)}"`
+  ].join('\n')
+
+  return new Promise((resolveUpload, rejectUpload) => {
+    const curl = spawn(process.platform === 'win32' ? 'curl.exe' : 'curl', ['--config', '-'], {
+      stdio: ['pipe', 'ignore', 'pipe']
+    })
+    let stderr = ''
+    curl.stderr.on('data', chunk => { stderr += chunk })
+    curl.once('error', rejectUpload)
+    curl.once('close', code => {
+      if (code === 0) resolveUpload()
+      else rejectUpload(new Error(`curl 上传失败（退出码 ${code ?? 1}）：${stderr.trim() || '未知错误'}`))
+    })
+    curl.stdin.end(config)
+  })
 }
 
 try {
