@@ -144,7 +144,7 @@
     <div class="block-content">
       <Teleport to="#note-table-toolbar-host">
       <div
-        v-if="inlineTableCanEdit && selected && inlineTableEditing && inlineTableSelection"
+        v-if="inlineTableCanEdit && selected && inlineTableSelection"
         class="table-cell-tools inline-table-tools note-table-tools"
         @mousedown.prevent.stop
       >
@@ -1868,11 +1868,13 @@ function inlineTableColumnCount(rows = inlineTableRows()) {
 }
 
 function clearInlineTableSelection() {
+  if (inlineTableElement) inlineTableElement.contentEditable = 'false'
   editorRef.value?.querySelectorAll('.inline-table-cell-selected').forEach(cell => {
     cell.classList.remove('inline-table-cell-selected', 'inline-table-cell-editing')
   })
   inlineTableElement = null
   inlineTableSelection.value = null
+  inlineTableEditing.value = false
 }
 
 function selectInlineTableCell(table, cell) {
@@ -1907,9 +1909,20 @@ function selectInlineTablePosition(table, row, col) {
 }
 
 function commitInlineTableChange(table, row, col) {
+  // 增删行列属于结构操作；完成后回到单击选中态，不能沿用此前双击进入的编辑态。
+  // 否则 table 仍为 contenteditable，下一次单击就能直接输入。
+  inlineTableEditing.value = false
   selectInlineTablePosition(table, row, col)
+  const tableIndex = Array.from(editorRef.value?.querySelectorAll('table') || []).indexOf(table)
   emit('update', props.block.id, { content: serializeEditorContent() })
-  nextTick(reportResize)
+  nextTick(() => {
+    const currentTable = editorRef.value?.querySelectorAll('table')?.[tableIndex]
+    if (props.selected && inlineTableCanEdit.value && currentTable) {
+      selectInlineTablePosition(currentTable, row, col)
+      focusInlineTableNavigation(currentTable)
+    }
+    reportResize()
+  })
 }
 
 function syncInlineTableWidth(table) {
