@@ -12,14 +12,14 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   publish:
-    name: Local Windows release
-    # 由此 Mac 的专用 Runner 执行：避免 GitHub Hosted Runner 到 Gitee
-    # 的大文件跨网传输，并让工作流使用已有的 GITEE_TOKEN Secret。
-    runs-on: [self-hosted, macOS, ARM64, rgoose-note-release]
+    name: Windows release
+    # 由 GitHub 托管的 Windows Runner 上传到 GitHub Release，避开本机代理
+    # 对大文件上传的中断；公开仓库的 GitHub Actions 不计时收费。
+    runs-on: windows-latest
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -39,7 +39,16 @@ jobs:
           RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
         run: node scripts/verify-release-version.mjs
 
-      - name: Build and publish Windows installer to Gitee Release
-        env:
-          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
-        run: npm run electron:publish:gitee:win
+      - name: Build Windows installer
+        run: npm run electron:build:win
+
+      - name: Publish Windows updater to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest
+          files: |
+            release-build-*/R-Goose Note Setup *.exe
+            release-build-*/R-Goose Note Setup *.exe.blockmap
+            release-build-*/latest.yml
+          fail_on_unmatched_files: true

@@ -1,7 +1,7 @@
 {
   "name": "r-goose-note",
   "private": true,
-  "version": "2.5.7",
+  "version": "2.5.8",
   "description": "R-Goose Note - 画布式笔记应用",
   "author": "R-Goose",
   "type": "module",
@@ -23,6 +23,7 @@
     "electron:dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
     "electron:build": "npm run prepare:installer-assets && npm run kill:app && npm run clean:release && vite build && node scripts/build-electron.mjs",
     "electron:build:mirror": "npm run prepare:installer-assets && npm run kill:app && npm run clean:release && vite build && node scripts/build-electron.mjs --mirror",
+    "electron:build:win": "npm run prepare:installer-assets && npm run kill:app && npm run clean:release && vite build && node scripts/build-electron.mjs --windows-only",
     "electron:publish:gitee": "npm run electron:publish:gitee:win",
     "electron:publish:gitee:win": "npm run prepare:installer-assets && npm run kill:app && npm run clean:release && vite build && node scripts/build-electron.mjs --publish-gitee --windows-only"
   },
@@ -94,7 +95,7 @@
       "publish": [
         {
           "provider": "generic",
-          "url": "https://gitee.com/kokomi123/rgoose-note/releases/download/latest"
+          "url": "https://github.com/R-goose/rgoose-note/releases/download/latest"
         }
       ]
     },
