@@ -42,6 +42,12 @@ jobs:
       - name: Build Windows installer
         run: npm run electron:build:win
 
+      - name: Align updater manifest with GitHub asset names
+        shell: pwsh
+        run: |
+          $releaseDir = (Get-ChildItem -Directory release-build-* | Select-Object -First 1).Name
+          node scripts/prepare-github-release-manifest.mjs --dir $releaseDir
+
       - name: Publish Windows updater to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
