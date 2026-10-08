@@ -540,7 +540,6 @@
               <div v-if="appUpdate.releaseNotes" class="update-notes">{{ appUpdate.releaseNotes }}</div>
             </div>
             <div class="update-control">
-              <span v-if="appUpdate.status === 'downloading'" class="update-progress">{{ appUpdate.percent }}%</span>
               <button class="btn btn-primary btn-sm" :disabled="updateActionDisabled" @click="runAppUpdateAction">
                 {{ updateActionLabel }}
               </button>
