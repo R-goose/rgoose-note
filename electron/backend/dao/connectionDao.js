@@ -45,15 +45,17 @@ module.exports = {
     const ts = conn.updatedAt || conn.createdAt || 0
     db.prepare(`
       INSERT INTO connections (
-        id, noteId, "from", "to", shape, dash, arrow, dir, color, width, label, createdAt, updatedAt
+        id, noteId, "from", "to", fromSide, toSide, shape, dash, arrow, dir, color, width, label, createdAt, updatedAt
       ) VALUES (
-        @id, @noteId, @from, @to, @shape, @dash, @arrow, @dir, @color, @width, @label, @createdAt, @updatedAt
+        @id, @noteId, @from, @to, @fromSide, @toSide, @shape, @dash, @arrow, @dir, @color, @width, @label, @createdAt, @updatedAt
       )
     `).run({
       id: conn.id,
       noteId: conn.noteId,
       from: conn.from,
       to: conn.to,
+      fromSide: conn.fromSide ?? null,
+      toSide: conn.toSide ?? null,
       shape: conn.shape || 'straight',
       dash: conn.dash || 'solid',
       arrow: conn.arrow || 'standard',
@@ -76,6 +78,8 @@ module.exports = {
       UPDATE connections SET
         "from" = @from,
         "to" = @to,
+        fromSide = @fromSide,
+        toSide = @toSide,
         shape = @shape,
         dash = @dash,
         arrow = @arrow,
@@ -89,6 +93,8 @@ module.exports = {
       id,
       from: merged.from,
       to: merged.to,
+      fromSide: merged.fromSide ?? null,
+      toSide: merged.toSide ?? null,
       shape: merged.shape || 'straight',
       dash: merged.dash || 'solid',
       arrow: merged.arrow || 'standard',

@@ -97,8 +97,12 @@ module.exports = function runSmoke(done) {
 
     console.log('=== 5. 连线 ===')
     const conn = connectionService.create(note.id, {
-      id: uuid(), from: block1.id, to: block2.id, shape: 'bezier', color: '#4a9568'
+      id: uuid(), from: block1.id, to: block2.id, fromSide: 'right', toSide: 'top', shape: 'bezier', color: '#4a9568'
     })
+    assert(conn.fromSide === 'right' && conn.toSide === 'top', '连线端口写入数据库')
+    assert(connectionService.list(note.id)[0].toSide === 'top', '连线端口重新读取后仍存在')
+    connectionService.update(note.id, conn.id, { toSide: 'left' })
+    assert(connectionService.list(note.id)[0].toSide === 'left', '连线端口更新后仍存在')
     const dupConn = connectionService.create(note.id, {
       id: uuid(), from: block2.id, to: block1.id, shape: 'straight'
     })

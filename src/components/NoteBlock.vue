@@ -4295,10 +4295,10 @@ onUnmounted(() => {
   opacity: 1;
 }
 
-.connect-dot-top { top: -5px; left: calc(50% - 5px); }
-.connect-dot-right { right: -5px; top: calc(50% - 5px); }
-.connect-dot-bottom { bottom: -5px; left: calc(50% - 5px); }
-.connect-dot-left { left: -5px; top: calc(50% - 5px); }
+.connect-dot-top { top: -6px; left: calc(50% - 5px); }
+.connect-dot-right { right: -6px; top: calc(50% - 5px); }
+.connect-dot-bottom { bottom: -6px; left: calc(50% - 5px); }
+.connect-dot-left { left: -6px; top: calc(50% - 5px); }
 
 .connect-dot:hover {
   transform: scale(1.2);

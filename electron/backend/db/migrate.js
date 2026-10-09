@@ -6,7 +6,7 @@
 const fs = require('fs')
 const path = require('path')
 
-const CURRENT_VER = 6
+const CURRENT_VER = 7
 
 /**
  * 对已存在的 blocks 表补齐缺失列（v1 → v2）
@@ -84,12 +84,14 @@ function ensureTemplateColumns(db) {
   }
 }
 
-/** 对已存在的 connections 表补齐 updatedAt 列（旧库兼容） */
+/** 对已存在的 connections 表补齐新增列（旧库兼容） */
 function ensureConnectionColumns(db) {
   const cols = db.prepare("PRAGMA table_info(connections)").all().map(c => c.name)
   if (!cols.includes('updatedAt')) {
     db.exec(`ALTER TABLE connections ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0`)
   }
+  if (!cols.includes('fromSide')) db.exec('ALTER TABLE connections ADD COLUMN fromSide TEXT')
+  if (!cols.includes('toSide')) db.exec('ALTER TABLE connections ADD COLUMN toSide TEXT')
 }
 
 /**

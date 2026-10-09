@@ -325,6 +325,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useToast } from '@/composables/useToast'
 import { generateId } from '@/utils'
 import { pushOverlappingBlocks } from '@/utils/blockLayout'
+import { connectionEndpoints, connectionPort } from '@/utils/connectionPorts'
 import { useTemplateStore } from '@/stores/template'
 import NoteBlock from '@/components/NoteBlock.vue'
 
@@ -675,18 +676,20 @@ function startConnection(blockId, position) {
     return
   }
   if (connectingFrom.value) {
-    endConnection(blockId)
+    endConnection(blockId, position)
     return
   }
   connectingFrom.value = blockId
   connectingPosition.value = position
 }
-function endConnection(blockId) {
+function endConnection(blockId, position) {
   if (!connectMode.value || !connectingFrom.value || connectingFrom.value === blockId) return
   draftConnections.value.push({
     id: generateId(),
     from: connectingFrom.value,
     to: blockId,
+    fromSide: connectingPosition.value,
+    toSide: position,
     shape: 'straight',
     color: '#6bbd8f',
     width: '2',
@@ -878,13 +881,6 @@ const connectionMarkers = computed(() => {
   return list
 })
 
-function edgePoint(cx, cy, dx, dy, halfW, halfH) {
-  if (dx === 0 && dy === 0) return { x: cx + halfW, y: cy }
-  const tx = dx !== 0 ? halfW / Math.abs(dx) : Infinity
-  const ty = dy !== 0 ? halfH / Math.abs(dy) : Infinity
-  const t = Math.min(tx, ty)
-  return { x: cx + dx * t, y: cy + dy * t }
-}
 function cross(ax, ay, bx, by) { return ax * by - ay * bx }
 function segmentsIntersect(a, b, c, d) {
   const d1 = cross(c.x - a.x, c.y - a.y, b.x - a.x, b.y - a.y)
@@ -1047,8 +1043,10 @@ function getConnectionPath(conn) {
   const toCenterY = toBlock.y + toH / 2
   const dx = toCenterX - fromCenterX
   const dy = toCenterY - fromCenterY
-  const from = edgePoint(fromCenterX, fromCenterY, dx, dy, fromW / 2, fromH / 2)
-  const to = edgePoint(toCenterX, toCenterY, -dx, -dy, toW / 2, toH / 2)
+  const { from, to } = connectionEndpoints(
+    fromBlock, { width: fromW, height: fromH },
+    toBlock, { width: toW, height: toH }, conn
+  )
   if ([from.x, from.y, to.x, to.y].some(v => Number.isNaN(v) || !Number.isFinite(v))) return ''
   const shape = resolveConnShape(conn)
   const isCurved = shape === 'bezier'
@@ -1082,7 +1080,7 @@ const tempConnectionPath = computed(() => {
   const toY = tempMousePos.value.y
   const dx = toX - fromCenterX
   const dy = toY - fromCenterY
-  const from = edgePoint(fromCenterX, fromCenterY, dx, dy, fromW / 2, fromH / 2)
+  const from = connectionPort(fromBlock, { width: fromW, height: fromH }, connectingPosition.value)
   const fromX = from.x, fromY = from.y
   if ([fromX, fromY, toX, toY].some(v => Number.isNaN(v) || !Number.isFinite(v))) return ''
   const fromDirX = fromX - fromCenterX

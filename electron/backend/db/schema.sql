@@ -95,6 +95,8 @@ CREATE TABLE IF NOT EXISTS connections (
   noteId        TEXT    NOT NULL,
   "from"        TEXT    NOT NULL,
   "to"          TEXT    NOT NULL,
+  fromSide      TEXT,
+  toSide        TEXT,
   shape         TEXT    NOT NULL DEFAULT 'straight',
   dash          TEXT    NOT NULL DEFAULT 'solid',
   arrow         TEXT    NOT NULL DEFAULT 'standard',

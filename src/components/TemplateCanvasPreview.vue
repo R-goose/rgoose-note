@@ -86,6 +86,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import NoteBlock from '@/components/NoteBlock.vue'
+import { connectionEndpoints } from '@/utils/connectionPorts'
 
 const props = defineProps({
   blocks: { type: Array, default: () => [] },
@@ -167,16 +168,6 @@ const sceneStyle = computed(() => {
 const blockMap = computed(() => new Map(props.blocks.map(block => [block.id, block])))
 const visibleConnections = computed(() => props.connections.filter(conn => blockMap.value.has(conn?.from) && blockMap.value.has(conn?.to)))
 
-function edgePoint(block, dx, dy) {
-  const { width, height } = blockSize(block)
-  const cx = (Number(block.x) || 0) + width / 2
-  const cy = (Number(block.y) || 0) + height / 2
-  const tx = dx === 0 ? Infinity : width / 2 / Math.abs(dx)
-  const ty = dy === 0 ? Infinity : height / 2 / Math.abs(dy)
-  const t = Math.min(tx, ty)
-  return { x: cx + dx * t, y: cy + dy * t }
-}
-
 function connectionPoints(conn) {
   const fromBlock = blockMap.value.get(conn.from)
   const toBlock = blockMap.value.get(conn.to)
@@ -188,8 +179,7 @@ function connectionPoints(conn) {
   const dx = toCenter.x - fromCenter.x
   const dy = toCenter.y - fromCenter.y
   return {
-    from: edgePoint(fromBlock, dx, dy),
-    to: edgePoint(toBlock, -dx, -dy),
+    ...connectionEndpoints(fromBlock, fromSize, toBlock, toSize, conn),
     dx,
     dy
   }

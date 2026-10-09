@@ -13,7 +13,7 @@ const sourceBlocks = [
   { id: 'note-image', type: 'image', imageUrl: 'asset://outside-template' }
 ]
 const sourceConnections = [
-  { id: 'note-line', from: 'note-a', to: 'note-b', shape: 'bezier', dash: 'dashed', color: '#123456', createdAt: 3 },
+  { id: 'note-line', from: 'note-a', to: 'note-b', fromSide: 'bottom', toSide: 'left', shape: 'bezier', dash: 'dashed', color: '#123456', createdAt: 3 },
   { id: 'orphan-line', from: 'note-a', to: 'note-image', shape: 'straight' }
 ]
 
@@ -30,6 +30,8 @@ assert.deepEqual(sanitized.connections, [{
   id: 'template-4',
   from: 'template-1',
   to: 'template-3',
+  fromSide: 'bottom',
+  toSide: 'left',
   shape: 'bezier',
   dash: 'dashed',
   color: '#123456'
@@ -47,6 +49,8 @@ assert.deepEqual(instantiated.connections, [{
   id: 'note-4',
   from: 'note-1',
   to: 'note-3',
+  fromSide: 'bottom',
+  toSide: 'left',
   shape: 'bezier',
   dash: 'dashed',
   color: '#123456'

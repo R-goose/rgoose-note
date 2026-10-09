@@ -1160,6 +1160,7 @@ import MediaPicker from '@/components/MediaPicker.vue'
 import { markdownToHtml, isLikelyMarkdown } from '@/utils/markdown'
 import { deepClone } from '@/utils'
 import { pushOverlappingBlocks } from '@/utils/blockLayout'
+import { connectionEndpoints, connectionPort } from '@/utils/connectionPorts'
 import CustomSelect from '@/components/CustomSelect.vue'
 import interact, { rect } from 'interactjs'
 import { useToast } from '@/composables/useToast'
@@ -2023,9 +2024,8 @@ const tempConnectionPath = computed(() => {
   
   const dx = toX - fromCenterX
   const dy = toY - fromCenterY
-  
-  // 复用统一的射线相交算法，保证临时连线和正式连线起点一致
-  const from = edgePoint(fromCenterX, fromCenterY, dx, dy, fromW / 2, fromH / 2)
+
+  const from = connectionPort(fromBlock, { width: fromW, height: fromH }, connectingPosition.value)
   const fromX = from.x, fromY = from.y
   if ([fromX, fromY, toX, toY].some(v => Number.isNaN(v) || !Number.isFinite(v))) return ''
   
@@ -4899,7 +4899,10 @@ function startConnection(blockId, position) {
 function endConnection(blockId, position) {
   if (!connectMode.value || !connectingFrom.value || connectingFrom.value === blockId) return
   saveHistory()
-  noteStore.addConnection(note.value.id, connectingFrom.value, blockId, 'straight')
+  noteStore.addConnection(note.value.id, connectingFrom.value, blockId, 'straight', {
+    fromSide: connectingPosition.value,
+    toSide: position
+  })
   connectingFrom.value = null
   connectingPosition.value = null
 }
@@ -4988,16 +4991,6 @@ const connectionMarkers = computed(() => {
   }
   return list
 })
-
-// 从矩形中心 (cx,cy) 沿 (dx,dy) 方向射线，与矩形边 [cx±halfW, cy±halfH] 的交点
-// 用 t 参数法，对 dx/dy 为 0 的情况做 Infinity 兜底，彻底避免 NaN
-function edgePoint(cx, cy, dx, dy, halfW, halfH) {
-  if (dx === 0 && dy === 0) return { x: cx + halfW, y: cy }
-  const tx = dx !== 0 ? halfW / Math.abs(dx) : Infinity
-  const ty = dy !== 0 ? halfH / Math.abs(dy) : Infinity
-  const t = Math.min(tx, ty)
-  return { x: cx + dx * t, y: cy + dy * t }
-}
 
 // ===== 连线避障路由：可见性图 + 启发式折线 =====
 // 叉积
@@ -5187,10 +5180,10 @@ function getConnectionPath(conn) {
   const dx = toCenterX - fromCenterX
   const dy = toCenterY - fromCenterY
   
-  // 起点：从 from 中心朝 to 方向打到 from 边缘
-  const from = edgePoint(fromCenterX, fromCenterY, dx, dy, fromW / 2, fromH / 2)
-  // 终点：从 to 中心朝 from 方向（即 -dx,-dy）打到 to 边缘
-  const to = edgePoint(toCenterX, toCenterY, -dx, -dy, toW / 2, toH / 2)
+  const { from, to } = connectionEndpoints(
+    fromBlock, { width: fromW, height: fromH },
+    toBlock, { width: toW, height: toH }, conn
+  )
   
   // 任一端点是 NaN 则不绘制，避免出现残缺路径
   if ([from.x, from.y, to.x, to.y].some(v => Number.isNaN(v) || !Number.isFinite(v))) return ''
